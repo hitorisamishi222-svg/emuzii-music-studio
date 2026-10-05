@@ -33,4 +33,6 @@
     setStatus(`歌詞照合用音源を読み込みました：${file.name||"音源"}`);
   }
   window.emuziiCore={state,setStatus,accumAudio102Change,lyricAudio103Change};
+  $("accumAudio102")?.addEventListener("change",accumAudio102Change);
+  $("lyricAudio103")?.addEventListener("change",lyricAudio103Change);
 })();
