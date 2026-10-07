@@ -1,4 +1,4 @@
-const ALLOWED = new Set(['health','v1/models','release_task','query_result','v1/audio']);
+const ALLOWED = new Set(['health','v1/models','v1/stats','format_input','release_task','query_result','v1/audio']);
 
 function targetPath(req) {
   const parts = Array.isArray(req.query.path) ? req.query.path : [req.query.path].filter(Boolean);
