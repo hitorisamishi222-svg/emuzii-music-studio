@@ -1,21 +1,33 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.10</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.11</title>
 <style>body{font-family:system-ui;background:#101622;color:#fff;max-width:700px;margin:auto;padding:16px}section{background:#222c3d;padding:16px;border-radius:14px;margin:12px 0}button,select,input{font:inherit;margin:6px 0;padding:9px}button{background:#5279fa;color:white;border:0;border-radius:9px}button:disabled{opacity:.35}audio,input[type=range]{width:100%}small,p{color:#c4d0e1}output{font-weight:bold}</style></head><body>
-<h2>🎤 ASAHI 歌入れサポート v0.10</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
+<h2>🎤 ASAHI 歌入れサポート v0.11</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
 <section><h3>1. 伴奏アップロード</h3><input id="file" type="file" accept="audio/*"><p id="track">未選択</p><audio id="backing" controls playsinline></audio></section>
 <section><h3>2. 録音</h3><select id="mode"><option value="mic">マイクのみ</option><option value="mix">伴奏＋マイク</option><option value="backing">伴奏のみ</option></select><p><button id="record" disabled>● 録音開始</button> <button id="stop" disabled>■ 停止</button></p><p id="status" role="status">伴奏を選んでください</p><audio id="vocal" controls playsinline></audio><small>イヤホン推奨。録音中はページを前面に。伴奏とマイクは別々に保持します。</small></section>
 <section><h3>3. 保存したTAKEの復元</h3><label>歌声ファイル <input id="importVocal" type="file" accept="audio/*"></label><label>TAKE情報（JSON） <input id="importMeta" type="file" accept=".json,application/json"></label><p><small>以前保存した歌声と補正値を読み込んで、再ミックスできます。伴奏は別途読み込んでください。</small></p></section><section><h3>4. ズレ補正</h3><output id="value">+0.00秒</output><input id="offset" type="range" min="-3" max="3" step=".05" value="0"><button id="minus">−0.05</button><button id="zero">0に戻す</button><button id="plus">＋0.05</button><p>マイナス＝歌声を前へ、プラス＝後ろへ</p></section>
-<section><h3>4. TAKE保存・総合ミュージック連携</h3><label>SONG ID <input id="songId" placeholder="SONG-0001" maxlength="60"></label><label>TAKE名 <input id="takeName" placeholder="TAKE-001" maxlength="60"></label><p><button id="saveVocal" disabled>歌声の原音を保存</button><button id="saveMeta" disabled>TAKE情報を保存</button></p><small>音声ファイルとJSONをセットで保存すると、後で別の編集ソフトにも引き継げます。</small></section><section><h3>5. 端末内TAKE保存</h3>
+<section><h3>5. TAKE保存・総合ミュージック連携</h3><label>SONG ID <input id="songId" placeholder="SONG-0001" maxlength="60"></label><label>TAKE名 <input id="takeName" placeholder="TAKE-001" maxlength="60"></label><p><button id="saveVocal" disabled>歌声の原音を保存</button><button id="saveMeta" disabled>TAKE情報を保存</button></p><small>音声ファイルとJSONをセットで保存すると、後で別の編集ソフトにも引き継げます。</small></section><section><h3>6. 端末内TAKE保存</h3>
 <p><button id="localSave" disabled>このTAKEを端末に保存</button><button id="localRefresh">一覧を更新</button></p>
 <label>保存済みTAKE <select id="localList"><option value="">まだ読み込んでいません</option></select></label>
 <button id="localLoad" disabled>このTAKEを復元</button><button id="localDelete" disabled>このTAKEを削除</button>
-<p><small>録音完了時に原音を自動保存。補正値・TAKE名・SONG IDの変更も自動保存します。プライベートブラウズやサイトデータ削除で消える場合があるため、重要な録音は一括バックアップも保存してください。</small></p>
-</section><section><h3>6. 安全なTAKEバックアップ</h3><button id="backup" disabled>歌声＋TAKE情報を一括保存</button><label>一括バックアップを復元 <input id="restoreBackup" type="file" accept=".asahitake,application/json"></label><p><small>一括バックアップには録音音声が含まれるためファイルサイズが大きくなります。端末外にも保管してください。</small></p></section><section><h3>7. 補正の試聴</h3><p>伴奏と歌声のズレを聞いて確認。調整中の原音・伴奏は変更しません。</p><button id="listen" disabled>▶ 補正を試聴</button><button id="listenStop" disabled>■ 試聴を停止</button></section><section><h3>8. 合成・保存</h3><button id="mix" disabled>WAVを作成</button><p id="renderProgress" role="status"></p><audio id="result" controls playsinline></audio><button id="save" disabled>WAVを保存</button><button id="share" disabled>共有</button><p>総合ミュージックへの直接SONG ID同期は次期実装。現段階はWAVファイル連携。</p></section>
+<p><small>録音完了後、歌声原本を先に自動保存します。補正値・TAKE名・SONG IDの変更も自動保存します。プライベートブラウズやサイトデータ削除で消える場合があるため、重要な録音は一括バックアップも保存してください。</small></p>
+</section><section><h3>7. 安全なTAKEバックアップ</h3><button id="backup" disabled>歌声＋TAKE情報を一括保存</button><label>一括バックアップを復元 <input id="restoreBackup" type="file" accept=".asahitake,application/json"></label><p><small>一括バックアップには録音音声が含まれるためファイルサイズが大きくなります。端末外にも保管してください。</small></p></section><section><h3>8. 補正の試聴</h3><p>伴奏と歌声のズレを聞いて確認。調整中の原音・伴奏は変更しません。</p><button id="listen" disabled>▶ 補正を試聴</button><button id="listenStop" disabled>■ 試聴を停止</button></section><section><h3>9. 合成・保存</h3><button id="mix" disabled>WAVを作成</button><p id="renderProgress" role="status"></p><audio id="result" controls playsinline></audio><button id="save" disabled>WAVを保存</button><button id="share" disabled>共有</button><p>ORISON・総合ミュージックから songId を指定したリンクで起動できます。音源とTAKEは自動送信せず、WAV・バックアップで受け渡します。</p></section>
 <script>
 (()=>{'use strict';const $=x=>document.getElementById(x),AC=window.AudioContext||window.webkitAudioContext;let ctx,back,vocal,stream,rec,src,chunks=[],blob,url,backUrl,vocalUrl,rawVocalBlob=null,rawVocalType='',localId=null,saveTimer=null,stopReason='',rendering=false,revision=0,recordPhase='idle',listening=false,listenNodes=[];const say=t=>$('status').textContent=t;
 async function audio(){if(!AC)throw Error('Web Audioに非対応');if(!ctx)ctx=new AC();await ctx.resume();return ctx}
 function readyForMix(){const mode=$('mode').value;return (mode==='mic'&&!!vocal)||(mode==='backing'&&!!back)||(mode==='mix'&&!!back&&!!vocal)}
-function buttons(){const active=recordPhase!=='idle';$('backup').disabled=!rawVocalBlob||active;$('localSave').disabled=!rawVocalBlob||active;$('record').disabled=active||listening||rendering||$('mode').value==='backing'||($('mode').value==='mix'&&!back);$('stop').disabled=recordPhase!=='recording';$('mix').disabled=rendering||active||listening||!readyForMix();$('listen').disabled=active||rendering||listening||!readyForMix();$('listenStop').disabled=!listening}
+function buttons(){
+ const active=recordPhase!=='idle',busy=active||listening||rendering;
+ $('backup').disabled=!rawVocalBlob||busy;
+ $('localSave').disabled=!rawVocalBlob||busy;
+ $('record').disabled=busy||$('mode').value==='backing'||($('mode').value==='mix'&&!back);
+ $('stop').disabled=recordPhase!=='recording';
+ $('mix').disabled=busy||!readyForMix();
+ $('listen').disabled=busy||!readyForMix();
+ $('listenStop').disabled=!listening;
+ for(const id of ['file','mode','importVocal','importMeta','restoreBackup','localList','localRefresh'])$(id).disabled=busy;
+ $('localLoad').disabled=busy||!$('localList').value;
+ $('localDelete').disabled=busy||!$('localList').value;
+}
 function reset(){stopListen();revision++;$('renderProgress').textContent='';blob=null;if(url)URL.revokeObjectURL(url);url=null;$('result').removeAttribute('src');$('save').disabled=$('share').disabled=true}
 $('file').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;let a=await audio();back=await a.decodeAudioData(await f.arrayBuffer());if(backUrl)URL.revokeObjectURL(backUrl);backUrl=URL.createObjectURL(f);$('backing').src=backUrl;$('track').textContent=f.name+' ('+back.duration.toFixed(1)+'秒)';reset();say(rawVocalBlob?'伴奏の読み込み完了。保存・復元済みの歌声は保持しています。':'伴奏の準備完了');buttons()}catch(e){say('読み込み失敗: '+e.message)}};
 $('mode').onchange=()=>{reset();buttons()};
@@ -47,16 +59,20 @@ $('record').onclick=async()=>{
         reset();$('saveVocal').disabled=$('saveMeta').disabled=false;
         if(vocalUrl)URL.revokeObjectURL(vocalUrl);
         vocalUrl=URL.createObjectURL(f);$('vocal').src=vocalUrl;
-        try{
-          vocal=await a.decodeAudioData(await f.arrayBuffer());
-        }catch(decodeError){
-          say('歌声原本は確保しましたがプレビュー不可: '+decodeError.message+'。端末保存を実行します。');
-        }
+        let stored=false;
         try{
           await persistTake();
-          say((vocal?'録音完了 '+vocal.duration.toFixed(2)+'秒':'録音原本')+' を端末内に保存しました。'+(stopReason?'停止理由: '+stopReason:''));
+          stored=true;
+          say('歌声原本を端末内に保存しました。プレビューを準備中…');
         }catch(saveError){
           say('録音原本の端末保存に失敗: '+saveError.message+'。原音の個別保存か一括バックアップをしてください。');
+        }
+        try{
+          vocal=await a.decodeAudioData(await f.arrayBuffer());
+          say('録音完了 '+vocal.duration.toFixed(2)+'秒。'+(stored?'端末内保存済み。':'要バックアップ。')+(stopReason?' 停止理由: '+stopReason:''));
+          if(stored){try{await persistTake()}catch(err){say('保存した原音は保持されていますが、長さの更新に失敗: '+err.message)}}
+        }catch(decodeError){
+          say('録音原本'+(stored?'は端末内保存済み':'はメモリに残っています')+'。再生形式の読み込み失敗: '+decodeError.message+'。一括バックアップ推奨。');
         }
       }catch(err){say('録音の完了処理で失敗: '+err.message)}
       finally{
@@ -116,20 +132,79 @@ function arrayToBase64(array){let parts=[];for(let i=0;i<array.length;i+=0x8000)
 $('backup').onclick=async()=>{try{if(!rawVocalBlob)return;const bytes=new Uint8Array(await rawVocalBlob.arrayBuffer());const pack={schema:'asahi-vocal-package-v1',metadata:takeMetadata(),vocal:{mimeType:rawVocalType,base64:arrayToBase64(bytes)}};downloadFile(new Blob([JSON.stringify(pack)],{type:'application/json'}),takeName()+'.asahitake');say('一括バックアップを書き出しました。端末外にも保存してください。')}catch(e){say('バックアップ失敗: '+e.message)}};
 $('restoreBackup').onchange=async e=>{clearTimeout(saveTimer);saveTimer=null;try{const f=e.target.files[0];if(!f)return;if(f.size>100*1024*1024)throw Error('100MBを超えるバックアップは読み込めません');const pack=JSON.parse(await f.text());if(pack.schema!=='asahi-vocal-package-v1'||pack.metadata?.schema!=='asahi-vocal-take-v1'||typeof pack.vocal?.base64!=='string')throw Error('未対応のバックアップ形式');const data=pack.metadata;if(!Number.isFinite(data.offsetSeconds)||data.offsetSeconds < -3||data.offsetSeconds>3)throw Error('補正値が不正');const binary=atob(pack.vocal.base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new Blob([bytes],{type:pack.vocal.mimeType||'audio/mp4'});const a=await audio();const decoded=await a.decodeAudioData(await file.arrayBuffer());vocal=decoded;rawVocalBlob=file;rawVocalType=file.type;localId=null;if(vocalUrl)URL.revokeObjectURL(vocalUrl);vocalUrl=URL.createObjectURL(file);$('vocal').src=vocalUrl;$('songId').value=String(data.songId||'').slice(0,60);$('takeName').value=String(data.takeName||'').slice(0,60);if(['mic','mix','backing'].includes(data.recordingMode))$('mode').value=data.recordingMode;set(data.offsetSeconds);$('saveVocal').disabled=$('saveMeta').disabled=false;buttons();say('一括バックアップを復元しました。伴奏は別途読み込んでください。')}catch(err){say('バックアップ復元失敗: '+err.message)}finally{e.target.value=''}};
 
-const DB_NAME='asahi-vocal-recorder-v1', STORE='takes';
-function db(){return new Promise((resolve,reject)=>{if(!window.indexedDB)return reject(Error('ブラウザ保存領域に非対応'));const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(STORE))q.result.createObjectStore(STORE,{keyPath:'id'})};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error||Error('DBを開けません'))})}
-async function dbAction(type,fn){const d=await db();return new Promise((resolve,reject)=>{const t=d.transaction(STORE,type),st=t.objectStore(STORE);let request;try{request=fn(st)}catch(e){d.close();reject(e);return}let val;request.onsuccess=()=>val=request.result;request.onerror=()=>reject(request.error);t.oncomplete=()=>{d.close();resolve(val)};t.onerror=()=>{d.close();reject(t.error)};t.onabort=()=>{d.close();reject(t.error||Error('保存中断'))}})}
-async function refreshTakes(){try{const rows=await dbAction('readonly',s=>s.getAll());rows.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));const sel=$('localList'),previous=sel.value||localId;sel.replaceChildren();const blank=document.createElement('option');blank.value='';blank.textContent=rows.length?'復元するTAKEを選択':'保存済みTAKEなし';sel.append(blank);for(const row of rows){const opt=document.createElement('option');opt.value=row.id;opt.textContent=(row.metadata?.songId||'SONG未指定')+' / '+(row.metadata?.takeName||row.id)+' / '+(row.updatedAt||'').slice(0,16);sel.append(opt)}if(previous&&rows.some(x=>x.id===previous))sel.value=previous;$('localLoad').disabled=$('localDelete').disabled=!sel.value}catch(e){say('端末内TAKE一覧の取得失敗: '+e.message)}}
-async function persistTake(){if(!rawVocalBlob)throw Error('歌声がありません');const id=localId||((crypto.randomUUID&&crypto.randomUUID())||('take-'+Date.now()+'-'+Math.random().toString(36).slice(2)));const data={id,metadata:takeMetadata(),vocal:rawVocalBlob,updatedAt:new Date().toISOString()};await dbAction('readwrite',s=>s.put(data));localId=id;await refreshTakes();return id}
+const DB_NAME='asahi-vocal-recorder-v1', STORE='takes', SUMMARY_STORE='takeSummaries', DB_VERSION=2;
+function db(){return new Promise((resolve,reject)=>{
+ if(!window.indexedDB)return reject(Error('ブラウザ保存領域に非対応'));
+ const q=indexedDB.open(DB_NAME,DB_VERSION);
+ q.onupgradeneeded=event=>{
+  const database=q.result,transaction=q.transaction;
+  if(!database.objectStoreNames.contains(STORE))database.createObjectStore(STORE,{keyPath:'id'});
+  if(!database.objectStoreNames.contains(SUMMARY_STORE)){
+   const summaryStore=database.createObjectStore(SUMMARY_STORE,{keyPath:'id'});
+   if(event.oldVersion>=1){
+    const cursor=transaction.objectStore(STORE).openCursor();
+    cursor.onsuccess=()=>{
+     const row=cursor.result;
+     if(row){summaryStore.put({id:row.value.id,metadata:row.value.metadata,updatedAt:row.value.updatedAt});row.continue()}
+    };
+   }
+  }
+ };
+ q.onsuccess=()=>resolve(q.result);
+ q.onerror=()=>reject(q.error||Error('DBを開けません'));
+ q.onblocked=()=>reject(Error('別のタブが端末内保存領域を使用中です。閉じて再試行してください'));
+})}
+async function dbAction(type,fn,storeName=STORE){const d=await db();return new Promise((resolve,reject)=>{
+ let finished=false;
+ const t=d.transaction(storeName,type),st=t.objectStore(storeName);
+ let request;
+ try{request=fn(st)}catch(e){finished=true;d.close();reject(e);return}
+ let val;
+ request.onsuccess=()=>val=request.result;
+ t.oncomplete=()=>{d.close();if(!finished)resolve(val)};
+ t.onerror=()=>{d.close();if(!finished)reject(t.error)};
+ t.onabort=()=>{d.close();if(!finished)reject(t.error||Error('保存中断'))};
+})}
+async function dbWriteBoth(record,remove=false){const d=await db();return new Promise((resolve,reject)=>{
+ const t=d.transaction([STORE,SUMMARY_STORE],'readwrite');
+ if(remove){t.objectStore(STORE).delete(record.id);t.objectStore(SUMMARY_STORE).delete(record.id)}
+ else{
+  t.objectStore(STORE).put(record);
+  t.objectStore(SUMMARY_STORE).put({id:record.id,metadata:record.metadata,updatedAt:record.updatedAt});
+ }
+ t.oncomplete=()=>{d.close();resolve()};
+ t.onerror=()=>{d.close();reject(t.error||Error('データ保存に失敗'))};
+ t.onabort=()=>{d.close();reject(t.error||Error('保存が中断されました'))};
+})}
+async function refreshTakes(){try{
+ // Read only lightweight metadata; do not copy the stored raw vocal Blobs into memory for listing.
+ const rows=await dbAction('readonly',st=>st.getAll(),SUMMARY_STORE);
+ rows.sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||''));
+ const sel=$('localList'),previous=sel.value||localId;
+ sel.replaceChildren();const blank=document.createElement('option');blank.value='';
+ blank.textContent=rows.length?'復元するTAKEを選択':'保存済みTAKEなし';sel.append(blank);
+ for(const row of rows){const opt=document.createElement('option');opt.value=row.id;opt.textContent=(row.metadata?.songId||'SONG未指定')+' / '+(row.metadata?.takeName||row.id)+' / '+(row.updatedAt||'').slice(0,16);sel.append(opt)}
+ if(previous&&rows.some(x=>x.id===previous))sel.value=previous;
+ buttons();
+}catch(e){say('端末内TAKE一覧の取得失敗: '+e.message)}}
+async function persistTake(){
+ if(!rawVocalBlob)throw Error('歌声がありません');
+ const id=localId||((crypto.randomUUID&&crypto.randomUUID())||('take-'+Date.now()+'-'+Math.random().toString(36).slice(2)));
+ const data={id,metadata:takeMetadata(),vocal:rawVocalBlob,updatedAt:new Date().toISOString()};
+ await dbWriteBoth(data);
+ localId=id;
+ await refreshTakes();
+ return id;
+}
 function queueAutosave(){if(!rawVocalBlob||!localId)return;const id=localId;clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{saveTimer=null;if(localId!==id)return;try{await persistTake()}catch(err){say('自動保存に失敗: '+err.message+'。一括バックアップを保存してください。')}},600)}
 $('songId').addEventListener('input',queueAutosave);
 $('takeName').addEventListener('input',queueAutosave);
 $('mode').addEventListener('change',queueAutosave);
 $('localSave').onclick=async()=>{try{await persistTake();say('TAKEを端末に保存しました。重要な録音は一括バックアップも保存してください。')}catch(e){say('端末保存失敗: '+e.message)}};
 $('localRefresh').onclick=refreshTakes;
-$('localList').onchange=()=>{$('localLoad').disabled=$('localDelete').disabled=!$('localList').value};
+$('localList').onchange=buttons;
 $('localLoad').onclick=async()=>{clearTimeout(saveTimer);saveTimer=null;try{const id=$('localList').value;if(!id)return;const row=await dbAction('readonly',s=>s.get(id));if(!row?.vocal||row.metadata?.schema!=='asahi-vocal-take-v1')throw Error('データが壊れています');const a=await audio(),b=await a.decodeAudioData(await row.vocal.arrayBuffer()),d=row.metadata;if(!Number.isFinite(d.offsetSeconds)||d.offsetSeconds < -3||d.offsetSeconds >3)throw Error('補正値が不正');vocal=b;rawVocalBlob=row.vocal;rawVocalType=row.vocal.type||d.vocalMimeType||'application/octet-stream';localId=id;if(vocalUrl)URL.revokeObjectURL(vocalUrl);vocalUrl=URL.createObjectURL(row.vocal);$('vocal').src=vocalUrl;$('songId').value=String(d.songId||'').slice(0,60);$('takeName').value=String(d.takeName||'').slice(0,60);if(['mic','mix','backing'].includes(d.recordingMode))$('mode').value=d.recordingMode;set(d.offsetSeconds);$('saveVocal').disabled=$('saveMeta').disabled=false;buttons();say('端末内TAKEを復元しました。元の伴奏も読み込んでください。')}catch(e){say('復元失敗: '+e.message)}};
-$('localDelete').onclick=async()=>{const id=$('localList').value;if(!id)return;if(!window.confirm('選択したTAKEを端末内から削除しますか？（一括バックアップは削除されません）'))return;try{await dbAction('readwrite',s=>s.delete(id));if(localId===id)localId=null;await refreshTakes();say('端末内のTAKEを削除しました')}catch(e){say('削除失敗: '+e.message)}};
+$('localDelete').onclick=async()=>{const id=$('localList').value;if(!id)return;if(!window.confirm('選択したTAKEを端末内から削除しますか？（一括バックアップは削除されません）'))return;try{await dbWriteBoth({id},true);if(localId===id)localId=null;await refreshTakes();say('端末内のTAKEを削除しました')}catch(e){say('削除失敗: '+e.message)}};
 refreshTakes();
 
 const off=()=>Number($('offset').value);function set(v){$('offset').value=Math.max(-3,Math.min(3,Math.round(v*20)/20));$('value').textContent=(off()>=0?'+':'')+off().toFixed(2)+'秒';reset();queueAutosave()}$('offset').oninput=()=>set(off());$('minus').onclick=()=>set(off()-.05);$('plus').onclick=()=>set(off()+.05);$('zero').onclick=()=>set(0);
@@ -205,7 +280,7 @@ async function mixAsWav(mode,backBuffer,vocalBuffer,offsetSeconds,sampleRate,onP
   return new Blob(parts,{type:'audio/wav'})
 }
 $('mix').onclick=async()=>{
-  if(rendering)return;
+  if(rendering||recordPhase!=='idle'||listening)return;
   const currentRevision=revision,mode=$('mode').value,backing=back,singing=vocal,offset=off();
   rendering=true;buttons();reset();const expectedRevision=revision;
   try{
@@ -220,6 +295,12 @@ $('mix').onclick=async()=>{
 $('save').onclick=()=>{if(!blob)return;downloadFile(blob,'ASAHI-vocal.wav')};
 $('share').onclick=async()=>{if(!blob)return;let f=new File([blob],'ASAHI-vocal.wav',{type:'audio/wav'});try{if(navigator.canShare?.({files:[f]})){await navigator.share({files:[f]});return}}catch(e){if(e.name==='AbortError')return}$('save').click()};
 function stopOnBackground(){if(rec?.state==='recording'){stopReason='画面オフ・別アプリ移動';$('stop').click();say('画面が非表示になったため録音停止を要求しました。戻ったら録音データの保存を確認してください。')}}
+try{
+ const params=new URLSearchParams(location.search),from=params.get('songId');
+ if(from&&/^SONG-[A-Za-z0-9_-]{1,54}$/.test(from))$('songId').value=from;
+ const incomingTake=params.get('takeName');
+ if(incomingTake&&/^[A-Za-z0-9_-]{1,55}$/.test(incomingTake))$('takeName').value=incomingTake;
+}catch(e){}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopOnBackground()});window.addEventListener('pagehide',stopOnBackground);
 buttons()})();
 </script></body></html>
