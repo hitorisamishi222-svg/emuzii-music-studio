@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.asahi.vocal'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.asahi.vocal'
+        minSdk 26
+        targetSdk 34
+        versionCode 8
+        versionName '0.8.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets {
+        main.assets.srcDir(layout.buildDirectory.dir('generated/vocalAssets'))
+    }
+}
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}
+def copyVocalHtml = tasks.register('copyVocalHtml', Copy) {
+    from file('../../vocal/index.html')
+    into layout.buildDirectory.dir('generated/vocalAssets')
+    rename { 'index.html' }
+}
+tasks.named('preBuild') {
+    dependsOn copyVocalHtml
+}
