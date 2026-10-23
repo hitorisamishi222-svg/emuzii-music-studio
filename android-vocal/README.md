@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.13）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.14.1）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -9,6 +9,9 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 - 曲の途中から録音する開始位置（0〜7200秒、0.05秒刻み）を保存・復元・WAV合成へ反映
 - `.asahiproj` で伴奏・歌声・SONG ID・補正値・開始位置を総合ミュージックと双方向に受け渡し
 - IndexedDBへの自動保存、.asahitakeバックアップ、.asahiprojプロジェクト保存
+- 長時間録音は約1秒ごとの音声断片を端末内へ途中保存し、正常停止時に再構成
+- アプリ終了・画面切替などで録音が中断した場合、保存済み断片から前回録音を自動復旧
+- ブラウザ保存領域が利用できない場合は録音自体を止めず、メモリ録音へ自動退避
 - Android保存先選択に対応した大きなファイルの分割転送
 
 ## アプリの安全対策
@@ -20,6 +23,6 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 ## ビルド
 GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする構成。Android Studioで開く場合は `android-vocal` ディレクトリを開いてください。
 
-**状況**：GitHubの開発ブランチにソースを作成。実機・録音・音ズレ・APKインストールの検証は未完了。署名済み配布版やPlayストア公開版ではありません。
+**状況**：GitHubの開発ブランチにv0.14.1ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.14.1の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
 
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
