@@ -34,5 +34,5 @@
     if(!tracks[0]&&!tracks[1])throw Error('歌声と伴奏がありません');
     return {manifest,metadata,vocalBlob:tracks[0],backingBlob:tracks[1]};
   }
-  root.ASAHIProjectReader=Object.freeze({read,version:'1.0.0'});
+  root.ASAHIProjectReader=Object.freeze({read,version:'1.1.0'});
 })(typeof globalThis==='object'?globalThis:this);
