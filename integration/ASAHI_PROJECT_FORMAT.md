@@ -6,7 +6,7 @@
 - バイナリ構成：UTF-8 `ASAHI-PROJECT-V1\n`（17バイト）、little-endian uint32のJSONヘッダ長、UTF-8 JSONヘッダ、歌声バイト列、伴奏バイト列
 - `manifest.schema`：`asahi-vocal-project-v1`
 - `manifest.metadata.schema`：`asahi-vocal-take-v1`
-- メタデータ：`songId`、`takeName`、`offsetSeconds`（-3〜+3秒）、`recordingMode`、音声情報など
+- メタデータ：`songId`、`takeName`、`offsetSeconds`（-3〜+3秒、0.05秒刻み）、`sourceStartSec`（曲中録音の開始位置、0〜7200秒、0.05秒刻み）、`recordingMode`、音声情報など
 - 各音声：`name`、`mimeType`、`size`、`crc32`。ない場合は`null`
 - CRC32は偶発的破損検査用であり、暗号署名や本人認証ではありません
 - 従来の歌声のみの`.asahitake`バックアップ形式とは別形式。旧バックアップは録音アプリ側で引き続き復元可能
@@ -21,8 +21,8 @@ const {metadata, vocalBlob, backingBlob} = await ASAHIProjectReader.read(file);
 // vocalBlob と backingBlob は元音声のまま、別TAKEとして保存する
 ```
 
-読み取り時にサイズ、スキーマ、補正値、CRC32を検証します。リーダー自体はファイルを改変せず、ストレージ保存・サーバー通信も行いません。
+読み取り時にサイズ、スキーマ、補正値、録音開始位置、CRC32を検証します。`sourceStartSec` がない旧プロジェクトは0秒として互換読み込みします。リーダー自体はファイルを改変せず、ストレージ保存・サーバー通信も行いません。
 
 ## 現状と未実装
 
-v0.12の歌入れ専用アプリはプロジェクトの書き出し・復元に対応しています。総合ミュージックの本番画面への直接取り込みボタン、SONG IDにひもづくTAKE登録、クラウド同期、編集済みプロジェクトの再書き出しは未実装です。総合ミュージック本番環境の既存データは変更していません。
+v0.13の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.6とは双方向に`.asahiproj`を往復できます。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
