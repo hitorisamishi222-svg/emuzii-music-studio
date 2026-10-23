@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.8）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.13）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -6,7 +6,9 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 - 端末内MP3/WAV読み込み、伴奏を聴きながらマイク録音
 - 歌声原音・ミックスWAV・SONG ID/TAKEデータを記録
 - ±3.00秒、0.05秒刻みのタイミング補正
-- IndexedDBへの自動保存、.asahitakeバックアップ
+- 曲の途中から録音する開始位置（0〜7200秒、0.05秒刻み）を保存・復元・WAV合成へ反映
+- `.asahiproj` で伴奏・歌声・SONG ID・補正値・開始位置を総合ミュージックと双方向に受け渡し
+- IndexedDBへの自動保存、.asahitakeバックアップ、.asahiprojプロジェクト保存
 - Android保存先選択に対応した大きなファイルの分割転送
 
 ## アプリの安全対策
