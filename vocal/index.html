@@ -34,14 +34,17 @@ function fmtBytes(n){
 }
 async function indexedDbSelfTest(){
  const id='diag-'+Date.now()+'-'+Math.random().toString(36).slice(2),part1=new Blob(['ASAHI-CHUNK-A']),part2=new Blob(['ASAHI-CHUNK-B']);
- await createRecordingSession(id,'application/octet-stream',{schema:'asahi-vocal-take-v1',songId:'SELFTEST',takeName:'SELFTEST',offsetSeconds:0,sourceStartSec:0,recordingMode:'mic'});
- await storeRecordingChunk(id,0,part1);await storeRecordingChunk(id,1,part2);
- const rows=await readRecordingChunks(id);
- const joined=new Blob(rows.map(x=>x.blob));
- const textValue=await joined.text();
- await deleteRecordingSession(id);
- if(rows.length!==2||textValue!=='ASAHI-CHUNK-AASAHI-CHUNK-B')throw Error('途中保存データの読み戻しが一致しません');
- return {chunks:rows.length,bytes:joined.size};
+ try{
+  await createRecordingSession(id,'application/octet-stream',{schema:'asahi-vocal-take-v1',songId:'SELFTEST',takeName:'SELFTEST',offsetSeconds:0,sourceStartSec:0,recordingMode:'mic'});
+  await storeRecordingChunk(id,0,part1);await storeRecordingChunk(id,1,part2);
+  const rows=await readRecordingChunks(id);
+  const joined=new Blob(rows.map(x=>x.blob));
+  const textValue=await joined.text();
+  if(rows.length!==2||textValue!=='ASAHI-CHUNK-AASAHI-CHUNK-B')throw Error('途中保存データの読み戻しが一致しません');
+  return {chunks:rows.length,bytes:joined.size};
+ }finally{
+  try{await deleteRecordingSession(id)}catch(e){}
+ }
 }
 async function runDeviceCheck(){
  const result={schema:'asahi-vocal-device-check-v1',version:'0.15',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
