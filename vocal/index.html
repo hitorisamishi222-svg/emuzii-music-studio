@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.18.2</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.19</title>
 <style>body{font-family:system-ui;background:#101622;color:#fff;max-width:700px;margin:auto;padding:16px}section{background:#222c3d;padding:16px;border-radius:14px;margin:12px 0}button,select,input{font:inherit;margin:6px 0;padding:9px}button{background:#5279fa;color:white;border:0;border-radius:9px}button:disabled{opacity:.35}audio,input[type=range]{width:100%}small,p{color:#c4d0e1}output{font-weight:bold}</style></head><body>
-<h2>🎤 ASAHI 歌入れサポート v0.18.2</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
+<h2>🎤 ASAHI 歌入れサポート v0.19</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
 <section><h3>0. 端末セルフ診断</h3>
 <p><button id="deviceCheck">📱 端末診断を実行</button><button id="saveDeviceCheck" disabled>診断結果を保存</button></p>
 <pre id="deviceCheckResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
@@ -11,6 +11,8 @@
 <pre id="micTestResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
 <p><button id="stressTest">⏱️ 3分耐久録音テスト</button> <button id="stressStop" disabled>■ 耐久テスト停止</button></p>
 <pre id="stressTestResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
+<p><button id="projectTest">📦 プロジェクト往復テスト</button></p>
+<pre id="projectTestResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
 <p><small>録音前に、Web Audio・MediaRecorder・マイクAPI・端末内保存・途中録音復旧用ストレージ・保存容量を確認します。「再起動復旧テスト」はテスト用WAVを端末内へ分割保存し、ページ再読込後に自動復旧・再生可能性・メタデータ・一時データ削除まで確認します。「実マイク5秒テスト」では実際に声を5秒録音し、録音データ・端末内チャンク保存・再デコード・音声レベルを確認します。本番TAKEには保存せず、テストデータは終了後に削除します。「3分耐久録音テスト」は録音断片数・途中保存失敗・録音時間・再デコード・保存容量差まで確認します。</small></p>
 </section><section><h3>1. 伴奏アップロード</h3><input id="file" type="file" accept="audio/*"><p id="track">未選択</p><audio id="backing" controls playsinline></audio></section>
 <section><h3>2. 録音</h3><select id="mode"><option value="mic">マイクのみ</option><option value="mix">伴奏＋マイク</option><option value="backing">伴奏のみ</option></select><p><button id="record" disabled>● 録音開始</button> <button id="stop" disabled>■ 停止</button></p><p id="status" role="status">伴奏を選んでください</p><p id="recoveryStatus" role="status"></p><audio id="vocal" controls playsinline></audio><small>イヤホン推奨。録音中はページを前面に。伴奏とマイクは別々に保持します。</small></section>
@@ -53,7 +55,7 @@ async function indexedDbSelfTest(){
  }
 }
 async function runDeviceCheck(){
- const result={schema:'asahi-vocal-device-check-v1',version:'0.18.2',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
+ const result={schema:'asahi-vocal-device-check-v1',version:'0.19',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
  const t=result.tests;
  t.webAudio={ok:!!AC,detail:AC?'対応':'非対応'};
  t.mediaDevices={ok:!!navigator.mediaDevices?.getUserMedia,detail:navigator.mediaDevices?.getUserMedia?'getUserMedia対応':'getUserMedia非対応'};
@@ -84,7 +86,7 @@ async function runDeviceCheck(){
  result.mandatoryPass=mandatory.every(k=>t[k]?.ok);
  lastDeviceCheck=result;
  const lines=[
-  'ASAHI 歌入れサポート v0.18.2 端末診断',
+  'ASAHI 歌入れサポート v0.19 端末診断',
   '必須項目: '+(result.mandatoryPass?'✅ PASS':'❌ 要確認'),
   ''
  ];
@@ -254,6 +256,45 @@ async function runMicSelfTest(){
 $('micTest').onclick=runMicSelfTest;
 
 
+
+async function runProjectRoundtripSelfTest(){
+ if(recordPhase!=='idle'||listening||rendering)return;
+ recordPhase='projectTesting';buttons();
+ $('projectTestResult').textContent='テスト用プロジェクトを作成しています…';
+ try{
+  const vocalBlob=makeRecoveryTestWav();
+  const backingBlobTest=makeRecoveryTestWav();
+  const meta={schema:'asahi-vocal-take-v1',songId:'SELFTEST-PROJECT',takeName:'日本語TAKE_歌入れテスト',offsetSeconds:-0.15,sourceStartSec:3.25,vocalMimeType:'audio/wav',vocalDurationSeconds:0.30,backingDurationSeconds:0.30,recordingMode:'mix',exportedAt:new Date().toISOString()};
+  const vocalCrcBefore=await projectCrc(vocalBlob),backingCrcBefore=await projectCrc(backingBlobTest);
+  const pack=await buildProjectPack(meta,vocalBlob,backingBlobTest,'日本語TAKE_歌入れテスト-vocal.wav','伴奏_日本語.wav');
+  const {manifest,meta:restored,projectStart,parts}=await readProjectPack(pack);
+  const vocalCrcAfter=await projectCrc(parts[0]),backingCrcAfter=await projectCrc(parts[1]);
+  const nameOk=restored.takeName==='日本語TAKE_歌入れテスト';
+  const songOk=restored.songId==='SELFTEST-PROJECT';
+  const startOk=Math.abs(projectStart-3.25)<0.001;
+  const offsetOk=Math.abs(Number(restored.offsetSeconds)+0.15)<0.001;
+  const vocalOk=vocalCrcBefore===vocalCrcAfter&&parts[0].size===vocalBlob.size;
+  const backingOk=backingCrcBefore===backingCrcAfter&&parts[1].size===backingBlobTest.size;
+  const fileNameOk=manifest.vocal?.name.includes('日本語TAKE')&&manifest.backing?.name==='伴奏_日本語.wav';
+  const pass=nameOk&&songOk&&startOk&&offsetOk&&vocalOk&&backingOk&&fileNameOk;
+  $('projectTestResult').textContent=
+   (pass?'✅ PASS':'❌ FAIL')+
+   '\n日本語TAKE名: '+(nameOk?'PASS':'FAIL')+' / '+restored.takeName+
+   '\nSONG ID: '+(songOk?'PASS':'FAIL')+
+   '\n開始位置 3.25秒: '+(startOk?'PASS':'FAIL')+
+   '\n補正値 -0.15秒: '+(offsetOk?'PASS':'FAIL')+
+   '\n歌声CRC/サイズ: '+(vocalOk?'PASS':'FAIL')+' / '+vocalCrcAfter+
+   '\n伴奏CRC/サイズ: '+(backingOk?'PASS':'FAIL')+' / '+backingCrcAfter+
+   '\n日本語ファイル名: '+(fileNameOk?'PASS':'FAIL')+
+   '\n.asahiprojサイズ: '+fmtBytes(pack.size);
+ }catch(e){
+  $('projectTestResult').textContent='❌ プロジェクト往復テスト失敗: '+e.message;
+ }finally{
+  recordPhase='idle';buttons();
+ }
+}
+$('projectTest').onclick=runProjectRoundtripSelfTest;
+
 async function storageSnapshot(){
  try{
   const est=await navigator.storage?.estimate?.();
@@ -364,6 +405,7 @@ function buttons(){
  $('recoveryTest').disabled=busy||!!rawVocalBlob||!!backingBlob;
  $('micTest').disabled=busy;
  $('stressTest').disabled=busy;
+ $('projectTest').disabled=busy;
  $('stressStop').disabled=recordPhase!=='stressTesting';
  $('backup').disabled=!rawVocalBlob||busy;
  $('exportProject').disabled=busy||(!rawVocalBlob&&!backingBlob);
@@ -509,12 +551,20 @@ function downloadFile(b,name){
 }
 $('importVocal').onchange=async e=>{clearTimeout(saveTimer);saveTimer=null;try{const f=e.target.files[0];if(!f)return;const a=await audio();const decoded=await a.decodeAudioData(await f.arrayBuffer());vocal=decoded;rawVocalBlob=f;rawVocalType=f.type||'application/octet-stream';localId=null;if(vocalUrl)URL.revokeObjectURL(vocalUrl);vocalUrl=URL.createObjectURL(f);$('vocal').src=vocalUrl;$('saveVocal').disabled=$('saveMeta').disabled=false;reset();buttons();say('歌声を復元しました '+decoded.duration.toFixed(2)+'秒')}catch(err){say('歌声の復元失敗: '+err.message)}};
 $('importMeta').onchange=async e=>{try{const f=e.target.files[0];if(!f)return;const d=JSON.parse(await f.text());if(d.schema!=='asahi-vocal-take-v1')throw Error('未対応のTAKE形式');if(!Number.isFinite(d.offsetSeconds)||d.offsetSeconds < -3||d.offsetSeconds>3)throw Error('補正値が不正');checkedStart(d.sourceStartSec??0);$('songId').value=String(d.songId||'').slice(0,60);$('takeName').value=String(d.takeName||'').slice(0,60);if(['mic','mix','backing'].includes(d.recordingMode))$('mode').value=d.recordingMode;setStart(d.sourceStartSec??0);set(d.offsetSeconds);buttons();say('TAKE情報を復元しました。伴奏と歌声も読み込んでください。')}catch(err){say('TAKE情報の復元失敗: '+err.message)}};
+function normalizeTakeName(value){
+ const fallback='TAKE-'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);
+ return String(value??'').replace(/[\u0000-\u001f\u007f]/g,'').trim().slice(0,60)||fallback;
+}
+function takeName(){return normalizeTakeName($('takeName').value)}
+function safeTakeFileBase(value=takeName()){
+ const cleaned=normalizeTakeName(value).replace(/[\\/:*?"<>|]/g,'_').replace(/[. ]+$/g,'').slice(0,80);
+ return cleaned||'ASAHI-TAKE';
+}
 function takeMetadata(){return {schema:'asahi-vocal-take-v1',songId:$('songId').value.trim()||null,takeName:takeName(),offsetSeconds:Number($('offset').value),sourceStartSec:sourceStart(),vocalMimeType:rawVocalType,vocalDurationSeconds:vocal?.duration||null,backingDurationSeconds:back?.duration||null,recordingMode:$('mode').value,exportedAt:new Date().toISOString()}}
-function takeName(){return ($('takeName').value.trim()||'TAKE-'+new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14)).replace(/[^a-zA-Z0-9_-]/g,'_')}
-$('saveVocal').onclick=()=>{if(!rawVocalBlob)return;const ext=rawVocalType.includes('mp4')?'m4a':rawVocalType.includes('webm')?'webm':'audio';downloadFile(rawVocalBlob,takeName()+'-vocal.'+ext)};
-$('saveMeta').onclick=()=>{if(!rawVocalBlob)return;const data={...takeMetadata(),note:'音声原本は別ファイル。歌声と伴奏を非破壊で管理する'};downloadFile(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),takeName()+'.json')};
+$('saveVocal').onclick=()=>{if(!rawVocalBlob)return;const ext=rawVocalType.includes('mp4')?'m4a':rawVocalType.includes('webm')?'webm':'audio';downloadFile(rawVocalBlob,safeTakeFileBase()+'-vocal.'+ext)};
+$('saveMeta').onclick=()=>{if(!rawVocalBlob)return;const data={...takeMetadata(),note:'音声原本は別ファイル。歌声と伴奏を非破壊で管理する'};downloadFile(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),safeTakeFileBase()+'.json')};
 function arrayToBase64(array){let parts=[];for(let i=0;i<array.length;i+=0x8000)parts.push(String.fromCharCode(...array.subarray(i,i+0x8000)));return btoa(parts.join(''))}
-$('backup').onclick=async()=>{try{if(!rawVocalBlob)return;const bytes=new Uint8Array(await rawVocalBlob.arrayBuffer());const pack={schema:'asahi-vocal-package-v1',metadata:takeMetadata(),vocal:{mimeType:rawVocalType,base64:arrayToBase64(bytes)}};downloadFile(new Blob([JSON.stringify(pack)],{type:'application/json'}),takeName()+'.asahitake');say('一括バックアップを書き出しました。端末外にも保存してください。')}catch(e){say('バックアップ失敗: '+e.message)}};
+$('backup').onclick=async()=>{try{if(!rawVocalBlob)return;const bytes=new Uint8Array(await rawVocalBlob.arrayBuffer());const pack={schema:'asahi-vocal-package-v1',metadata:takeMetadata(),vocal:{mimeType:rawVocalType,base64:arrayToBase64(bytes)}};downloadFile(new Blob([JSON.stringify(pack)],{type:'application/json'}),safeTakeFileBase()+'.asahitake');say('一括バックアップを書き出しました。端末外にも保存してください。')}catch(e){say('バックアップ失敗: '+e.message)}};
 $('restoreBackup').onchange=async e=>{clearTimeout(saveTimer);saveTimer=null;try{const f=e.target.files[0];if(!f)return;if(f.size>100*1024*1024)throw Error('100MBを超えるバックアップは読み込めません');const pack=JSON.parse(await f.text());if(pack.schema!=='asahi-vocal-package-v1'||pack.metadata?.schema!=='asahi-vocal-take-v1'||typeof pack.vocal?.base64!=='string')throw Error('未対応のバックアップ形式');const data=pack.metadata;if(!Number.isFinite(data.offsetSeconds)||data.offsetSeconds < -3||data.offsetSeconds>3)throw Error('補正値が不正');checkedStart(data.sourceStartSec??0);const binary=atob(pack.vocal.base64);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const file=new Blob([bytes],{type:pack.vocal.mimeType||'audio/mp4'});const a=await audio();const decoded=await a.decodeAudioData(await file.arrayBuffer());vocal=decoded;rawVocalBlob=file;rawVocalType=file.type;localId=null;if(vocalUrl)URL.revokeObjectURL(vocalUrl);vocalUrl=URL.createObjectURL(file);$('vocal').src=vocalUrl;$('songId').value=String(data.songId||'').slice(0,60);$('takeName').value=String(data.takeName||'').slice(0,60);if(['mic','mix','backing'].includes(data.recordingMode))$('mode').value=data.recordingMode;setStart(data.sourceStartSec??0);set(data.offsetSeconds);$('saveVocal').disabled=$('saveMeta').disabled=false;buttons();say('一括バックアップを復元しました。伴奏は別途読み込んでください。')}catch(err){say('バックアップ復元失敗: '+err.message)}finally{e.target.value=''}};
 
 
@@ -526,51 +576,59 @@ const PROJECT_MAGIC_BYTES=PROJECT_ENCODER.encode(PROJECT_MAGIC);
 const PROJECT_CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let i=0;i<256;i++){let x=i;for(let j=0;j<8;j++)x=(x&1)?(0xedb88320^(x>>>1)):(x>>>1);t[i]=x>>>0}return t})();
 async function projectCrc(blob){let c=0xffffffff;const step=256*1024;for(let start=0;start<blob.size;start+=step){const bytes=new Uint8Array(await blob.slice(start,start+step).arrayBuffer());for(let i=0;i<bytes.length;i++)c=PROJECT_CRC_TABLE[(c^bytes[i])&255]^(c>>>8);if(start&&start%(step*8)===0)await new Promise(done=>setTimeout(done,0))}return ((c^0xffffffff)>>>0).toString(16).padStart(8,'0')}
 function projectEntry(name,media,size,crc){return {name:String(name||'audio').slice(0,160),mimeType:String(media||'application/octet-stream').slice(0,120),size,crc32:crc}}
+async function buildProjectPack(metadata,voice,backing,voiceName='vocal',backingFileName='backing'){
+ if(!voice&&!backing)throw Error('書き出す音声がありません');
+ if((voice?.size||0)+(backing?.size||0)>PROJECT_MAX-65536)throw Error('プロジェクト容量が240MBを超えています');
+ const vocalInfo=voice?projectEntry(voiceName,voice.type||'application/octet-stream',voice.size,await projectCrc(voice)):null;
+ const backingInfo=backing?projectEntry(backingFileName,backing.type||'application/octet-stream',backing.size,await projectCrc(backing)):null;
+ const manifest={schema:'asahi-vocal-project-v1',metadata:{...metadata,takeName:normalizeTakeName(metadata?.takeName)},vocal:vocalInfo,backing:backingInfo,createdAt:new Date().toISOString()};
+ const header=PROJECT_ENCODER.encode(JSON.stringify(manifest));
+ if(header.byteLength>65536)throw Error('管理情報が大きすぎます');
+ const length=new Uint8Array(4);new DataView(length.buffer).setUint32(0,header.byteLength,true);
+ return new Blob([PROJECT_MAGIC_BYTES,length,header,voice||new Blob([]),backing||new Blob([])],{type:'application/octet-stream'});
+}
+async function readProjectPack(file){
+ if(file.size<PROJECT_MAGIC_BYTES.length+5||file.size>PROJECT_MAX)throw Error('プロジェクトのサイズが不正です（上限240MB）');
+ const prefix=new Uint8Array(await file.slice(0,PROJECT_MAGIC_BYTES.length+4).arrayBuffer());
+ if(!PROJECT_MAGIC_BYTES.every((x,i)=>prefix[i]===x))throw Error('未対応のプロジェクト形式');
+ const headerSize=new DataView(prefix.buffer).getUint32(PROJECT_MAGIC_BYTES.length,true);
+ if(headerSize<2||headerSize>65536)throw Error('プロジェクト管理情報が不正です');
+ let position=PROJECT_MAGIC_BYTES.length+4;
+ const manifest=JSON.parse(PROJECT_DECODER.decode(await file.slice(position,position+headerSize).arrayBuffer()));
+ position+=headerSize;
+ if(manifest.schema!=='asahi-vocal-project-v1'||manifest.metadata?.schema!=='asahi-vocal-take-v1')throw Error('未対応のプロジェクト形式');
+ const meta=manifest.metadata;
+ if(!Number.isFinite(meta.offsetSeconds)||meta.offsetSeconds < -3||meta.offsetSeconds>3)throw Error('音声補正値が不正です');
+ const projectStart=checkedStart(meta.sourceStartSec??0);
+ meta.takeName=normalizeTakeName(meta.takeName);
+ const entries=[manifest.vocal,manifest.backing],parts=[];
+ for(const entry of entries){
+  if(entry===null){parts.push(null);continue}
+  if(!entry||!Number.isSafeInteger(entry.size)||entry.size<=0||entry.size>PROJECT_MAX||!(/^[a-f0-9]{8}$/.test(entry.crc32)))throw Error('音源情報が不正です');
+  if(position+entry.size>file.size)throw Error('音声ファイルが途中で切れています');
+  const part=file.slice(position,position+entry.size,String(entry.mimeType||'application/octet-stream'));
+  if(await projectCrc(part)!==entry.crc32)throw Error('音声ファイルの破損を検出しました');
+  parts.push(part);position+=entry.size;
+ }
+ if(position!==file.size)throw Error('プロジェクトの末尾データが不正です');
+ if(!parts[0]&&!parts[1])throw Error('プロジェクトに音声がありません');
+ return {manifest,meta,projectStart,parts};
+}
 $('exportProject').onclick=async()=>{
  if(recordPhase!=='idle'||rendering||listening)return;
  $('exportProject').disabled=true;
  try{
   const voice=rawVocalBlob,backing=backingBlob;
-  if(!voice&&!backing)throw Error('書き出す音声がありません');
-  if((voice?.size||0)+(backing?.size||0)>PROJECT_MAX-65536)throw Error('プロジェクト容量が240MBを超えています');
   say('プロジェクトの破損検査情報を計算しています…');
-  const vocalInfo=voice?projectEntry(takeName()+'-vocal',rawVocalType||voice.type,voice.size,await projectCrc(voice)):null;
-  const backingInfo=backing?projectEntry(backingName,backing.type,backing.size,await projectCrc(backing)):null;
-  const manifest={schema:'asahi-vocal-project-v1',metadata:takeMetadata(),vocal:vocalInfo,backing:backingInfo,createdAt:new Date().toISOString()};
-  const header=PROJECT_ENCODER.encode(JSON.stringify(manifest));
-  if(header.byteLength>65536)throw Error('管理情報が大きすぎます');
-  const length=new Uint8Array(4);new DataView(length.buffer).setUint32(0,header.byteLength,true);
-  const pack=new Blob([PROJECT_MAGIC_BYTES,length,header,voice||new Blob([]),backing||new Blob([])],{type:'application/octet-stream'});
-  downloadFile(pack,takeName()+'.asahiproj');
+  const pack=await buildProjectPack(takeMetadata(),voice,backing,safeTakeFileBase()+'-vocal',backingName||'backing');
+  downloadFile(pack,safeTakeFileBase()+'.asahiproj');
   say('プロジェクトを保存先へ送る準備ができました。歌声と伴奏を元の形式で保持しています。');
  }catch(err){say('プロジェクト作成失敗: '+err.message)}finally{buttons()}
 };
 $('importProject').onchange=async e=>{
  const file=e.target.files?.[0];if(!file)return;
  try{
-  if(file.size<PROJECT_MAGIC_BYTES.length+5||file.size>PROJECT_MAX)throw Error('プロジェクトのサイズが不正です（上限240MB）');
-  const prefix=new Uint8Array(await file.slice(0,PROJECT_MAGIC_BYTES.length+4).arrayBuffer());
-  if(!PROJECT_MAGIC_BYTES.every((x,i)=>prefix[i]===x))throw Error('未対応のプロジェクト形式');
-  const headerSize=new DataView(prefix.buffer).getUint32(PROJECT_MAGIC_BYTES.length,true);
-  if(headerSize<2||headerSize>65536)throw Error('プロジェクト管理情報が不正です');
-  let position=PROJECT_MAGIC_BYTES.length+4;
-  const manifest=JSON.parse(PROJECT_DECODER.decode(await file.slice(position,position+headerSize).arrayBuffer()));
-  position+=headerSize;
-  if(manifest.schema!=='asahi-vocal-project-v1'||manifest.metadata?.schema!=='asahi-vocal-take-v1')throw Error('未対応のプロジェクト形式');
-  const meta=manifest.metadata;
-  if(!Number.isFinite(meta.offsetSeconds)||meta.offsetSeconds < -3||meta.offsetSeconds>3)throw Error('音声補正値が不正です');
-  const projectStart=checkedStart(meta.sourceStartSec??0);
-  const entries=[manifest.vocal,manifest.backing],parts=[];
-  for(const entry of entries){
-   if(entry===null){parts.push(null);continue}
-   if(!entry||!Number.isSafeInteger(entry.size)||entry.size<=0||entry.size>PROJECT_MAX||!(/^[a-f0-9]{8}$/.test(entry.crc32)))throw Error('音源情報が不正です');
-   if(position+entry.size>file.size)throw Error('音声ファイルが途中で切れています');
-   const part=file.slice(position,position+entry.size,String(entry.mimeType||'application/octet-stream'));
-   if(await projectCrc(part)!==entry.crc32)throw Error('音声ファイルの破損を検出しました');
-   parts.push(part);position+=entry.size;
-  }
-  if(position!==file.size)throw Error('プロジェクトの末尾データが不正です');
-  if(!parts[0]&&!parts[1])throw Error('プロジェクトに音声がありません');
+  const {manifest,meta,projectStart,parts}=await readProjectPack(file);
   // Validate BOTH before touching the currently loaded session.
   const a=await audio(),vocalDecoded=parts[0]?await a.decodeAudioData(await parts[0].arrayBuffer()):null;
   const backingDecoded=parts[1]?await a.decodeAudioData(await parts[1].arrayBuffer()):null;
@@ -854,7 +912,7 @@ try{
  const params=new URLSearchParams(location.search),from=params.get('songId');
  if(from&&/^SONG-[A-Za-z0-9_-]{1,54}$/.test(from))$('songId').value=from;
  const incomingTake=params.get('takeName');
- if(incomingTake&&/^[A-Za-z0-9_-]{1,55}$/.test(incomingTake))$('takeName').value=incomingTake;
+ if(incomingTake){const normalized=normalizeTakeName(incomingTake);if(normalized.length<=60)$('takeName').value=normalized;}
 }catch(e){}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopOnBackground()});window.addEventListener('pagehide',stopOnBackground);
 buttons()})();
