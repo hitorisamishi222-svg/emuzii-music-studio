@@ -7,6 +7,7 @@
 - `manifest.schema`：`asahi-vocal-project-v1`
 - `manifest.metadata.schema`：`asahi-vocal-take-v1`
 - メタデータ：`songId`、`takeName`、`offsetSeconds`（-3〜+3秒、0.05秒刻み）、`sourceStartSec`（曲中録音の開始位置、0〜7200秒、0.05秒刻み）、`recordingMode`、音声情報など
+- JSON管理情報はUTF-8。v0.19以降は日本語・絵文字を含むTAKE名をメタデータ上そのまま保持し、ファイル名に使う場合だけOS禁止文字を安全な文字へ置換
 - 各音声：`name`、`mimeType`、`size`、`crc32`。ない場合は`null`
 - CRC32は偶発的破損検査用であり、暗号署名や本人認証ではありません
 - 従来の歌声のみの`.asahitake`バックアップ形式とは別形式。旧バックアップは録音アプリ側で引き続き復元可能
@@ -25,4 +26,4 @@ const {metadata, vocalBlob, backingBlob} = await ASAHIProjectReader.read(file);
 
 ## 現状と未実装
 
-v0.13の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.6とは双方向に`.asahiproj`を往復できます。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
+v0.19の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.6とは双方向に`.asahiproj`を往復できます。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
