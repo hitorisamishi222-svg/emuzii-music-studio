@@ -1,13 +1,15 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.16</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.17</title>
 <style>body{font-family:system-ui;background:#101622;color:#fff;max-width:700px;margin:auto;padding:16px}section{background:#222c3d;padding:16px;border-radius:14px;margin:12px 0}button,select,input{font:inherit;margin:6px 0;padding:9px}button{background:#5279fa;color:white;border:0;border-radius:9px}button:disabled{opacity:.35}audio,input[type=range]{width:100%}small,p{color:#c4d0e1}output{font-weight:bold}</style></head><body>
-<h2>🎤 ASAHI 歌入れサポート v0.16</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
+<h2>🎤 ASAHI 歌入れサポート v0.17</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
 <section><h3>0. 端末セルフ診断</h3>
 <p><button id="deviceCheck">📱 端末診断を実行</button><button id="saveDeviceCheck" disabled>診断結果を保存</button></p>
 <pre id="deviceCheckResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
 <p><button id="recoveryTest">🔄 再起動復旧テスト</button></p>
 <pre id="recoveryTestResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
-<p><small>録音前に、Web Audio・MediaRecorder・マイクAPI・端末内保存・途中録音復旧用ストレージ・保存容量を確認します。「再起動復旧テスト」はテスト用WAVを端末内へ分割保存し、ページ再読込後に自動復旧・再生可能性・メタデータ・一時データ削除まで確認します。実際のマイク音質は別途録音テストで確認します。</small></p>
+<p><button id="micTest">🎙️ 実マイク5秒テスト</button></p>
+<pre id="micTestResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
+<p><small>録音前に、Web Audio・MediaRecorder・マイクAPI・端末内保存・途中録音復旧用ストレージ・保存容量を確認します。「再起動復旧テスト」はテスト用WAVを端末内へ分割保存し、ページ再読込後に自動復旧・再生可能性・メタデータ・一時データ削除まで確認します。「実マイク5秒テスト」では実際に声を5秒録音し、録音データ・端末内チャンク保存・再デコード・音声レベルを確認します。本番TAKEには保存せず、テストデータは終了後に削除します。</small></p>
 </section><section><h3>1. 伴奏アップロード</h3><input id="file" type="file" accept="audio/*"><p id="track">未選択</p><audio id="backing" controls playsinline></audio></section>
 <section><h3>2. 録音</h3><select id="mode"><option value="mic">マイクのみ</option><option value="mix">伴奏＋マイク</option><option value="backing">伴奏のみ</option></select><p><button id="record" disabled>● 録音開始</button> <button id="stop" disabled>■ 停止</button></p><p id="status" role="status">伴奏を選んでください</p><p id="recoveryStatus" role="status"></p><audio id="vocal" controls playsinline></audio><small>イヤホン推奨。録音中はページを前面に。伴奏とマイクは別々に保持します。</small></section>
 <section><h3>3. 保存したTAKEの復元</h3><label>歌声ファイル <input id="importVocal" type="file" accept="audio/*"></label><label>TAKE情報（JSON） <input id="importMeta" type="file" accept=".json,application/json"></label><p><small>以前保存した歌声と補正値を読み込んで、再ミックスできます。伴奏は別途読み込んでください。</small></p></section><section><h3>4. 途中録音の開始位置</h3>
@@ -49,7 +51,7 @@ async function indexedDbSelfTest(){
  }
 }
 async function runDeviceCheck(){
- const result={schema:'asahi-vocal-device-check-v1',version:'0.16',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
+ const result={schema:'asahi-vocal-device-check-v1',version:'0.17',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
  const t=result.tests;
  t.webAudio={ok:!!AC,detail:AC?'対応':'非対応'};
  t.mediaDevices={ok:!!navigator.mediaDevices?.getUserMedia,detail:navigator.mediaDevices?.getUserMedia?'getUserMedia対応':'getUserMedia非対応'};
@@ -80,7 +82,7 @@ async function runDeviceCheck(){
  result.mandatoryPass=mandatory.every(k=>t[k]?.ok);
  lastDeviceCheck=result;
  const lines=[
-  'ASAHI 歌入れサポート v0.16 端末診断',
+  'ASAHI 歌入れサポート v0.17 端末診断',
   '必須項目: '+(result.mandatoryPass?'✅ PASS':'❌ 要確認'),
   ''
  ];
@@ -152,12 +154,102 @@ async function finishRecoverySelfTest(session,rows,recoveredBlob,saved,decoded){
 }
 
 
+
+function analyseAudioLevel(buffer){
+ let peak=0,sum=0,count=0;
+ for(let c=0;c<buffer.numberOfChannels;c++){
+  const data=buffer.getChannelData(c);
+  const step=Math.max(1,Math.floor(data.length/200000));
+  for(let i=0;i<data.length;i+=step){
+   const v=Math.abs(data[i]);if(v>peak)peak=v;sum+=v*v;count++;
+  }
+ }
+ const rms=count?Math.sqrt(sum/count):0;
+ const dbPeak=peak>0?20*Math.log10(peak):-Infinity;
+ const dbRms=rms>0?20*Math.log10(rms):-Infinity;
+ return {peak,rms,dbPeak,dbRms,detected:peak>=0.001||rms>=0.0001};
+}
+async function runMicSelfTest(){
+ if(recordPhase!=='idle'||listening||rendering)return;
+ recordPhase='micTesting';buttons();
+ let capture=null,recorder=null,sessionId=null,persistent=false,seq=0,writes=[],fallback=new Map();
+ $('micTestResult').textContent='マイク権限を確認中…\n許可後、5秒間「あー」など声を出してください。';
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw Error('マイクAPIに非対応です');
+  if(typeof MediaRecorder==='undefined')throw Error('MediaRecorderに非対応です');
+  const a=await audio();
+  capture=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  const dest=a.createMediaStreamDestination();
+  const source=a.createMediaStreamSource(capture);source.connect(dest);
+  const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+  const supported=types.find(t=>MediaRecorder.isTypeSupported(t));
+  recorder=new MediaRecorder(dest.stream,supported?{mimeType:supported}:undefined);
+  sessionId='selftest-mic-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  try{
+   await createRecordingSession(sessionId,recorder.mimeType||supported||'application/octet-stream',{schema:'asahi-vocal-take-v1',songId:'SELFTEST-MIC',takeName:'MIC-TEST',offsetSeconds:0,sourceStartSec:0,recordingMode:'mic',selfTestMic:true,exportedAt:new Date().toISOString()});
+   persistent=true;
+  }catch(e){persistent=false}
+  recorder.ondataavailable=e=>{
+   if(!e.data?.size)return;
+   const n=seq++,part=e.data;
+   if(persistent){
+    const task=storeRecordingChunk(sessionId,n,part).catch(()=>fallback.set(n,part));
+    writes.push(task);
+   }else fallback.set(n,part);
+  };
+  const stopped=new Promise((resolve,reject)=>{
+   recorder.onerror=()=>reject(Error('録音中にMediaRecorderエラーが発生しました'));
+   recorder.onstop=resolve;
+  });
+  recorder.start(1000);
+  for(let left=5;left>=1;left--){
+   $('micTestResult').textContent='🎙️ 録音中 '+left+'秒\n「あー」など声を出してください。';
+   await new Promise(done=>setTimeout(done,1000));
+   if(recorder.state!=='recording')break;
+  }
+  if(recorder.state==='recording')recorder.stop();
+  await stopped;
+  await Promise.allSettled(writes);
+  const stored=persistent?await readRecordingChunks(sessionId):[];
+  const map=new Map(stored.map(x=>[x.seq,x.blob]));
+  for(const [n,b] of fallback)map.set(n,b);
+  const parts=[...map.entries()].sort((x,y)=>x[0]-y[0]).map(x=>x[1]);
+  if(!parts.length)throw Error('録音チャンクが取得できませんでした');
+  const b=new Blob(parts,{type:recorder.mimeType||supported||'application/octet-stream'});
+  if(!b.size)throw Error('録音データが空です');
+  const decoded=await a.decodeAudioData(await b.arrayBuffer());
+  const level=analyseAudioLevel(decoded);
+  const durationOk=decoded.duration>=3.5&&decoded.duration<=8;
+  const bytesOk=b.size>100;
+  const chunksOk=parts.length>=1;
+  const pass=durationOk&&bytesOk&&chunksOk&&level.detected;
+  $('micTestResult').textContent=
+   (pass?'✅ PASS':'⚠️ 要確認')+
+   '\n録音時間: '+decoded.duration.toFixed(2)+'秒 '+(durationOk?'PASS':'FAIL')+
+   '\n録音チャンク: '+parts.length+'個 '+(chunksOk?'PASS':'FAIL')+
+   '\n録音サイズ: '+fmtBytes(b.size)+' '+(bytesOk?'PASS':'FAIL')+
+   '\nピーク音量: '+(Number.isFinite(level.dbPeak)?level.dbPeak.toFixed(1):'-∞')+' dBFS'+
+   '\n平均音量: '+(Number.isFinite(level.dbRms)?level.dbRms.toFixed(1):'-∞')+' dBFS'+
+   '\n声の検出: '+(level.detected?'PASS':'FAIL（声を出して再試行）')+
+   '\n端末内チャンク保存: '+(persistent?'利用':'利用不可・メモリ退避');
+ }catch(e){
+  $('micTestResult').textContent='❌ 実マイクテスト失敗: '+e.message;
+ }finally{
+  try{if(recorder&&recorder.state==='recording')recorder.stop()}catch(e){}
+  try{capture?.getTracks().forEach(t=>t.stop())}catch(e){}
+  if(sessionId&&persistent){try{await deleteRecordingSession(sessionId)}catch(e){}}
+  recordPhase='idle';buttons();
+ }
+}
+$('micTest').onclick=runMicSelfTest;
+
 async function audio(){if(!AC)throw Error('Web Audioに非対応');if(!ctx)ctx=new AC();await ctx.resume();return ctx}
 function readyForMix(){const mode=$('mode').value;return (mode==='mic'&&!!vocal)||(mode==='backing'&&!!back)||(mode==='mix'&&!!back&&!!vocal)}
 function buttons(){
  const active=recordPhase!=='idle',busy=active||listening||rendering;
  $('deviceCheck').disabled=busy;
  $('recoveryTest').disabled=busy||!!rawVocalBlob||!!backingBlob;
+ $('micTest').disabled=busy;
  $('backup').disabled=!rawVocalBlob||busy;
  $('exportProject').disabled=busy||(!rawVocalBlob&&!backingBlob);
  $('localSave').disabled=!rawVocalBlob||busy;
