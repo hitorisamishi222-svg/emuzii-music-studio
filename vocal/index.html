@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.18.1</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.18.2</title>
 <style>body{font-family:system-ui;background:#101622;color:#fff;max-width:700px;margin:auto;padding:16px}section{background:#222c3d;padding:16px;border-radius:14px;margin:12px 0}button,select,input{font:inherit;margin:6px 0;padding:9px}button{background:#5279fa;color:white;border:0;border-radius:9px}button:disabled{opacity:.35}audio,input[type=range]{width:100%}small,p{color:#c4d0e1}output{font-weight:bold}</style></head><body>
-<h2>🎤 ASAHI 歌入れサポート v0.18.1</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
+<h2>🎤 ASAHI 歌入れサポート v0.18.2</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
 <section><h3>0. 端末セルフ診断</h3>
 <p><button id="deviceCheck">📱 端末診断を実行</button><button id="saveDeviceCheck" disabled>診断結果を保存</button></p>
 <pre id="deviceCheckResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
@@ -30,7 +30,7 @@
 <p><small>.asahiproj はアサヒ総合ミュージックとの連携用形式です。原音をそのまま保存し、取り込み時にファイルの破損を検査します。従来の .asahitake も使用可能です。録音したプロジェクトは端末外にも保管してください。</small></p>
 </section><section><h3>10. 合成・保存</h3><button id="mix" disabled>WAVを作成</button><p id="renderProgress" role="status"></p><audio id="result" controls playsinline></audio><button id="save" disabled>WAVを保存</button><button id="share" disabled>共有</button><p>ORISON・総合ミュージックから songId を指定したリンクで起動できます。音源とTAKEは自動送信せず、WAV・バックアップで受け渡します。</p></section>
 <script>
-(()=>{'use strict';const $=x=>document.getElementById(x),AC=window.AudioContext||window.webkitAudioContext;let ctx,back,vocal,stream,rec,src,blob,url,backUrl,vocalUrl,rawVocalBlob=null,rawVocalType='',backingBlob=null,backingName='',localId=null,saveTimer=null,stopReason='',rendering=false,revision=0,recordPhase='idle',listening=false,listenNodes=[],recordSessionId=null,recordSessionPersistent=false,recordChunkSeq=0,recordChunkWrites=[],recordChunkFallback=new Map(),lastDeviceCheck=null,stressControl=null;const say=t=>$('status').textContent=t;
+(()=>{'use strict';const $=x=>document.getElementById(x),AC=window.AudioContext||window.webkitAudioContext;let ctx,back,vocal,stream,rec,src,blob,url,backUrl,vocalUrl,rawVocalBlob=null,rawVocalType='',backingBlob=null,backingName='',localId=null,saveTimer=null,stopReason='',rendering=false,revision=0,recordPhase='idle',listening=false,listenNodes=[],recordSessionId=null,recordSessionPersistent=false,recordChunkSeq=0,recordChunkWrites=[],recordChunkFallback=new Map(),lastDeviceCheck=null,stressControl=null,micTestControl=null;const say=t=>$('status').textContent=t;
 
 function fmtBytes(n){
  if(!Number.isFinite(n))return '不明';
@@ -53,7 +53,7 @@ async function indexedDbSelfTest(){
  }
 }
 async function runDeviceCheck(){
- const result={schema:'asahi-vocal-device-check-v1',version:'0.18.1',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
+ const result={schema:'asahi-vocal-device-check-v1',version:'0.18.2',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
  const t=result.tests;
  t.webAudio={ok:!!AC,detail:AC?'対応':'非対応'};
  t.mediaDevices={ok:!!navigator.mediaDevices?.getUserMedia,detail:navigator.mediaDevices?.getUserMedia?'getUserMedia対応':'getUserMedia非対応'};
@@ -84,7 +84,7 @@ async function runDeviceCheck(){
  result.mandatoryPass=mandatory.every(k=>t[k]?.ok);
  lastDeviceCheck=result;
  const lines=[
-  'ASAHI 歌入れサポート v0.18.1 端末診断',
+  'ASAHI 歌入れサポート v0.18.2 端末診断',
   '必須項目: '+(result.mandatoryPass?'✅ PASS':'❌ 要確認'),
   ''
  ];
@@ -174,7 +174,7 @@ function analyseAudioLevel(buffer){
 async function runMicSelfTest(){
  if(recordPhase!=='idle'||listening||rendering)return;
  recordPhase='micTesting';buttons();
- let capture=null,recorder=null,sessionId=null,persistent=false,seq=0,writes=[],fallback=new Map();
+ let capture=null,recorder=null,sessionId=null,persistent=false,seq=0,writes=[],fallback=new Map(),micStopReason='';
  $('micTestResult').textContent='マイク権限を確認中…\n許可後、5秒間「あー」など声を出してください。';
  try{
   if(!navigator.mediaDevices?.getUserMedia)throw Error('マイクAPIに非対応です');
@@ -203,6 +203,12 @@ async function runMicSelfTest(){
    recorder.onerror=()=>reject(Error('録音中にMediaRecorderエラーが発生しました'));
    recorder.onstop=resolve;
   });
+  micTestControl={
+   stop(reason='ユーザー停止'){
+    if(!micStopReason)micStopReason=reason;
+    try{if(recorder?.state==='recording')recorder.stop()}catch(e){}
+   }
+  };
   recorder.start(1000);
   for(let left=5;left>=1;left--){
    $('micTestResult').textContent='🎙️ 録音中 '+left+'秒\n「あー」など声を出してください。';
@@ -224,7 +230,7 @@ async function runMicSelfTest(){
   const durationOk=decoded.duration>=3.5&&decoded.duration<=8;
   const bytesOk=b.size>100;
   const chunksOk=parts.length>=1;
-  const pass=durationOk&&bytesOk&&chunksOk&&level.detected;
+  const pass=!micStopReason&&durationOk&&bytesOk&&chunksOk&&level.detected;
   $('micTestResult').textContent=
    (pass?'✅ PASS':'⚠️ 要確認')+
    '\n録音時間: '+decoded.duration.toFixed(2)+'秒 '+(durationOk?'PASS':'FAIL')+
@@ -233,10 +239,12 @@ async function runMicSelfTest(){
    '\nピーク音量: '+(Number.isFinite(level.dbPeak)?level.dbPeak.toFixed(1):'-∞')+' dBFS'+
    '\n平均音量: '+(Number.isFinite(level.dbRms)?level.dbRms.toFixed(1):'-∞')+' dBFS'+
    '\n声の検出: '+(level.detected?'PASS':'FAIL（声を出して再試行）')+
-   '\n端末内チャンク保存: '+(persistent?'利用':'利用不可・メモリ退避');
+   '\n端末内チャンク保存: '+(persistent?'利用':'利用不可・メモリ退避')+
+   (micStopReason?'\n停止理由: '+micStopReason:'');
  }catch(e){
   $('micTestResult').textContent='❌ 実マイクテスト失敗: '+e.message;
  }finally{
+  micTestControl=null;
   try{if(recorder&&recorder.state==='recording')recorder.stop()}catch(e){}
   try{capture?.getTracks().forEach(t=>t.stop())}catch(e){}
   if(sessionId&&persistent){try{await deleteRecordingSession(sessionId)}catch(e){}}
@@ -840,6 +848,7 @@ function stopOnBackground(){
   stopReason='画面オフ・別アプリ移動';$('stop').click();say('画面が非表示になったため録音停止を要求しました。戻ったら録音データの保存を確認してください。')
  }
  if(stressControl)stressControl.stop('画面オフ・別アプリ移動');
+ if(micTestControl)micTestControl.stop('画面オフ・別アプリ移動');
 }
 try{
  const params=new URLSearchParams(location.search),from=params.get('songId');
