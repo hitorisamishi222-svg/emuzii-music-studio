@@ -741,6 +741,38 @@
   }
 
 
+  const ASAHI_HANDOFF_DB='asahi-vocal-handoff-v1',ASAHI_HANDOFF_STORE='handoffs',ASAHI_HANDOFF_VERSION=1;
+  function asahiHandoffDb(){
+    return new Promise((resolve,reject)=>{
+      if(!window.indexedDB)return reject(Error("このブラウザは端末内連携保存に非対応です"));
+      const q=indexedDB.open(ASAHI_HANDOFF_DB,ASAHI_HANDOFF_VERSION);
+      q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(ASAHI_HANDOFF_STORE))q.result.createObjectStore(ASAHI_HANDOFF_STORE,{keyPath:"token"})};
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error||Error("連携保存領域を開けません"));q.onblocked=()=>reject(Error("別タブが連携保存領域を使用中です"));
+    });
+  }
+  async function asahiHandoffPut(row){
+    const d=await asahiHandoffDb();return new Promise((resolve,reject)=>{
+      const t=d.transaction(ASAHI_HANDOFF_STORE,"readwrite"),st=t.objectStore(ASAHI_HANDOFF_STORE);st.put(row);
+      t.oncomplete=()=>{d.close();resolve(row)};t.onerror=()=>{d.close();reject(t.error||Error("連携データを保存できません"))};t.onabort=()=>{d.close();reject(t.error||Error("連携保存が中断されました"))};
+    });
+  }
+  async function asahiHandoffGet(token){
+    const d=await asahiHandoffDb();return new Promise((resolve,reject)=>{
+      const t=d.transaction(ASAHI_HANDOFF_STORE,"readonly"),q=t.objectStore(ASAHI_HANDOFF_STORE).get(token);let value=null;
+      q.onsuccess=()=>value=q.result||null;t.oncomplete=()=>{d.close();resolve(value)};t.onerror=()=>{d.close();reject(t.error||Error("連携データを読めません"))};t.onabort=()=>{d.close();reject(t.error||Error("連携読込が中断されました"))};
+    });
+  }
+  async function asahiHandoffDelete(token){
+    const d=await asahiHandoffDb();return new Promise((resolve,reject)=>{
+      const t=d.transaction(ASAHI_HANDOFF_STORE,"readwrite");t.objectStore(ASAHI_HANDOFF_STORE).delete(token);
+      t.oncomplete=()=>{d.close();resolve()};t.onerror=()=>{d.close();reject(t.error||Error("連携データを削除できません"))};t.onabort=()=>{d.close();reject(t.error||Error("連携削除が中断されました"))};
+    });
+  }
+  function asahiHandoffToken(prefix){
+    const raw=(crypto.randomUUID?.()||uid()).replace(/[^A-Za-z0-9_-]/g,"");
+    return prefix+"-"+Date.now().toString(36)+"-"+raw.slice(0,24);
+  }
+
   function cleanAsahiText(value,max=60){
     return String(value??"").replace(/[\u0000-\u001f\u007f]/g,"").trim().slice(0,max);
   }
@@ -767,15 +799,26 @@
   function updateVocalBridgeStatus(message){
     if(els.vocalBridgeStatus)els.vocalBridgeStatus.textContent=message;
   }
-  function openAsahiVocalSupport(){
+  async function openAsahiVocalSupport(){
     const songId=ensureAsahiSongId(),takeName=ensureAsahiTakeName();
     saveDraftSettings();
     const target=new URL("./vocal/",location.href);
-    target.searchParams.set("songId",songId);
-    target.searchParams.set("takeName",takeName);
-    updateVocalBridgeStatus(`歌入れv0.19を開きました：${songId} / ${takeName}`);
-    const opened=window.open(target.href,"_blank","noopener");
-    if(!opened){location.href=target.href}
+    target.searchParams.set("songId",songId);target.searchParams.set("takeName",takeName);
+    const opened=window.open("about:blank","_blank");
+    let token=null,backingTrack=state.tracks.find(t=>t.type==="backing"&&t.blob);
+    try{
+      token=asahiHandoffToken("to-vocal");
+      await asahiHandoffPut({
+        token,kind:"to-vocal",songId,takeName,
+        backingBlob:backingTrack?.blob||null,backingName:backingTrack?.name||"",
+        createdAt:Date.now(),expiresAt:Date.now()+6*60*60*1000
+      });
+      target.searchParams.set("handoff",token);
+      updateVocalBridgeStatus(backingTrack?`伴奏も端末内で受け渡します：${songId} / ${takeName}`:`SONG IDとTAKE名を受け渡します。伴奏は歌入れ側で選択してください：${songId}`);
+    }catch(err){
+      updateVocalBridgeStatus("端末内の伴奏受け渡しは使えません。SONG ID/TAKE名だけで開きます："+(err?.message||err));
+    }
+    if(opened){opened.opener=null;opened.location.href=target.href}else location.href=target.href;
   }
   async function importAsahiProjectFile(file){
     if(!file)return;
@@ -815,6 +858,29 @@
     const backingNote=result.backingBlob?(hasBacking?"既存伴奏を維持":"伴奏も追加"):"伴奏なし";
     updateVocalBridgeStatus(`✓ ${takeName} を取り込みました。歌声位置 ${placement.toFixed(2)}秒（開始${start.toFixed(2)}＋補正${offset>=0?"+":""}${offset.toFixed(2)}） / ${backingNote}`);
     setStatus(`✓ ASAHI歌入れTAKE「${takeName}」を同じSONG IDへ取り込みました`);
+  }
+
+
+  async function resumeAsahiReturnHandoff(){
+    let token="";
+    try{token=new URLSearchParams(location.search).get("asahiReturn")||""}catch{}
+    if(!/^[A-Za-z0-9_-]{10,120}$/.test(token))return false;
+    try{
+      updateVocalBridgeStatus("歌入れから戻ったプロジェクトを確認中…");
+      const row=await asahiHandoffGet(token);
+      if(!row||row.kind!=="to-studio")throw Error("戻り連携データが見つかりません");
+      if(Number(row.expiresAt)&&Date.now()>Number(row.expiresAt)){await asahiHandoffDelete(token);throw Error("戻り連携データの有効期限が切れています")}
+      if(!row.projectBlob)throw Error("戻りプロジェクトがありません");
+      await importAsahiProjectFile(row.projectBlob);
+      await asahiHandoffDelete(token);
+      const u=new URL(location.href);u.searchParams.delete("asahiReturn");history.replaceState(null,"",u.pathname+u.search+u.hash);
+      updateVocalBridgeStatus("✓ 歌入れから戻ったプロジェクトを同じSONG IDへ自動取り込みしました");
+      return true;
+    }catch(err){
+      updateVocalBridgeStatus("❌ 戻り自動取り込み失敗："+(err?.message||err));
+      setStatus("歌入れからの自動取り込みを完了できませんでした");
+      return false;
+    }
   }
 
   async function addAudioFile(file, type) {
@@ -2557,6 +2623,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   restoreDraftSettings();
   ensureAsahiSongId();ensureAsahiTakeName();
   updateVocalBridgeStatus(`準備OK：${state.asahiSongId} / ${state.asahiTakeName}`);
+  resumeAsahiReturnHandoff();
   updateRuntimeBadge();
   registerPWA();
   [els.songTitle,els.songDesign,els.lyrics,els.bpm,els.songKey,els.songLength,els.aiAmount,els.localStyle].forEach(el=>el?.addEventListener("input",saveDraftSettings));
