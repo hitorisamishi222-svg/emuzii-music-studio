@@ -30,7 +30,7 @@ Vercel側に以下を設定する。
 GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 
 
-## ASAHI 歌入れ v0.20 自動往復（開発ブランチ）
+## ASAHI 歌入れ v0.20.1 自動往復（開発ブランチ）
 
 - 総合ミュージックから SONG ID / TAKE名を付けて `/vocal/` を開ける。
 - 同一オリジンの IndexedDB `asahi-vocal-handoff-v1` を使い、伴奏Blobを端末内だけで歌入れ画面へ受け渡す。
@@ -40,3 +40,12 @@ GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 - `🔗 連携診断` で handoff DB の書込・Blob読込・日本語TAKE名・削除を確認できる。
 - Androidアプリ版はWebと同じオリジンではないため、自動往復ではなく `.asahiproj` ファイル受け渡しを使用する。
 - 本番URLへの反映は未実施。
+
+
+### v0.20.1 安全パッチ
+- 同じ SONG ID + 同じ歌声 CRC32 のTAKEを重複追加しない。
+- `🔗 連携診断` を追加。
+- 6時間を過ぎた未使用handoffデータを起動時に自動削除。
+- 歌入れ側で消費済み `handoff` パラメータをURLから削除。
+- `sourceStartSec + offsetSeconds` が負になるTAKEも0秒へ丸めず保持し、再生/WAV時に先頭を正しくスキップ。
+- Android版は `versionName 0.20.1` / `versionCode 24`。
