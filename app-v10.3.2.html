@@ -769,6 +769,13 @@
       t.oncomplete=()=>{d.close();resolve()};t.onerror=()=>{d.close();reject(t.error||Error("連携データを削除できません"))};t.onabort=()=>{d.close();reject(t.error||Error("連携削除が中断されました"))};
     });
   }
+  async function cleanupExpiredAsahiHandoffs(){
+    const d=await asahiHandoffDb();return new Promise((resolve,reject)=>{
+      const t=d.transaction(ASAHI_HANDOFF_STORE,"readwrite"),st=t.objectStore(ASAHI_HANDOFF_STORE),q=st.openCursor(),now=Date.now();let removed=0;
+      q.onsuccess=()=>{const c=q.result;if(c){const expires=Number(c.value?.expiresAt)||0;if(expires&&expires<now){c.delete();removed++}c.continue()}};
+      t.oncomplete=()=>{d.close();resolve(removed)};t.onerror=()=>{d.close();reject(t.error||Error("期限切れ連携データを整理できません"))};t.onabort=()=>{d.close();reject(t.error||Error("連携データ整理が中断されました"))};
+    });
+  }
   function asahiHandoffToken(prefix){
     const raw=(crypto.randomUUID?.()||uid()).replace(/[^A-Za-z0-9_-]/g,"");
     return prefix+"-"+Date.now().toString(36)+"-"+raw.slice(0,24);
@@ -2654,6 +2661,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   window.addEventListener("error",e=>{console.error(e.error||e.message);setStatus(`エラー: ${e.message||"不明なエラー"}`);});
   window.addEventListener("unhandledrejection",e=>{console.error(e.reason);setStatus(`処理エラー: ${e.reason?.message||e.reason||"不明"}`);});
   restoreDraftSettings();
+  cleanupExpiredAsahiHandoffs().catch(()=>{});
   ensureAsahiSongId();ensureAsahiTakeName();
   updateVocalBridgeStatus(`準備OK：${state.asahiSongId} / ${state.asahiTakeName}`);
   resumeAsahiReturnHandoff();
