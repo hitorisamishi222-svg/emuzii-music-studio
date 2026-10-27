@@ -63,6 +63,13 @@ async function asahiHandoffDelete(token){
   t.oncomplete=()=>{d.close();resolve()};t.onerror=()=>{d.close();reject(t.error||Error('連携データを削除できません'))};t.onabort=()=>{d.close();reject(t.error||Error('連携削除が中断されました'))};
  });
 }
+async function cleanupExpiredAsahiHandoffs(){
+ const d=await asahiHandoffDb();return new Promise((resolve,reject)=>{
+  const t=d.transaction(ASAHI_HANDOFF_STORE,'readwrite'),st=t.objectStore(ASAHI_HANDOFF_STORE),q=st.openCursor(),now=Date.now();let removed=0;
+  q.onsuccess=()=>{const c=q.result;if(c){const expires=Number(c.value?.expiresAt)||0;if(expires&&expires<now){c.delete();removed++}c.continue()}};
+  t.oncomplete=()=>{d.close();resolve(removed)};t.onerror=()=>{d.close();reject(t.error||Error('期限切れ連携データを整理できません'))};t.onabort=()=>{d.close();reject(t.error||Error('連携データ整理が中断されました'))};
+ });
+}
 function asahiHandoffToken(prefix){
  const raw=(crypto.randomUUID?.()||('x'+Date.now()+Math.random().toString(36).slice(2))).replace(/[^A-Za-z0-9_-]/g,'');
  return prefix+'-'+Date.now().toString(36)+'-'+raw.slice(0,24);
@@ -720,7 +727,9 @@ async function loadStudioHandoff(token){
  }else{
   setStudioBridgeStatus('SONG IDとTAKE名を受け取りました。伴奏はこの画面で選択してください。');
  }
- await asahiHandoffDelete(token);pendingStudioHandoffToken='';buttons();
+ await asahiHandoffDelete(token);pendingStudioHandoffToken='';
+ try{const u=new URL(location.href);u.searchParams.delete('handoff');history.replaceState(null,'',u.pathname+u.search+u.hash)}catch(e){}
+ buttons();
  return true;
 }
 async function returnProjectToStudio(){
@@ -906,6 +915,7 @@ $('localList').onchange=buttons;
 $('localLoad').onclick=async()=>{clearTimeout(saveTimer);saveTimer=null;try{const id=$('localList').value;if(!id)return;const row=await dbAction('readonly',s=>s.get(id));if(!row?.vocal||row.metadata?.schema!=='asahi-vocal-take-v1')throw Error('データが壊れています');const a=await audio(),b=await a.decodeAudioData(await row.vocal.arrayBuffer()),d=row.metadata;if(!Number.isFinite(d.offsetSeconds)||d.offsetSeconds < -3||d.offsetSeconds >3)throw Error('補正値が不正');checkedStart(d.sourceStartSec??0);vocal=b;rawVocalBlob=row.vocal;rawVocalType=row.vocal.type||d.vocalMimeType||'application/octet-stream';localId=id;if(vocalUrl)URL.revokeObjectURL(vocalUrl);vocalUrl=URL.createObjectURL(row.vocal);$('vocal').src=vocalUrl;$('songId').value=String(d.songId||'').slice(0,60);$('takeName').value=String(d.takeName||'').slice(0,60);if(['mic','mix','backing'].includes(d.recordingMode))$('mode').value=d.recordingMode;setStart(d.sourceStartSec??0);set(d.offsetSeconds);$('saveVocal').disabled=$('saveMeta').disabled=false;buttons();say('端末内TAKEを復元しました。元の伴奏も読み込んでください。')}catch(e){say('復元失敗: '+e.message)}};
 $('localDelete').onclick=async()=>{const id=$('localList').value;if(!id)return;if(!window.confirm('選択したTAKEを端末内から削除しますか？（一括バックアップは削除されません）'))return;try{await dbWriteBoth({id},true);if(localId===id)localId=null;await refreshTakes();say('端末内のTAKEを削除しました')}catch(e){say('削除失敗: '+e.message)}};
 readStudioLaunchParams();
+cleanupExpiredAsahiHandoffs().catch(()=>{});
 if(!WEB_STUDIO_BRIDGE)setStudioBridgeStatus('Androidアプリ版：自動往復は使わず .asahiproj 保存で総合ミュージックへ戻してください。');
 if(sessionStorage.getItem('asahiRecoverySelfTest')==='pending')$('recoveryTestResult').textContent='ページ再読込完了。復旧処理を確認中…';
 recordPhase='recovering';buttons();recoverInterruptedRecording().finally(async()=>{
