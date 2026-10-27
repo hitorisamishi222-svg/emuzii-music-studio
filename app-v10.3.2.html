@@ -82,6 +82,7 @@
                 <div class="row wrap">
                   <button id="openVocalSupport" class="btn primary">🎙 歌入れv0.20を開く</button>
                   <button id="importAsahiProject" class="btn">📦 戻ってきたプロジェクトを取り込む</button>
+                  <button id="testVocalBridge" class="btn">🔗 連携診断</button>
                   <input id="asahiProjectFile" type="file" accept=".asahiproj,application/octet-stream" hidden>
                 </div>
                 <small class="support">SONG IDが一致する .asahiproj だけ取り込みます。既存伴奏がある場合は二重追加せず、歌声だけ正しい開始位置へ配置します。</small>
@@ -539,7 +540,7 @@
   const els = {
     status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
-    vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
+    vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), testVocalBridge:$("testVocalBridge"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
     makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
     playMix: $("playMix"), stopMix: $("stopMix"), audioTest: $("audioTest"), nativeAudioTest: $("nativeAudioTest"), compatPlay: $("compatPlay"), compatBox: $("compatBox"), compatAudio: $("compatAudio"), compatMeta: $("compatMeta"), makeWav: $("makeWav"), wavProgress: $("wavProgress"), wavEta: $("wavEta"), saveActions: $("saveActions"), shareWav: $("shareWav"), downloadWav: $("downloadWav"),
     songTitle: $("songTitle"), songDesign: $("songDesign"), lyrics: $("lyrics"), bpm: $("bpm"), songKey: $("songKey"), songLength: $("songLength"), aiAmount: $("aiAmount"), aiAmountLabel: $("aiAmountLabel"), phoneArrange: $("phoneArrange"), copyArrange: $("copyArrange"), arrangement: $("arrangement"),
@@ -773,6 +774,26 @@
     return prefix+"-"+Date.now().toString(36)+"-"+raw.slice(0,24);
   }
 
+  async function runAsahiBridgeSelfTest(){
+    const token=asahiHandoffToken("diag"),payload=new Blob(["ASAHI-BRIDGE-CHECK"],{type:"application/octet-stream"});
+    updateVocalBridgeStatus("連携診断中…");
+    try{
+      await asahiHandoffPut({token,kind:"diagnostic",songId:"SONG-DIAG",takeName:"日本語TAKE診断",backingBlob:payload,createdAt:Date.now(),expiresAt:Date.now()+60000});
+      const row=await asahiHandoffGet(token);
+      if(!row||row.kind!=="diagnostic"||row.songId!=="SONG-DIAG"||row.takeName!=="日本語TAKE診断")throw Error("管理情報の読み戻し不一致");
+      if(!row.backingBlob||await row.backingBlob.text()!=="ASAHI-BRIDGE-CHECK")throw Error("Blob読み戻し不一致");
+      await asahiHandoffDelete(token);
+      const gone=await asahiHandoffGet(token);
+      if(gone)throw Error("診断データ削除失敗");
+      updateVocalBridgeStatus("✓ 連携診断PASS：端末内DBの書込・Blob読込・日本語TAKE名・削除を確認しました");
+      return true;
+    }catch(err){
+      try{await asahiHandoffDelete(token)}catch{}
+      updateVocalBridgeStatus("❌ 連携診断FAIL："+(err?.message||err));
+      return false;
+    }
+  }
+
   function cleanAsahiText(value,max=60){
     return String(value??"").replace(/[\u0000-\u001f\u007f]/g,"").trim().slice(0,max);
   }
@@ -830,13 +851,15 @@
     if(!incomingSong)throw Error("プロジェクトにSONG IDがありません");
     const takeName=cleanAsahiText(meta.takeName)||ensureAsahiTakeName();
     const start=Math.max(0,Number(meta.sourceStartSec)||0),offset=Number(meta.offsetSeconds)||0,placement=Math.max(0,start+offset);
+    const incomingVocalCrc=String(result.manifest?.vocal?.crc32||"").toLowerCase();
+    const duplicateVocal=!!incomingVocalCrc&&state.tracks.some(t=>t.type==="vocal"&&t.asahiProject?.songId===incomingSong&&t.asahiProject?.vocalCrc32===incomingVocalCrc);
     let vocalAdded=false,backingAdded=false;
-    if(result.vocalBlob){
+    if(result.vocalBlob&&!duplicateVocal){
       const vocalBuffer=await decodeBlob(result.vocalBlob);
       state.tracks.push({
         id:uid(),name:takeName,type:"vocal",buffer:vocalBuffer,blob:result.vocalBlob,
         gain:1,pan:0,start:placement,fadeIn:0,fadeOut:0,mute:false,solo:false,
-        asahiProject:{songId:incomingSong,takeName,sourceStartSec:start,offsetSeconds:offset,recordingMode:meta.recordingMode||"mic"}
+        asahiProject:{songId:incomingSong,takeName,sourceStartSec:start,offsetSeconds:offset,recordingMode:meta.recordingMode||"mic",vocalCrc32:incomingVocalCrc}
       });
       vocalAdded=true;
     }
@@ -850,13 +873,23 @@
       });
       backingAdded=true;
     }
-    if(!vocalAdded&&!backingAdded)throw Error("追加できる音声がありません");
+    if(!vocalAdded&&!backingAdded){
+      if(duplicateVocal){
+        if(els.vocalBridgeTakeName)els.vocalBridgeTakeName.value=takeName;
+        state.asahiSongId=incomingSong;state.asahiTakeName=takeName;saveDraftSettings();
+        updateVocalBridgeStatus(`✓ 同じ録音「${takeName}」は既に取り込み済みです。重複追加しませんでした`);
+        setStatus("✓ 同じASAHI歌入れTAKEの二重追加を防止しました");
+        return {duplicate:true,takeName,songId:incomingSong};
+      }
+      throw Error("追加できる音声がありません");
+    }
     if(els.vocalBridgeTakeName)els.vocalBridgeTakeName.value=takeName;
     if(els.recordOffset)els.recordOffset.value=String(Math.round(offset*1000));
     state.asahiSongId=incomingSong;state.asahiTakeName=takeName;
     renderTracks();scheduleAutoSave(250);saveDraftSettings();
     const backingNote=result.backingBlob?(hasBacking?"既存伴奏を維持":"伴奏も追加"):"伴奏なし";
-    updateVocalBridgeStatus(`✓ ${takeName} を取り込みました。歌声位置 ${placement.toFixed(2)}秒（開始${start.toFixed(2)}＋補正${offset>=0?"+":""}${offset.toFixed(2)}） / ${backingNote}`);
+    const vocalNote=duplicateVocal?"同一歌声は重複追加せず":vocalAdded?"歌声追加":"歌声なし";
+    updateVocalBridgeStatus(`✓ ${takeName} を取り込みました。歌声位置 ${placement.toFixed(2)}秒（開始${start.toFixed(2)}＋補正${offset>=0?"+":""}${offset.toFixed(2)}） / ${vocalNote} / ${backingNote}`);
     setStatus(`✓ ASAHI歌入れTAKE「${takeName}」を同じSONG IDへ取り込みました`);
   }
 
@@ -2635,6 +2668,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   els.vocalFile.addEventListener("change",e=>{addAudioFile(e.target.files?.[0],"vocal");e.target.value="";});
   els.openVocalSupport?.addEventListener("click",openAsahiVocalSupport);
   els.importAsahiProject?.addEventListener("click",()=>els.asahiProjectFile?.click());
+  els.testVocalBridge?.addEventListener("click",()=>runAsahiBridgeSelfTest());
   els.asahiProjectFile?.addEventListener("change",async e=>{const file=e.target.files?.[0];e.target.value="";if(!file)return;try{await importAsahiProjectFile(file)}catch(err){console.error(err);updateVocalBridgeStatus("❌ "+(err?.message||err));setStatus("ASAHIプロジェクトを取り込めませんでした")};});
   els.vocalBridgeSongId?.addEventListener("input",()=>{state.asahiSongId=cleanAsahiText(els.vocalBridgeSongId.value);saveDraftSettings();});
   els.vocalBridgeTakeName?.addEventListener("input",()=>{state.asahiTakeName=cleanAsahiText(els.vocalBridgeTakeName.value);saveDraftSettings();});
