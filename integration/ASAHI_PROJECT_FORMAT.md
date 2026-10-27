@@ -51,3 +51,10 @@ Android WebView版はオリジンが `appassets.androidplatform.net` のため�
 - handoff成功後は歌入れURLの `handoff` パラメータを削除する。
 - 同一SONG IDかつ同一歌声CRC32のTAKEは総合ミュージックへ二重追加しない。
 - 歌声配置は `sourceStartSec + offsetSeconds` をそのまま使用する。負の配置も保持し、総合ミュージック側の既存負開始対応で先頭を必要分だけスキップする。
+
+
+## 自動往復ブリッジ（v10.9.7 / Vocal v0.20.2）
+- Web版を同一オリジンで配置した場合、`asahi-vocal-handoff-v1` を使って端末内だけで伴奏・SONG ID・TAKE名・`sourceStartSec`・`offsetSeconds` を歌入れ画面へ渡せます。
+- 歌入れ完了後は `.asahiproj` Blob を同じ一時領域へ戻し、総合側の既存ImporterでCRC32検査・SONG ID確認・重複防止・原子的保存を行います。
+- 本番サーバーへ音声をアップロードする仕組みではありません。
+- 単体HTML（`file:`）では同一オリジン共有が成立しないため、自動往復ではなく `.asahiproj` ファイル受け渡しを使います。
