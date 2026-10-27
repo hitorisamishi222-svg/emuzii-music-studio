@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.19）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.20）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -26,6 +26,10 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 - 「プロジェクト往復テスト」で日本語TAKE名・SONG ID・開始位置・補正値・歌声/伴奏CRC・日本語ファイル名を `.asahiproj` 内で往復検証
 - TAKE名は日本語・絵文字などUTF-8文字をそのまま保持し、保存ファイル名だけOS禁止文字を置換
 - 総合ミュージックv10.9.6の実Reader/Writerとの双方向互換を実ファイルで確認
+- Web版では総合ミュージックと同一オリジンの端末内連携DBを使い、伴奏を自動受け渡し
+- Web版の「総合ミュージックへ戻す」で .asahiproj を端末内連携領域へ保存し、同じSONG IDへ自動取り込み
+- 自動往復データは6時間で期限切れ、受け取り成功後は一回限りで削除
+- Androidアプリ版はWeb版と保存領域が別のため自動往復は無効。従来どおり .asahiproj 保存で安全に受け渡し
 - イヤホン/端末ごとの実音ズレ、3分を超える長時間、OSがアプリ自体を強制終了した場合の挙動は別途実機確認が必要
 - Android保存先選択に対応した大きなファイルの分割転送
 
@@ -38,6 +42,6 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 ## ビルド
 GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする構成。Android Studioで開く場合は `android-vocal` ディレクトリを開いてください。
 
-**状況**：GitHubの開発ブランチにv0.19ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.19の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
+**状況**：GitHubの開発ブランチにv0.20ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.20の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
 
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
