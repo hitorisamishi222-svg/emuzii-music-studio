@@ -1,10 +1,10 @@
 (async()=>{
   "use strict";
   try{
-    const res=await fetch("./app-v10.3.2.html?v=1041",{cache:"no-store"});
+    const res=await fetch("./app-v10.3.2.html?v=1042",{cache:"no-store"});
     if(!res.ok)throw new Error(`HTTP ${res.status}`);
     let html=await res.text();
-    const inject='<script src="./integration/asahi-project-reader.js?v=1190"></script><script src="./v104-bootstrap.js?v=1041"></script><script src="./v104-reference-library.js?v=1041"></script>';
+    const inject='<script src="./integration/asahi-project-reader.js?v=1200"></script><script src="./v104-bootstrap.js?v=1042"></script><script src="./v104-reference-library.js?v=1042"></script>';
     if(/<\/body>/i.test(html))html=html.replace(/<\/body>/i,inject+'</body>');
     else html+=inject;
     document.open();document.write(html);document.close();
