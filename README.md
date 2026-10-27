@@ -28,3 +28,15 @@ Vercel側に以下を設定する。
 - `EMUZII_ALLOWED_ORIGIN`（必要な場合）
 
 GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
+
+
+## ASAHI 歌入れ v0.20 自動往復（開発ブランチ）
+
+- 総合ミュージックから SONG ID / TAKE名を付けて `/vocal/` を開ける。
+- 同一オリジンの IndexedDB `asahi-vocal-handoff-v1` を使い、伴奏Blobを端末内だけで歌入れ画面へ受け渡す。
+- 歌入れ側は `↩ 総合ミュージックへ戻す` で `.asahiproj` を端末内DBへ保存し、総合側へ戻って自動取り込みできる。
+- 総合側は SONG ID が違うプロジェクトを拒否し、既存伴奏がある場合は伴奏を二重追加しない。
+- 同じ SONG ID + 同じ歌声 CRC32 のTAKEは二重追加しない。TAKE名が同じでも音声CRCが違えば別TAKEとして追加できる。
+- `🔗 連携診断` で handoff DB の書込・Blob読込・日本語TAKE名・削除を確認できる。
+- Androidアプリ版はWebと同じオリジンではないため、自動往復ではなく `.asahiproj` ファイル受け渡しを使用する。
+- 本番URLへの反映は未実施。
