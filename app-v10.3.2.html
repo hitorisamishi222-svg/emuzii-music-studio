@@ -75,6 +75,18 @@
                 <input id="vocalFile" class="file-input" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus">
                 <small class="support">MP3 / WAV / M4A / AAC / FLAC / OGG / OPUS。iPhoneの「ファイル」から選べます。</small>
               </div>
+              <div class="vocal-upload" id="asahiVocalBridge">
+                <div class="upload-title"><strong>🎤 ASAHI 歌入れ v0.19 連携</strong><small>SONG IDを保ったまま往復</small></div>
+                <div class="field"><label for="vocalBridgeSongId">SONG ID</label><input id="vocalBridgeSongId" maxlength="60" placeholder="SONG-0001"></div>
+                <div class="field"><label for="vocalBridgeTakeName">TAKE名</label><input id="vocalBridgeTakeName" maxlength="60" placeholder="サビ本番 TAKE 1"></div>
+                <div class="row wrap">
+                  <button id="openVocalSupport" class="btn primary">🎙 歌入れv0.19を開く</button>
+                  <button id="importAsahiProject" class="btn">📦 戻ってきたプロジェクトを取り込む</button>
+                  <input id="asahiProjectFile" type="file" accept=".asahiproj,application/octet-stream" hidden>
+                </div>
+                <small class="support">SONG IDが一致する .asahiproj だけ取り込みます。既存伴奏がある場合は二重追加せず、歌声だけ正しい開始位置へ配置します。</small>
+                <div id="vocalBridgeStatus" class="audible-note">未接続</div>
+              </div>
               <div class="latency-row">
                 <label>録音ズレ補正 <input id="recordOffset" type="number" min="-500" max="500" step="10" value="-120"> ms</label>
                 <small>声が遅く聞こえる時はマイナス方向へ。</small>
@@ -520,11 +532,14 @@
     selectedGuideNotes: [],
     guideEditUndo: [],
     guideEditRedo: [],
+    asahiSongId: "",
+    asahiTakeName: "",
   };
 
   const els = {
     status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
+    vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
     makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
     playMix: $("playMix"), stopMix: $("stopMix"), audioTest: $("audioTest"), nativeAudioTest: $("nativeAudioTest"), compatPlay: $("compatPlay"), compatBox: $("compatBox"), compatAudio: $("compatAudio"), compatMeta: $("compatMeta"), makeWav: $("makeWav"), wavProgress: $("wavProgress"), wavEta: $("wavEta"), saveActions: $("saveActions"), shareWav: $("shareWav"), downloadWav: $("downloadWav"),
     songTitle: $("songTitle"), songDesign: $("songDesign"), lyrics: $("lyrics"), bpm: $("bpm"), songKey: $("songKey"), songLength: $("songLength"), aiAmount: $("aiAmount"), aiAmountLabel: $("aiAmountLabel"), phoneArrange: $("phoneArrange"), copyArrange: $("copyArrange"), arrangement: $("arrangement"),
@@ -723,6 +738,83 @@
       els.tracks.appendChild(item);
       const canvas=item.querySelector("canvas"); if(canvas && track.buffer) requestAnimationFrame(()=>waveform(canvas,track.buffer));
     });
+  }
+
+
+  function cleanAsahiText(value,max=60){
+    return String(value??"").replace(/[\u0000-\u001f\u007f]/g,"").trim().slice(0,max);
+  }
+  function ensureAsahiSongId(){
+    let id=cleanAsahiText(els.vocalBridgeSongId?.value);
+    if(!id){
+      const rand=(crypto.randomUUID?.()||uid()).replace(/[^A-Za-z0-9_-]/g,"").slice(0,20);
+      id="SONG-"+rand;
+      if(els.vocalBridgeSongId)els.vocalBridgeSongId.value=id;
+    }
+    state.asahiSongId=id;
+    return id;
+  }
+  function ensureAsahiTakeName(){
+    let name=cleanAsahiText(els.vocalBridgeTakeName?.value);
+    if(!name){
+      const title=cleanAsahiText(els.songTitle?.value||els.projectName?.value||"歌入れ");
+      name=(title||"歌入れ")+" TAKE 1";
+      if(els.vocalBridgeTakeName)els.vocalBridgeTakeName.value=name.slice(0,60);
+    }
+    state.asahiTakeName=name.slice(0,60);
+    return state.asahiTakeName;
+  }
+  function updateVocalBridgeStatus(message){
+    if(els.vocalBridgeStatus)els.vocalBridgeStatus.textContent=message;
+  }
+  function openAsahiVocalSupport(){
+    const songId=ensureAsahiSongId(),takeName=ensureAsahiTakeName();
+    saveDraftSettings();
+    const target=new URL("./vocal/",location.href);
+    target.searchParams.set("songId",songId);
+    target.searchParams.set("takeName",takeName);
+    updateVocalBridgeStatus(`歌入れv0.19を開きました：${songId} / ${takeName}`);
+    const opened=window.open(target.href,"_blank","noopener");
+    if(!opened){location.href=target.href}
+  }
+  async function importAsahiProjectFile(file){
+    if(!file)return;
+    if(!window.ASAHIProjectReader?.read)throw Error("ASAHIプロジェクト読込機能が未読込です。ページを再読み込みしてください");
+    updateVocalBridgeStatus("プロジェクトを検査中…");
+    const result=await window.ASAHIProjectReader.read(file);
+    const meta=result.metadata||{},incomingSong=cleanAsahiText(meta.songId),expected=ensureAsahiSongId();
+    if(incomingSong&&incomingSong!==expected)throw Error(`SONG IDが違います（現在 ${expected} / ファイル ${incomingSong}）。別の曲へ誤投入しないため取り込みを停止しました`);
+    if(!incomingSong)throw Error("プロジェクトにSONG IDがありません");
+    const takeName=cleanAsahiText(meta.takeName)||ensureAsahiTakeName();
+    const start=Math.max(0,Number(meta.sourceStartSec)||0),offset=Number(meta.offsetSeconds)||0,placement=Math.max(0,start+offset);
+    let vocalAdded=false,backingAdded=false;
+    if(result.vocalBlob){
+      const vocalBuffer=await decodeBlob(result.vocalBlob);
+      state.tracks.push({
+        id:uid(),name:takeName,type:"vocal",buffer:vocalBuffer,blob:result.vocalBlob,
+        gain:1,pan:0,start:placement,fadeIn:0,fadeOut:0,mute:false,solo:false,
+        asahiProject:{songId:incomingSong,takeName,sourceStartSec:start,offsetSeconds:offset,recordingMode:meta.recordingMode||"mic"}
+      });
+      vocalAdded=true;
+    }
+    const hasBacking=state.tracks.some(t=>t.type==="backing");
+    if(result.backingBlob&&!hasBacking){
+      const backingBuffer=await decodeBlob(result.backingBlob);
+      state.tracks.push({
+        id:uid(),name:cleanAsahiText(result.manifest?.backing?.name,160)||"ASAHI backing",type:"backing",
+        buffer:backingBuffer,blob:result.backingBlob,gain:1,pan:0,start:0,fadeIn:0,fadeOut:0,mute:false,solo:false,
+        asahiProject:{songId:incomingSong,takeName,sourceStartSec:0,offsetSeconds:0}
+      });
+      backingAdded=true;
+    }
+    if(!vocalAdded&&!backingAdded)throw Error("追加できる音声がありません");
+    if(els.vocalBridgeTakeName)els.vocalBridgeTakeName.value=takeName;
+    if(els.recordOffset)els.recordOffset.value=String(Math.round(offset*1000));
+    state.asahiSongId=incomingSong;state.asahiTakeName=takeName;
+    renderTracks();scheduleAutoSave(250);saveDraftSettings();
+    const backingNote=result.backingBlob?(hasBacking?"既存伴奏を維持":"伴奏も追加"):"伴奏なし";
+    updateVocalBridgeStatus(`✓ ${takeName} を取り込みました。歌声位置 ${placement.toFixed(2)}秒（開始${start.toFixed(2)}＋補正${offset>=0?"+":""}${offset.toFixed(2)}） / ${backingNote}`);
+    setStatus(`✓ ASAHI歌入れTAKE「${takeName}」を同じSONG IDへ取り込みました`);
   }
 
   async function addAudioFile(file, type) {
@@ -1433,11 +1525,11 @@
 
   const DRAFT_KEY="piyoko-music-v45-draft";
   function saveDraftSettings(){
-    try{localStorage.setItem(DRAFT_KEY,JSON.stringify({title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,ai:els.aiAmount.value,style:els.localStyle.value}));}catch{}
+    try{localStorage.setItem(DRAFT_KEY,JSON.stringify({title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,ai:els.aiAmount.value,style:els.localStyle.value,asahiSongId:els.vocalBridgeSongId?.value||"",asahiTakeName:els.vocalBridgeTakeName?.value||""}));}catch{}
     if(state.tracks.length)scheduleAutoSave(1600);
   }
   function restoreDraftSettings(){
-    try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(!d)return;els.songTitle.value=d.title??els.songTitle.value;els.songDesign.value=d.design??els.songDesign.value;els.lyrics.value=d.lyrics??els.lyrics.value;els.bpm.value=d.bpm??els.bpm.value;els.songKey.value=d.key??els.songKey.value;els.songLength.value=d.length??els.songLength.value;els.aiAmount.value=d.ai??els.aiAmount.value;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=d.style??els.localStyle.value;}catch{}
+    try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null");if(!d)return;els.songTitle.value=d.title??els.songTitle.value;els.songDesign.value=d.design??els.songDesign.value;els.lyrics.value=d.lyrics??els.lyrics.value;els.bpm.value=d.bpm??els.bpm.value;els.songKey.value=d.key??els.songKey.value;els.songLength.value=d.length??els.songLength.value;els.aiAmount.value=d.ai??els.aiAmount.value;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=d.style??els.localStyle.value;if(els.vocalBridgeSongId)els.vocalBridgeSongId.value=d.asahiSongId||els.vocalBridgeSongId.value;if(els.vocalBridgeTakeName)els.vocalBridgeTakeName.value=d.asahiTakeName||els.vocalBridgeTakeName.value;}catch{}
   }
 
   function updateRuntimeBadge(){
@@ -2463,6 +2555,8 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   window.addEventListener("error",e=>{console.error(e.error||e.message);setStatus(`エラー: ${e.message||"不明なエラー"}`);});
   window.addEventListener("unhandledrejection",e=>{console.error(e.reason);setStatus(`処理エラー: ${e.reason?.message||e.reason||"不明"}`);});
   restoreDraftSettings();
+  ensureAsahiSongId();ensureAsahiTakeName();
+  updateVocalBridgeStatus(`準備OK：${state.asahiSongId} / ${state.asahiTakeName}`);
   updateRuntimeBadge();
   registerPWA();
   [els.songTitle,els.songDesign,els.lyrics,els.bpm,els.songKey,els.songLength,els.aiAmount,els.localStyle].forEach(el=>el?.addEventListener("input",saveDraftSettings));
@@ -2472,6 +2566,11 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(`${b.dataset.view}View`).classList.add("active");}));
   els.mainFile.addEventListener("change",e=>{addAudioFile(e.target.files?.[0],"backing");e.target.value="";});
   els.vocalFile.addEventListener("change",e=>{addAudioFile(e.target.files?.[0],"vocal");e.target.value="";});
+  els.openVocalSupport?.addEventListener("click",openAsahiVocalSupport);
+  els.importAsahiProject?.addEventListener("click",()=>els.asahiProjectFile?.click());
+  els.asahiProjectFile?.addEventListener("change",async e=>{const file=e.target.files?.[0];e.target.value="";if(!file)return;try{await importAsahiProjectFile(file)}catch(err){console.error(err);updateVocalBridgeStatus("❌ "+(err?.message||err));setStatus("ASAHIプロジェクトを取り込めませんでした")};});
+  els.vocalBridgeSongId?.addEventListener("input",()=>{state.asahiSongId=cleanAsahiText(els.vocalBridgeSongId.value);saveDraftSettings();});
+  els.vocalBridgeTakeName?.addEventListener("input",()=>{state.asahiTakeName=cleanAsahiText(els.vocalBridgeTakeName.value);saveDraftSettings();});
   els.runtimeTest?.addEventListener("click",runRuntimeSelfTest);
   els.recordVocal.addEventListener("click",()=>state.recording?stopRecording():startRecording("vocal"));
   els.recordMessage.addEventListener("click",()=>state.recording?stopRecording():startRecording("message"));
