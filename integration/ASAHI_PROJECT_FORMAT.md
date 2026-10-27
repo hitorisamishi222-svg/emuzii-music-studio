@@ -29,7 +29,7 @@ const {metadata, vocalBlob, backingBlob} = await ASAHIProjectReader.read(file);
 v0.19の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.6とは双方向に`.asahiproj`を往復できます。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
 
 
-## v0.20 Web自動往復
+## v0.20.1 Web自動往復
 
 Web版の総合ミュージックと歌入れv0.20は、同一オリジンの IndexedDB `asahi-vocal-handoff-v1` を一時受け渡し領域として使います。外部サーバーへ音声をアップロードせず、SONG ID、TAKE名、伴奏Blob、戻りの `.asahiproj` を端末内だけで受け渡します。
 
@@ -44,3 +44,10 @@ Web版の総合ミュージックと歌入れv0.20は、同一オリジンの In
 - `🔗 連携診断` はDB書込→Blob読込→日本語TAKE名照合→削除までを非破壊で検証
 
 Android WebView版はオリジンが `appassets.androidplatform.net` のため、このWeb自動往復を使用せず、従来通り `.asahiproj` ファイルで受け渡します。
+
+
+### v0.20.1 追加安全仕様
+- 期限切れhandoff行は起動時に削除し、大きな伴奏Blobや戻りプロジェクトの残留を抑える。
+- handoff成功後は歌入れURLの `handoff` パラメータを削除する。
+- 同一SONG IDかつ同一歌声CRC32のTAKEは総合ミュージックへ二重追加しない。
+- 歌声配置は `sourceStartSec + offsetSeconds` をそのまま使用する。負の配置も保持し、総合ミュージック側の既存負開始対応で先頭を必要分だけスキップする。
