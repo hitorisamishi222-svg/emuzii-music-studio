@@ -58,3 +58,9 @@ Android WebView版はオリジンが `appassets.androidplatform.net` のため�
 - 歌入れ完了後は `.asahiproj` Blob を同じ一時領域へ戻し、総合側の既存ImporterでCRC32検査・SONG ID確認・重複防止・原子的保存を行います。
 - 本番サーバーへ音声をアップロードする仕組みではありません。
 - 単体HTML（`file:`）では同一オリジン共有が成立しないため、自動往復ではなく `.asahiproj` ファイル受け渡しを使います。
+
+
+## v10.9.8 timing handoff fix
+- v10.9.7の説明に対し、総合側のhandoffレコードへ `sourceStartSec` / `offsetSeconds` が実際には未格納だった差分を修正。
+- v10.9.8では新規TAKEは `sourceStartSec=0` と総合側の録音ズレ補正を渡し、同じSONG ID / TAKE名の既存ASAHIボーカルを再編集する場合は既存TAKEの値を優先して渡します。
+- Vocal v0.20.2側は受信値を0.05秒単位で適用し、`.asahiproj` 返却時にも保持します。
