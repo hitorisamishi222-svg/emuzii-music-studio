@@ -64,3 +64,12 @@ Android WebView版はオリジンが `appassets.androidplatform.net` のため�
 - v10.9.7の説明に対し、総合側のhandoffレコードへ `sourceStartSec` / `offsetSeconds` が実際には未格納だった差分を修正。
 - v10.9.8では新規TAKEは `sourceStartSec=0` と総合側の録音ズレ補正を渡し、同じSONG ID / TAKE名の既存ASAHIボーカルを再編集する場合は既存TAKEの値を優先して渡します。
 - Vocal v0.20.2側は受信値を0.05秒単位で適用し、`.asahiproj` 返却時にも保持します。
+
+
+## v10.9.9 original-tab return
+- 通常のWeb往復では、Vocal v0.20.3から元の総合ミュージックタブへ `ASAHI_VOCAL_RETURN` を同一オリジン `postMessage` で通知します。
+- 総合側はhandoff DBの `to-studio` 行を読み、既存ImporterでSONG ID・CRC32・重複を検証して取り込み、`ASAHI_VOCAL_RETURN_ACK` を返します。
+- ACK成功後、歌入れ側は元タブへの反映完了を確認して自タブを閉じます。
+- 元タブがない/4秒以内にACKがない場合のみ `asahiReturn` URLへフォールバックします。
+- フォールバック時は、戻り行のSONG IDと一致する歌入れ前autosaveがあれば先に復元し、他トラックを失わずに戻りTAKEを追加します。
+- autosaveには各トラックの `asahiProject` メタデータも保持し、再読込後も同一CRC重複防止と再編集タイミングを維持します。
