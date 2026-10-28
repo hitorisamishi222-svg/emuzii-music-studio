@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.2）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.3）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -47,7 +47,7 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
 
 
-## v0.20.2 Web往復ブリッジ
+## v0.20.3 Web往復ブリッジ
 - 総合ミュージックと同一オリジンで動くWeb版では、IndexedDBの一時ハンドオフ領域 `asahi-vocal-handoff-v1` を利用します。
 - 総合ミュージック → 歌入れ：SONG ID、TAKE名、伴奏Blob、録音開始位置、補正値を端末内だけで受け渡します。開始位置・補正値も自動継承します。
 - 歌入れ → 総合ミュージック：歌声・伴奏・メタデータを `.asahiproj` Blob にして同じ一時領域へ保存し、`asahiReturn` トークンで総合側へ戻します。
@@ -60,3 +60,11 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - 同じSONG ID / TAKE名の既存ASAHIボーカルがある場合は、そのTAKEに記録済みの開始位置と補正値を優先します。
 - 新規TAKEは開始0秒、総合側の「録音ズレ補正」を0.05秒単位へ丸めて引き継ぎます。
 - 連携診断では開始3.25秒・補正-0.15秒もIndexedDBへ書込・読戻しして照合します。
+
+
+## v10.9.9 / Vocal v0.20.3 元タブ返却
+- 総合ミュージックは歌入れを新しいタブで開く前に、現在の全トラックを `autosave` へ即時保存します。
+- 歌入れ完了時は `postMessage` で戻りトークンを元の総合ミュージックタブへ送り、元タブ側が `.asahiproj` を検査・取り込み後にACKを返します。
+- ACK成功時は歌入れタブを閉じ、元の編集中トラック・ガイド・アレンジ状態をそのまま維持します。
+- 元タブが閉じている/応答しない場合は、同じSONG IDの歌入れ前autosaveを復元してから戻りTAKEを追加するURLフォールバックへ切り替えます。
+- 総合ミュージックの自動保存に `asahiProject` メタ、SONG ID、TAKE名、録音ズレ補正も保持するよう更新しました。
