@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.20.3</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ASAHI 歌入れサポート v0.20.4</title>
 <style>body{font-family:system-ui;background:#101622;color:#fff;max-width:700px;margin:auto;padding:16px}section{background:#222c3d;padding:16px;border-radius:14px;margin:12px 0}button,select,input{font:inherit;margin:6px 0;padding:9px}button{background:#5279fa;color:white;border:0;border-radius:9px}button:disabled{opacity:.35}audio,input[type=range]{width:100%}small,p{color:#c4d0e1}output{font-weight:bold}</style></head><body>
-<h2>🎤 ASAHI 歌入れサポート v0.20.3</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
+<h2>🎤 ASAHI 歌入れサポート v0.20.4</h2><p>iPhone Safari / Android Chrome の試作版。伴奏をアップロードして録音・ズレ補正・WAV書き出し。</p>
 <section><h3>0. 端末セルフ診断</h3>
 <p><button id="deviceCheck">📱 端末診断を実行</button><button id="saveDeviceCheck" disabled>診断結果を保存</button></p>
 <pre id="deviceCheckResult" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#111827;padding:12px;border-radius:10px">未実行</pre>
@@ -33,7 +33,7 @@
 <p><small>.asahiproj はアサヒ総合ミュージックとの連携用形式です。原音をそのまま保存し、取り込み時にファイルの破損を検査します。従来の .asahitake も使用可能です。録音したプロジェクトは端末外にも保管してください。</small></p>
 </section><section><h3>10. 合成・保存</h3><button id="mix" disabled>WAVを作成</button><p id="renderProgress" role="status"></p><audio id="result" controls playsinline></audio><button id="save" disabled>WAVを保存</button><button id="share" disabled>共有</button><p>ORISON・総合ミュージックから songId を指定したリンクで起動できます。音源とTAKEは自動送信せず、WAV・バックアップで受け渡します。</p></section>
 <script>
-(()=>{'use strict';const $=x=>document.getElementById(x),AC=window.AudioContext||window.webkitAudioContext;let ctx,back,vocal,stream,rec,src,blob,url,backUrl,vocalUrl,rawVocalBlob=null,rawVocalType='',backingBlob=null,backingName='',localId=null,saveTimer=null,stopReason='',rendering=false,revision=0,recordPhase='idle',listening=false,listenNodes=[],recordSessionId=null,recordSessionPersistent=false,recordChunkSeq=0,recordChunkWrites=[],recordChunkFallback=new Map(),lastDeviceCheck=null,stressControl=null,micTestControl=null,pendingStudioHandoffToken='';const say=t=>$('status').textContent=t;
+(()=>{'use strict';const $=x=>document.getElementById(x),AC=window.AudioContext||window.webkitAudioContext;let ctx,back,vocal,stream,rec,src,blob,url,backUrl,vocalUrl,rawVocalBlob=null,rawVocalType='',backingBlob=null,backingName='',localId=null,saveTimer=null,stopReason='',rendering=false,revision=0,recordPhase='idle',listening=false,listenNodes=[],recordSessionId=null,recordSessionPersistent=false,recordChunkSeq=0,recordChunkWrites=[],recordChunkFallback=new Map(),lastDeviceCheck=null,stressControl=null,micTestControl=null,pendingStudioHandoffToken='',crossTabDiagnostic=null;const say=t=>$('status').textContent=t;
 
 const ASAHI_HANDOFF_DB='asahi-vocal-handoff-v1',ASAHI_HANDOFF_STORE='handoffs',ASAHI_HANDOFF_VERSION=1;
 const WEB_STUDIO_BRIDGE=location.hostname!=='appassets.androidplatform.net';
@@ -100,7 +100,7 @@ async function indexedDbSelfTest(){
  }
 }
 async function runDeviceCheck(){
- const result={schema:'asahi-vocal-device-check-v1',version:'0.20.3',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
+ const result={schema:'asahi-vocal-device-check-v1',version:'0.20.4',checkedAt:new Date().toISOString(),userAgent:navigator.userAgent||'',secureContext:!!window.isSecureContext,tests:{}};
  const t=result.tests;
  t.webAudio={ok:!!AC,detail:AC?'対応':'非対応'};
  t.mediaDevices={ok:!!navigator.mediaDevices?.getUserMedia,detail:navigator.mediaDevices?.getUserMedia?'getUserMedia対応':'getUserMedia非対応'};
@@ -131,7 +131,7 @@ async function runDeviceCheck(){
  result.mandatoryPass=mandatory.every(k=>t[k]?.ok);
  lastDeviceCheck=result;
  const lines=[
-  'ASAHI 歌入れサポート v0.20.3 端末診断',
+  'ASAHI 歌入れサポート v0.20.4 端末診断',
   '必須項目: '+(result.mandatoryPass?'✅ PASS':'❌ 要確認'),
   ''
  ];
@@ -713,6 +713,17 @@ async function loadStudioHandoff(token){
  if(!WEB_STUDIO_BRIDGE||!token)return false;
  const row=await asahiHandoffGet(token);
  if(!row||row.kind!=='to-vocal')throw Error('総合ミュージックからの連携データが見つかりません');
+ if(row.crossTabDiagnostic===true){
+  const diagnosticId=String(row.diagnosticId||'');
+  if(!/^[A-Za-z0-9_-]{10,120}$/.test(diagnosticId))throw Error('実タブ診断IDが不正です');
+  crossTabDiagnostic={
+   id:diagnosticId,
+   expectedSourceStartSec:Number(row.sourceStartSec),
+   expectedOffsetSeconds:Number(row.offsetSeconds),
+   songId:String(row.songId||''),
+   takeName:normalizeTakeName(row.takeName||'実タブ往復診断')
+  };
+ }
  if(Number(row.expiresAt)&&Date.now()>Number(row.expiresAt)){await asahiHandoffDelete(token);throw Error('伴奏連携データの有効期限が切れています')}
  const rowSong=String(row.songId||''),currentSong=$('songId').value.trim();
  if(currentSong&&rowSong&&currentSong!==rowSong)throw Error('SONG IDが一致しないため伴奏の自動読込を停止しました');
@@ -738,6 +749,69 @@ async function loadStudioHandoff(token){
  buttons();
  return true;
 }
+async function runCrossTabDiagnosticReturn(){
+ if(!crossTabDiagnostic)return false;
+ const diag=crossTabDiagnostic;
+ crossTabDiagnostic=null;
+ if(!WEB_STUDIO_BRIDGE||!window.opener||window.opener.closed){
+  setStudioBridgeStatus('❌ 実タブ往復診断：元の総合ミュージックタブが見つかりません');
+  return false;
+ }
+ if(recordPhase!=='idle'||rendering||listening)throw Error('実タブ診断開始時に別処理が動作中です');
+ recordPhase='returning';buttons();
+ let returnToken='';
+ try{
+  const songId=$('songId').value.trim(),currentTake=takeName(),start=sourceStart(),offset=off();
+  if(songId!==diag.songId||currentTake!==diag.takeName)throw Error('実タブ診断のSONG ID / TAKE名が一致しません');
+  if(Math.abs(start-Number(diag.expectedSourceStartSec))>0.001||Math.abs(offset-Number(diag.expectedOffsetSeconds))>0.001)throw Error('実タブ診断の開始位置・補正値が一致しません');
+  const voice=makeRecoveryTestWav();
+  const metadata={
+   schema:'asahi-vocal-take-v1',songId,takeName:currentTake,
+   offsetSeconds:offset,sourceStartSec:start,
+   vocalMimeType:'audio/wav',vocalDurationSeconds:0.30,
+   backingDurationSeconds:null,recordingMode:'mic',exportedAt:new Date().toISOString()
+  };
+  const pack=await buildProjectPack(metadata,voice,null,safeTakeFileBase(currentTake)+'-vocal.wav','');
+  returnToken=asahiHandoffToken('diag-to-studio');
+  await asahiHandoffPut({
+   token:returnToken,kind:'to-studio',songId,takeName:currentTake,projectBlob:pack,
+   diagnosticCrossTab:true,diagnosticId:diag.id,
+   createdAt:Date.now(),expiresAt:Date.now()+60000
+  });
+  setStudioBridgeStatus('🪟 実タブ往復診断：元の総合ミュージックへ診断プロジェクトを返却中…');
+  const ack=await new Promise(resolve=>{
+   let done=false,timer=null;
+   const finish=value=>{
+    if(done)return;
+    done=true;
+    if(timer)clearTimeout(timer);
+    window.removeEventListener('message',onMessage);
+    resolve(value);
+   };
+   const onMessage=event=>{
+    if(event.origin!==location.origin||event.source!==window.opener)return;
+    const data=event.data;
+    if(!data||data.type!=='ASAHI_VOCAL_RETURN_ACK'||data.token!==returnToken)return;
+    finish(data);
+   };
+   window.addEventListener('message',onMessage);
+   timer=setTimeout(()=>finish(null),6000);
+   try{window.opener.postMessage({type:'ASAHI_VOCAL_RETURN',token:returnToken},location.origin)}catch(e){finish(null)}
+  });
+  if(!ack)throw Error('総合ミュージックから6秒以内にACKがありません');
+  if(ack.ok!==true)throw Error('総合ミュージック側の診断取り込み失敗: '+String(ack.error||'不明'));
+  setStudioBridgeStatus('✓ 実タブ往復診断：ACK成功。診断タブを閉じます。');
+  recordPhase='idle';buttons();
+  try{window.close()}catch(e){}
+  return true;
+ }catch(err){
+  if(returnToken){try{await asahiHandoffDelete(returnToken)}catch{}}
+  setStudioBridgeStatus('❌ 実タブ往復診断FAIL: '+String(err?.message||err));
+  recordPhase='idle';buttons();
+  return false;
+ }
+}
+
 async function returnProjectToStudio(){
  if(!WEB_STUDIO_BRIDGE){setStudioBridgeStatus('Androidアプリ版では自動復帰は使えません。.asahiproj を保存して総合ミュージックへ取り込んでください。');return}
  if(recordPhase!=='idle'||rendering||listening)return;
@@ -953,7 +1027,12 @@ if(!WEB_STUDIO_BRIDGE)setStudioBridgeStatus('Androidアプリ版：自動往復�
 if(sessionStorage.getItem('asahiRecoverySelfTest')==='pending')$('recoveryTestResult').textContent='ページ再読込完了。復旧処理を確認中…';
 recordPhase='recovering';buttons();recoverInterruptedRecording().finally(async()=>{
  recordPhase='idle';
- try{if(pendingStudioHandoffToken)await loadStudioHandoff(pendingStudioHandoffToken)}catch(e){setStudioBridgeStatus('❌ 伴奏の自動受け渡し失敗: '+e.message)}
+ try{
+  if(pendingStudioHandoffToken){
+   await loadStudioHandoff(pendingStudioHandoffToken);
+   if(crossTabDiagnostic)await runCrossTabDiagnosticReturn();
+  }
+ }catch(e){setStudioBridgeStatus('❌ 伴奏の自動受け渡し失敗: '+e.message)}
  buttons();refreshTakes();
 });
 
