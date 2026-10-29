@@ -9,6 +9,7 @@ const app=fs.readFileSync(path.join(root,'app-v10.3.2.html'),'utf8');
 const vocal=fs.readFileSync(path.join(root,'vocal/index.html'),'utf8');
 const loader=fs.readFileSync(path.join(root,'v104-loader.js'),'utf8');
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const androidMain=fs.readFileSync(path.join(root,'android-vocal/app/src/main/java/com/asahi/vocal/MainActivity.java'),'utf8');
 
 const check=(condition,label)=>{assert.ok(condition,label);console.log('PASS',label)};
 const has=(source,needle,label)=>check(source.includes(needle),label);
@@ -52,6 +53,23 @@ has(app,'existing-take','Studio preserves timing from an existing ASAHI TAKE');
 has(app,'expiresAt:Date.now()+6*60*60*1000','Studio handoff has six-hour expiry');
 has(vocal,'cleanupExpiredAsahiHandoffs','Vocal cleans expired handoff rows');
 has(vocal,"u.searchParams.delete('handoff')",'Vocal removes consumed handoff token from URL');
+has(app,'cleanupExpiredAsahiHandoffs','Studio cleans expired handoff rows');
+has(app,'await asahiHandoffDelete(token);','Studio deletes consumed/expired handoff tokens');
+has(vocal,'await asahiHandoffDelete(token);','Vocal deletes consumed/expired handoff tokens');
+
+has(vocal,"const WEB_STUDIO_BRIDGE=location.hostname!=='appassets.androidplatform.net';",'Vocal disables Web auto-handoff on Android appassets origin');
+has(androidMain,'https://appassets.androidplatform.net/assets/index.html','Android WebView uses isolated appassets origin');
+has(androidMain,'return !ROOT_URL.equals(request.getUrl().toString());','Android WebView blocks navigation away from packaged app root');
+has(vocal,'Androidアプリ版では自動復帰は使えません','Android Vocal explicitly falls back to .asahiproj file transfer');
+
+has(vocal,"target.searchParams.set('asahiReturn',token)",'Vocal prepares URL fallback return token');
+has(vocal,'navigated=true;location.href=target.href','Vocal uses URL fallback when opener ACK is unavailable');
+has(app,'new URLSearchParams(location.search).get("asahiReturn")','Studio reads fallback asahiReturn token');
+has(app,'consumeAsahiReturnToken(token,{restoreBase:true})','Studio fallback restores saved base project before importing returned TAKE');
+has(app,'idbGet("projects","autosave")','Studio fallback reads the pre-vocal autosave');
+has(app,'cleanAsahiText(p.asahiSongId)===expected','Studio fallback restores autosave only for matching SONG ID');
+has(app,'await restoreProjectRecord(p,DB_NAME,"歌入れ前の自動保存")','Studio fallback restores pre-vocal project record');
+has(app,'u.searchParams.delete("asahiReturn")','Studio removes consumed fallback return token from URL');
 
 has(app,'🪟 実タブ往復診断','Studio exposes real child-tab roundtrip diagnostic');
 has(vocal,'実タブ往復診断：本物の中断録音には触れず','Vocal diagnostic is isolated from real recovery');
