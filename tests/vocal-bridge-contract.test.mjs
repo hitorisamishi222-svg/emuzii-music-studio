@@ -15,11 +15,11 @@ const check=(condition,label)=>{assert.ok(condition,label);console.log('PASS',la
 const has=(source,needle,label)=>check(source.includes(needle),label);
 const matches=(source,re,label)=>check(re.test(source),label);
 
-has(app,'emuzii MUSIC STUDIO v10.9.13 DEV','Studio development version is v10.9.13');
+has(app,'emuzii MUSIC STUDIO v10.9.14 DEV','Studio development version is v10.9.14');
 has(vocal,'ASAHI 歌入れサポート v0.20.5','Vocal development version is v0.20.5');
 has(loader,'asahi-project-reader.js?v=1202','Loader cache-busts ASAHIProjectReader v1.1.1');
-has(index,'v104-loader.js?v=10913','Root cache-busts the v10.9.13 loader');
-has(loader,'app-v10.3.2.html?v=10913','Loader cache-busts the v10.9.13 app source');
+has(index,'v104-loader.js?v=10914','Root cache-busts the v10.9.14 loader');
+has(loader,'app-v10.3.2.html?v=10914','Loader cache-busts the v10.9.14 app source');
 
 for(const [source,label] of [[app,'Studio'],[vocal,'Vocal']]){
   has(source,'asahi-vocal-handoff-v1',label+' uses shared handoff database');
