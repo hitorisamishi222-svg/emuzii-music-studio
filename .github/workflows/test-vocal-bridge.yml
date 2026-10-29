@@ -9,7 +9,7 @@ on:
       - 'v104-loader.js'
       - 'index.html'
       - 'android-vocal/app/src/main/java/com/asahi/vocal/MainActivity.java'
-      - 'tests/vocal-bridge-contract.test.mjs'
+      - 'tests/vocal-bridge-contract.test.mjs'\n      - 'tests/vocal-bridge-browser.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
 
@@ -25,3 +25,22 @@ jobs:
           node-version: '20'
       - name: Verify Studio ↔ Vocal bridge contract
         run: node tests/vocal-bridge-contract.test.mjs
+
+
+  browser-roundtrip:
+    needs: vocal-bridge-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify real child-tab Studio ↔ Vocal roundtrip
+        run: node tests/vocal-bridge-browser.test.mjs
