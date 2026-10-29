@@ -42,7 +42,7 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 ## ビルド
 GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする構成。Android Studioで開く場合は `android-vocal` ディレクトリを開いてください。
 
-**状況**：GitHubの開発ブランチにv0.20ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.20の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
+**状況**：GitHubの開発ブランチにv0.20.5ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.20.5の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
 
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
 
@@ -81,3 +81,9 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 
 - Webの実タブ往復診断で開かれたVocalタブは、中断録音の自動復旧をスキップし、既存の本物の録音データへ診断用SONG ID/TAKE名を書き込まない。
 - 通常起動では従来どおり中断録音の自動復旧を実行。
+
+
+## v0.20.5 回帰テスト
+- Studio v10.9.13とのWeb往復契約を `tests/vocal-bridge-contract.test.mjs` で自動検証。
+- 共通ASAHI Project Readerはv1.1.1。旧 `.asahiproj` の開始位置欠落を0秒として正規化し、不正な開始位置は拒否。
+- GitHub Actionsで往復ブリッジ契約テストを実行し、変更時の回帰を検出。
