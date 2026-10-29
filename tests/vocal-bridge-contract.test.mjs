@@ -54,7 +54,7 @@ has(app,'既存ガイド/他トラックが変化しました','Studio diagnosti
 
 await import('../integration/asahi-project-reader.js');
 const reader=globalThis.ASAHIProjectReader;
-check(reader?.version==='1.1.0','ASAHIProjectReader v1.1.0 loaded');
+check(reader?.version==='1.1.1','ASAHIProjectReader v1.1.1 loaded');
 
 const encoder=new TextEncoder();
 const MAGIC=encoder.encode('ASAHI-PROJECT-V1\n');
@@ -98,6 +98,21 @@ check(parsed.vocalBlob.size===8&&parsed.backingBlob.size===6,'Reader preserves o
 
 const legacy=await reader.read(await makePack({legacy:true}));
 check(legacy.metadata.sourceStartSec===0,'Reader defaults legacy sourceStartSec to zero');
+
+async function makeInvalidStartPack(value){
+  const vocalBlob=new Blob([Uint8Array.from([1,2,3])],{type:'audio/wav'});
+  const metadata={schema:'asahi-vocal-take-v1',songId:'SONG-CI-BAD',takeName:'bad-start',offsetSeconds:0,sourceStartSec:value,recordingMode:'mic'};
+  const manifest={schema:'asahi-vocal-project-v1',metadata,vocal:{name:'v.wav',mimeType:vocalBlob.type,size:vocalBlob.size,crc32:await crc32(vocalBlob)},backing:null};
+  const head=encoder.encode(JSON.stringify(manifest));
+  const size=new Uint8Array(4);new DataView(size.buffer).setUint32(0,head.byteLength,true);
+  return new Blob([MAGIC,size,head,vocalBlob],{type:'application/octet-stream'});
+}
+await assert.rejects(()=>reader.read(await makeInvalidStartPack(-0.05)),/録音開始位置/);
+console.log('PASS Reader rejects negative sourceStartSec');
+await assert.rejects(()=>reader.read(await makeInvalidStartPack(7200.05)),/録音開始位置/);
+console.log('PASS Reader rejects sourceStartSec above 7200 seconds');
+await assert.rejects(()=>reader.read(await makeInvalidStartPack(1.03)),/録音開始位置/);
+console.log('PASS Reader rejects sourceStartSec outside 0.05-second grid');
 
 const badBytes=new Uint8Array(await pack.arrayBuffer());
 badBytes[badBytes.length-1]^=0xff;
