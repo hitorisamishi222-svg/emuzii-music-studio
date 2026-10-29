@@ -9,7 +9,8 @@ on:
       - 'v104-loader.js'
       - 'index.html'
       - 'android-vocal/app/src/main/java/com/asahi/vocal/MainActivity.java'
-      - 'tests/vocal-bridge-contract.test.mjs'\n      - 'tests/vocal-bridge-browser.test.mjs'
+      - 'tests/vocal-bridge-contract.test.mjs'
+      - 'tests/vocal-bridge-browser.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
 
