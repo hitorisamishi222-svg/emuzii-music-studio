@@ -24,6 +24,12 @@ function safeFilePath(requestUrl){
 }
 
 const server=http.createServer((req,res)=>{
+  const pathname=new URL(req.url||'/','http://127.0.0.1').pathname;
+  if(pathname==='/sw.js'){
+    res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store'});
+    res.end('// CI no-op service worker for bridge integration test');
+    return;
+  }
   const file=safeFilePath(req.url||'/');
   if(!file||!fs.existsSync(file)||!fs.statSync(file).isFile()){
     res.writeHead(404,{'content-type':'text/plain; charset=utf-8'});res.end('not found');return;

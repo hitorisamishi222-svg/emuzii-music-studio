@@ -15,11 +15,11 @@ const check=(condition,label)=>{assert.ok(condition,label);console.log('PASS',la
 const has=(source,needle,label)=>check(source.includes(needle),label);
 const matches=(source,re,label)=>check(re.test(source),label);
 
-has(app,'emuzii MUSIC STUDIO v10.9.15 DEV','Studio development version is v10.9.15');
+has(app,'emuzii MUSIC STUDIO v10.9.16 DEV','Studio development version is v10.9.16');
 has(vocal,'ASAHI 歌入れサポート v0.20.6','Vocal development version is v0.20.6');
 has(loader,'asahi-project-reader.js?v=1202','Loader cache-busts ASAHIProjectReader v1.1.1');
-has(index,'v104-loader.js?v=10915','Root cache-busts the v10.9.15 loader');
-has(loader,'app-v10.3.2.html?v=10915','Loader cache-busts the v10.9.15 app source');
+has(index,'v104-loader.js?v=10916','Root cache-busts the v10.9.16 loader');
+has(loader,'app-v10.3.2.html?v=10916','Loader cache-busts the v10.9.16 app source');
 
 for(const [source,label] of [[app,'Studio'],[vocal,'Vocal']]){
   has(source,'asahi-vocal-handoff-v1',label+' uses shared handoff database');
@@ -47,6 +47,9 @@ has(app,'returnRow.kind==="to-studio"','Studio validates to-studio return handof
 has(app,'ASAHI_VOCAL_RETURN_ACK','Studio sends return ACK');
 has(app,'event.origin!==location.origin','Studio rejects cross-origin return messages');
 has(app,'event.source!==ctx.child','Diagnostic accepts return only from the opened Vocal tab');
+has(app,'els.vocalBridgeSongId.value=diagnosticSong','Cross-tab diagnostic temporarily switches parent SONG ID');
+has(app,'state.asahiSongId=diagnosticSong','Cross-tab diagnostic updates parent SONG state before return import');
+has(app,'els.vocalBridgeTakeName.value=diagnosticTake','Cross-tab diagnostic temporarily switches parent TAKE name');
 
 has(app,'placement=start+offset','Studio places vocal at sourceStartSec + offsetSeconds');
 has(app,'Number(returned.start)-3.10','Studio diagnostic verifies 3.10-second placement');
