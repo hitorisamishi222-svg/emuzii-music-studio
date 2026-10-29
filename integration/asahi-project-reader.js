@@ -1,4 +1,4 @@
-/* ASAHI Vocal Project Reader v1.0
+/* ASAHI Vocal Project Reader v1.1.1
  * Reusable importer for ASAHI Vocal Recorder v0.12+ .asahiproj packages.
  * ASAHIProjectReader.read(file) returns {manifest,metadata,vocalBlob,backingBlob}.
  * No storage writes, server uploads, or destructive changes.
@@ -20,6 +20,9 @@
     if(manifest.schema!=='asahi-vocal-project-v1'||manifest.metadata?.schema!=='asahi-vocal-take-v1')throw Error('プロジェクトのバージョンが未対応です');
     const metadata=manifest.metadata;
     if(!Number.isFinite(metadata.offsetSeconds)||metadata.offsetSeconds < -3||metadata.offsetSeconds>3)throw Error('補正値が不正です');
+    const sourceStartSec=metadata.sourceStartSec==null?0:Number(metadata.sourceStartSec);
+    if(!Number.isFinite(sourceStartSec)||sourceStartSec<0||sourceStartSec>7200||Math.round(sourceStartSec*20)/20!==sourceStartSec)throw Error('録音開始位置が不正です');
+    metadata.sourceStartSec=sourceStartSec;
     if(![null,'mic','mix','backing'].includes(metadata.recordingMode??null))throw Error('録音モードが不正です');
     const tracks=[];
     for(const entry of [manifest.vocal,manifest.backing]){
@@ -34,5 +37,5 @@
     if(!tracks[0]&&!tracks[1])throw Error('歌声と伴奏がありません');
     return {manifest,metadata,vocalBlob:tracks[0],backingBlob:tracks[1]};
   }
-  root.ASAHIProjectReader=Object.freeze({read,version:'1.1.0'});
+  root.ASAHIProjectReader=Object.freeze({read,version:'1.1.1'});
 })(typeof globalThis==='object'?globalThis:this);
