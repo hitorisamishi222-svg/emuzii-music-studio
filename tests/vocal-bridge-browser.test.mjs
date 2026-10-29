@@ -45,8 +45,11 @@ let browser;
 try{
   browser=await chromium.launch({headless:true,args:['--autoplay-policy=no-user-gesture-required']});
   const context=await browser.newContext();
-  const pageErrors=[];
-  context.on('page',p=>p.on('pageerror',e=>pageErrors.push((p.url()||'page')+': '+e.message)));
+  const pageErrors=[],consoleErrors=[];
+  context.on('page',p=>{
+    p.on('pageerror',e=>pageErrors.push({url:p.url()||'page',message:e.message,stack:e.stack||''}));
+    p.on('console',msg=>{if(msg.type()==='error')consoleErrors.push({url:p.url()||'page',text:msg.text()})});
+  });
   const page=await context.newPage();
 
   await page.goto(base,{waitUntil:'domcontentloaded',timeout:60000});
@@ -100,7 +103,7 @@ try{
         q.onerror=()=>reject(q.error);t.oncomplete=()=>db.close();
       });
     }).catch(e=>[{error:String(e)}]);
-    console.error('CROSS_TAB_DEBUG',JSON.stringify({parentStatus,childInfo,handoffRows,pageErrors},null,2));
+    console.error('CROSS_TAB_DEBUG',JSON.stringify({parentStatus,childInfo,handoffRows,pageErrors,consoleErrors},null,2));
     throw error;
   }
   const crossTab=await page.locator('#vocalBridgeStatus').textContent();
@@ -132,7 +135,8 @@ try{
   console.log('PASS diagnostic handoff cleanup');
 
   assert.deepEqual(pageErrors,[],'No uncaught page errors expected');
-  console.log('PASS no uncaught browser page errors');
+  assert.deepEqual(consoleErrors,[],'No browser console errors expected');
+  console.log('PASS no uncaught browser page/console errors');
   console.log('ALL VOCAL BRIDGE BROWSER TESTS PASS');
 }finally{
   if(browser)await browser.close().catch(()=>{});
