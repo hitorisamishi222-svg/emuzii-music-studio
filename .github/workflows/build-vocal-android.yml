@@ -4,7 +4,10 @@ on:
     branches: [feature/vocal-recorder-v1]
     paths:
       - 'vocal/**'
-      - 'android-vocal/**'
+      - 'android-vocal/app/**'
+      - 'android-vocal/build.gradle'
+      - 'android-vocal/settings.gradle'
+      - 'android-vocal/gradle.properties'
       - '.github/workflows/build-vocal-android.yml'
   workflow_dispatch:
 jobs:
