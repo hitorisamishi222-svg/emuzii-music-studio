@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.3）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.4）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -47,7 +47,7 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
 
 
-## v0.20.3 Web往復ブリッジ
+## v0.20.4 Web往復ブリッジ
 - 総合ミュージックと同一オリジンで動くWeb版では、IndexedDBの一時ハンドオフ領域 `asahi-vocal-handoff-v1` を利用します。
 - 総合ミュージック → 歌入れ：SONG ID、TAKE名、伴奏Blob、録音開始位置、補正値を端末内だけで受け渡します。開始位置・補正値も自動継承します。
 - 歌入れ → 総合ミュージック：歌声・伴奏・メタデータを `.asahiproj` Blob にして同じ一時領域へ保存し、`asahiReturn` トークンで総合側へ戻します。
@@ -62,9 +62,19 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - 連携診断では開始3.25秒・補正-0.15秒もIndexedDBへ書込・読戻しして照合します。
 
 
-## v10.9.9 / Vocal v0.20.3 元タブ返却
+## v10.9.9 / Vocal v0.20.4 元タブ返却
 - 総合ミュージックは歌入れを新しいタブで開く前に、現在の全トラックを `autosave` へ即時保存します。
 - 歌入れ完了時は `postMessage` で戻りトークンを元の総合ミュージックタブへ送り、元タブ側が `.asahiproj` を検査・取り込み後にACKを返します。
 - ACK成功時は歌入れタブを閉じ、元の編集中トラック・ガイド・アレンジ状態をそのまま維持します。
 - 元タブが閉じている/応答しない場合は、同じSONG IDの歌入れ前autosaveを復元してから戻りTAKEを追加するURLフォールバックへ切り替えます。
 - 総合ミュージックの自動保存に `asahiProject` メタ、SONG ID、TAKE名、録音ズレ補正も保持するよう更新しました。
+
+
+## v0.20.4 Web連携診断
+- MUSIC STUDIO v10.9.12 開発版の「🪟 実タブ往復診断」から、実際に別タブでVocal Web版を起動。
+- 診断用handoffで sourceStartSec 3.25秒 / offsetSeconds -0.15秒を受信。
+- Vocal側は通常TAKEを作らず、0.30秒のテストWAVから診断用 `.asahiproj` を生成。
+- 通常の `ASAHI_VOCAL_RETURN` → Studio取り込み → `ASAHI_VOCAL_RETURN_ACK` 経路を使用。
+- ACK成功時だけVocal診断タブを自動終了。
+- 診断用経路はWeb版専用。Androidアプリでは従来どおり `.asahiproj` ファイル受け渡しを使用。
+- 実ユーザーのTAKE / 伴奏 / 録音データは診断に使用しない。
