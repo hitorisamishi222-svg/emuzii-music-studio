@@ -7,6 +7,7 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,'..');
 const app=fs.readFileSync(path.join(root,'app-v10.3.2.html'),'utf8');
 const vocal=fs.readFileSync(path.join(root,'vocal/index.html'),'utf8');
+const loader=fs.readFileSync(path.join(root,'v104-loader.js'),'utf8');
 
 const check=(condition,label)=>{assert.ok(condition,label);console.log('PASS',label)};
 const has=(source,needle,label)=>check(source.includes(needle),label);
@@ -14,6 +15,7 @@ const matches=(source,re,label)=>check(re.test(source),label);
 
 has(app,'emuzii MUSIC STUDIO v10.9.13 DEV','Studio development version is v10.9.13');
 has(vocal,'ASAHI 歌入れサポート v0.20.5','Vocal development version is v0.20.5');
+has(loader,'asahi-project-reader.js?v=1202','Loader cache-busts ASAHIProjectReader v1.1.1');
 
 for(const [source,label] of [[app,'Studio'],[vocal,'Vocal']]){
   has(source,'asahi-vocal-handoff-v1',label+' uses shared handoff database');
