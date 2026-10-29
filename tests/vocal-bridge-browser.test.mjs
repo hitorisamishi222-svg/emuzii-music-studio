@@ -68,10 +68,41 @@ try{
   const child=await popupPromise;
   await child.waitForLoadState('domcontentloaded',{timeout:30000}).catch(()=>{});
 
-  await page.waitForFunction(
-    ()=>document.querySelector('#vocalBridgeStatus')?.textContent?.includes('実タブ往復診断PASS'),
-    {timeout:30000}
-  );
+  try{
+    await page.waitForFunction(
+      ()=>document.querySelector('#vocalBridgeStatus')?.textContent?.includes('実タブ往復診断PASS'),
+      {timeout:30000}
+    );
+  }catch(error){
+    const parentStatus=await page.locator('#vocalBridgeStatus').textContent().catch(()=>'<missing>');
+    let childInfo={closed:child.isClosed(),url:child.url()};
+    if(!child.isClosed()){
+      childInfo={
+        ...childInfo,
+        title:await child.title().catch(()=>'<no-title>'),
+        bridgeStatus:await child.locator('#studioBridgeStatus').textContent().catch(()=>'<missing>'),
+        status:await child.locator('#status').textContent().catch(()=>'<missing>'),
+        songId:await child.locator('#songId').inputValue().catch(()=>'<missing>'),
+        takeName:await child.locator('#takeName').inputValue().catch(()=>'<missing>'),
+        start:await child.locator('#startSeconds').inputValue().catch(()=>'<missing>'),
+        offset:await child.locator('#offset').inputValue().catch(()=>'<missing>'),
+        opener:await child.evaluate(()=>({hasOpener:!!window.opener,openerClosed:window.opener?.closed??null,origin:location.origin})).catch(()=>null)
+      };
+    }
+    const handoffRows=await page.evaluate(async()=>{
+      const db=await new Promise((resolve,reject)=>{
+        const q=indexedDB.open('asahi-vocal-handoff-v1',1);
+        q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+      });
+      return await new Promise((resolve,reject)=>{
+        const t=db.transaction('handoffs','readonly'),q=t.objectStore('handoffs').getAll();
+        q.onsuccess=()=>resolve((q.result||[]).map(r=>({token:r.token,kind:r.kind,songId:r.songId,takeName:r.takeName,crossTabDiagnostic:r.crossTabDiagnostic,diagnosticId:r.diagnosticId})));
+        q.onerror=()=>reject(q.error);t.oncomplete=()=>db.close();
+      });
+    }).catch(e=>[{error:String(e)}]);
+    console.error('CROSS_TAB_DEBUG',JSON.stringify({parentStatus,childInfo,handoffRows,pageErrors},null,2));
+    throw error;
+  }
   const crossTab=await page.locator('#vocalBridgeStatus').textContent();
   assert.match(crossTab,/実タブ往復診断PASS/);
   assert.match(crossTab,/戻りTAKE 3\.10秒/);
