@@ -8,6 +8,7 @@ on:
       - 'integration/**'
       - 'v104-loader.js'
       - 'index.html'
+      - 'android-vocal/app/src/main/java/com/asahi/vocal/MainActivity.java'
       - 'tests/vocal-bridge-contract.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
