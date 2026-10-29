@@ -15,11 +15,11 @@ const check=(condition,label)=>{assert.ok(condition,label);console.log('PASS',la
 const has=(source,needle,label)=>check(source.includes(needle),label);
 const matches=(source,re,label)=>check(re.test(source),label);
 
-has(app,'emuzii MUSIC STUDIO v10.9.14 DEV','Studio development version is v10.9.14');
-has(vocal,'ASAHI 歌入れサポート v0.20.5','Vocal development version is v0.20.5');
+has(app,'emuzii MUSIC STUDIO v10.9.15 DEV','Studio development version is v10.9.15');
+has(vocal,'ASAHI 歌入れサポート v0.20.6','Vocal development version is v0.20.6');
 has(loader,'asahi-project-reader.js?v=1202','Loader cache-busts ASAHIProjectReader v1.1.1');
-has(index,'v104-loader.js?v=10914','Root cache-busts the v10.9.14 loader');
-has(loader,'app-v10.3.2.html?v=10914','Loader cache-busts the v10.9.14 app source');
+has(index,'v104-loader.js?v=10915','Root cache-busts the v10.9.15 loader');
+has(loader,'app-v10.3.2.html?v=10915','Loader cache-busts the v10.9.15 app source');
 
 for(const [source,label] of [[app,'Studio'],[vocal,'Vocal']]){
   has(source,'asahi-vocal-handoff-v1',label+' uses shared handoff database');
@@ -36,6 +36,8 @@ has(vocal,"row.kind!=='to-vocal'",'Vocal accepts only to-vocal launch handoff');
 has(vocal,'crossTabDiagnosticRequested','Vocal tracks real child-tab diagnostic launch');
 has(vocal,'if(!crossTabDiagnosticRequested)await recoverInterruptedRecording()','Diagnostic launch does not touch real interrupted recording');
 has(vocal,"kind:'to-studio'",'Vocal creates to-studio return handoff');
+has(vocal,'crossTabDiagnostic:true','Vocal marks diagnostic return with Studio-compatible crossTabDiagnostic flag');
+check(!vocal.includes('diagnosticCrossTab:true'),'Vocal no longer uses reversed diagnosticCrossTab flag');
 has(vocal,"window.opener.postMessage({type:'ASAHI_VOCAL_RETURN',token}",'Vocal notifies original Studio tab');
 has(vocal,"data.type!=='ASAHI_VOCAL_RETURN_ACK'",'Vocal validates Studio ACK');
 has(vocal,'try{window.close()}catch(e){}','Vocal closes child tab after successful ACK');

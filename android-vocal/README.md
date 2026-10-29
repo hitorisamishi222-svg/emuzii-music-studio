@@ -1,4 +1,4 @@
-# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.5）
+# ASAHI 歌入れサポート Androidアプリ（試作・v0.20.6）
 
 Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネット接続不要の録音UIを同梱し、同じ機能・TAKE形式を共有します。
 
@@ -42,12 +42,12 @@ Androidは専用WebViewアプリ、iPhoneは独立Web版。アプリにはネッ
 ## ビルド
 GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする構成。Android Studioで開く場合は `android-vocal` ディレクトリを開いてください。
 
-**状況**：GitHubの開発ブランチにv0.20.5ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.20.5の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
+**状況**：GitHubの開発ブランチにv0.20.6ソースを保存し、GitHub ActionsでデバッグAPKのビルド成功を確認。APK内部にv0.20.6の録音画面が含まれることも確認済み。iPhone・Android実機での長時間録音、強制終了後の復旧、APKインストールは未検証。署名済み配布版やPlayストア公開版ではありません。
 
 `android-vocal/app/build.gradle` がルートの `vocal/index.html` をビルド時にアプリ内へコピーします。Web版とアプリ版の画面ソースは共通です。
 
 
-## v0.20.5 Web往復ブリッジ
+## v0.20.6 Web往復ブリッジ
 - 総合ミュージックと同一オリジンで動くWeb版では、IndexedDBの一時ハンドオフ領域 `asahi-vocal-handoff-v1` を利用します。
 - 総合ミュージック → 歌入れ：SONG ID、TAKE名、伴奏Blob、録音開始位置、補正値を端末内だけで受け渡します。開始位置・補正値も自動継承します。
 - 歌入れ → 総合ミュージック：歌声・伴奏・メタデータを `.asahiproj` Blob にして同じ一時領域へ保存し、`asahiReturn` トークンで総合側へ戻します。
@@ -62,7 +62,7 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - 連携診断では開始3.25秒・補正-0.15秒もIndexedDBへ書込・読戻しして照合します。
 
 
-## v10.9.9 / Vocal v0.20.5 元タブ返却
+## v10.9.9 / Vocal v0.20.6 元タブ返却
 - 総合ミュージックは歌入れを新しいタブで開く前に、現在の全トラックを `autosave` へ即時保存します。
 - 歌入れ完了時は `postMessage` で戻りトークンを元の総合ミュージックタブへ送り、元タブ側が `.asahiproj` を検査・取り込み後にACKを返します。
 - ACK成功時は歌入れタブを閉じ、元の編集中トラック・ガイド・アレンジ状態をそのまま維持します。
@@ -70,7 +70,7 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - 総合ミュージックの自動保存に `asahiProject` メタ、SONG ID、TAKE名、録音ズレ補正も保持するよう更新しました。
 
 
-## v0.20.5 Web連携診断
+## v0.20.6 Web連携診断
 - MUSIC STUDIO v10.9.12 開発版の「🪟 実タブ往復診断」から、実際に別タブでVocal Web版を起動。
 - 診断用handoffで sourceStartSec 3.25秒 / offsetSeconds -0.15秒を受信。
 - Vocal側は通常TAKEを作らず、0.30秒のテストWAVから診断用 `.asahiproj` を生成。
@@ -83,7 +83,7 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - 通常起動では従来どおり中断録音の自動復旧を実行。
 
 
-## v0.20.5 回帰テスト
+## v0.20.6 回帰テスト
 - Studio v10.9.13とのWeb往復契約を `tests/vocal-bridge-contract.test.mjs` で自動検証。
 - 共通ASAHI Project Readerはv1.1.1。旧 `.asahiproj` の開始位置欠落を0秒として正規化し、不正な開始位置は拒否。
 - GitHub Actionsで往復ブリッジ契約テストを実行し、変更時の回帰を検出。
