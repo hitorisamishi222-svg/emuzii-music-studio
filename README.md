@@ -30,7 +30,7 @@ Vercel側に以下を設定する。
 GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 
 
-## ASAHI 歌入れ v0.20.3 × 総合ミュージック v10.9.10 自動往復（開発ブランチ）
+## ASAHI 歌入れ v0.20.5 × 総合ミュージック v10.9.13 自動往復（開発ブランチ）
 
 - 総合ミュージックから SONG ID / TAKE名を付けて `/vocal/` を開ける。
 - 同一オリジンの IndexedDB `asahi-vocal-handoff-v1` を使い、伴奏Blobを端末内だけで歌入れ画面へ受け渡す。
@@ -42,7 +42,7 @@ GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 - 本番URLへの反映は未実施。
 
 
-### v0.20.3 / v10.9.10 安全パッチ
+### v0.20.5 / v10.9.13 安全パッチ
 - 同じ SONG ID + 同じ歌声 CRC32 のTAKEを重複追加しない。
 - `🔗 連携診断` を追加。
 - 6時間を過ぎた未使用handoffデータを起動時に自動削除。
@@ -51,3 +51,10 @@ GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 - Web版は元の総合ミュージックタブへ `postMessage` で自動返却し、応答がない場合は `asahiReturn` URL復帰へ切り替える。
 - 総合ミュージック側は歌入れ前に自動保存し、URL復帰時は同じSONG IDの自動保存を先に復元してからTAKEを取り込む。
 - Android版はWebと同一オリジンではないため、自動タブ往復ではなく `.asahiproj` ファイル受け渡しを使用する。
+
+
+### 2026-10-29 回帰テスト固定
+- 共通 `ASAHIProjectReader` を v1.1.1 へ更新。旧プロジェクトで `sourceStartSec` が無い場合は0秒へ正規化し、0〜7200秒・0.05秒刻みを検証する。
+- `tests/vocal-bridge-contract.test.mjs` と GitHub Actions `Test Vocal Bridge Contract` を追加。
+- Studio↔Vocalのhandoff DB、SONG ID、開始位置、補正値、CRC重複防止、postMessage ACK、実タブ診断隔離、旧形式互換、CRC破損拒否を変更時に自動検証する。
+- ルート→ローダー→アプリ→Readerのキャッシュキーも v10.9.13 / Reader v1.1.1 用に更新。
