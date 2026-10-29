@@ -1,7 +1,7 @@
 (async()=>{
   "use strict";
   try{
-    const res=await fetch("./app-v10.3.2.html?v=1043",{cache:"no-store"});
+    const res=await fetch("./app-v10.3.2.html?v=10913",{cache:"no-store"});
     if(!res.ok)throw new Error(`HTTP ${res.status}`);
     let html=await res.text();
     const pre='<script src="./integration/asahi-project-reader.js?v=1202"></script>';
