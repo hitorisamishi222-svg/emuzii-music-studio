@@ -107,11 +107,11 @@ async function makeInvalidStartPack(value){
   const size=new Uint8Array(4);new DataView(size.buffer).setUint32(0,head.byteLength,true);
   return new Blob([MAGIC,size,head,vocalBlob],{type:'application/octet-stream'});
 }
-await assert.rejects(()=>reader.read(await makeInvalidStartPack(-0.05)),/録音開始位置/);
+await assert.rejects(async()=>reader.read(await makeInvalidStartPack(-0.05)),/録音開始位置/);
 console.log('PASS Reader rejects negative sourceStartSec');
-await assert.rejects(()=>reader.read(await makeInvalidStartPack(7200.05)),/録音開始位置/);
+await assert.rejects(async()=>reader.read(await makeInvalidStartPack(7200.05)),/録音開始位置/);
 console.log('PASS Reader rejects sourceStartSec above 7200 seconds');
-await assert.rejects(()=>reader.read(await makeInvalidStartPack(1.03)),/録音開始位置/);
+await assert.rejects(async()=>reader.read(await makeInvalidStartPack(1.03)),/録音開始位置/);
 console.log('PASS Reader rejects sourceStartSec outside 0.05-second grid');
 
 const badBytes=new Uint8Array(await pack.arrayBuffer());
