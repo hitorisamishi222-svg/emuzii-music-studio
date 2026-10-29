@@ -6,6 +6,7 @@ on:
       - 'app-v10.3.2.html'
       - 'vocal/**'
       - 'integration/**'
+      - 'v104-loader.js'
       - 'tests/vocal-bridge-contract.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
