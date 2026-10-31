@@ -30,7 +30,7 @@ Vercel側に以下を設定する。
 GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 
 
-## ASAHI 歌入れ v0.20.5 × 総合ミュージック v10.9.13 自動往復（開発ブランチ）
+## ASAHI 歌入れ v0.20.6 × 総合ミュージック v10.9.16 自動往復（開発ブランチ）
 
 - 総合ミュージックから SONG ID / TAKE名を付けて `/vocal/` を開ける。
 - 同一オリジンの IndexedDB `asahi-vocal-handoff-v1` を使い、伴奏Blobを端末内だけで歌入れ画面へ受け渡す。
@@ -52,6 +52,14 @@ GPU側はACE-Step 1.5公式REST APIをworkers=1で運用する。
 - 総合ミュージック側は歌入れ前に自動保存し、URL復帰時は同じSONG IDの自動保存を先に復元してからTAKEを取り込む。
 - Android版はWebと同一オリジンではないため、自動タブ往復ではなく `.asahiproj` ファイル受け渡しを使用する。
 
+
+### v0.20.6 / v10.9.16 最新安全パッチ
+- 実ブラウザの別タブ診断で、Vocal側の戻りフラグと親タブACK契約を厳格化。
+- 総合ミュージック側は戻り診断の取り込み前に対象SONG IDを揃え、別作品への誤取り込みを防止。
+- 旧ワークフローのイベントバインドをメインスコープへ戻し、ブラウザ実行時エラーを解消。
+- GitHub Actionsの `browser-roundtrip` で実Chromiumの Studio → Vocal子タブ → Studio 自動返却を確認済み。
+- `vocal-bridge-contract` と `browser-roundtrip` は v10.9.16 でともにPASS。
+- 本番URLへの反映は未実施。
 
 ### 2026-10-29 回帰テスト固定
 - 共通 `ASAHIProjectReader` を v1.1.1 へ更新。旧プロジェクトで `sourceStartSec` が無い場合は0秒へ正規化し、0〜7200秒・0.05秒刻みを検証する。
