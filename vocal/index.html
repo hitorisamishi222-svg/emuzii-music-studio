@@ -539,11 +539,17 @@ $('record').onclick=async()=>{
         try{
           vocal=await a.decodeAudioData(await f.arrayBuffer());
           say('録音完了 '+vocal.duration.toFixed(2)+'秒。'+(stored?'端末内保存済み。':'要バックアップ。')+(stopReason?' 停止理由: '+stopReason:''));
-          if(stored){try{await persistTake()}catch(err){say('保存した原音は保持されていますが、長さの更新に失敗: '+err.message)}
-          if(sessionPersistent){try{await deleteRecordingSession(sessionId)}catch(e){$('recoveryStatus').textContent='録音は保存済みですが、一時録音データの整理に失敗しました。'}}
-        }
+          if(stored){
+            try{await persistTake()}catch(err){say('保存した原音は保持されていますが、長さの更新に失敗: '+err.message)}
+          }
         }catch(decodeError){
           say('録音原本'+(stored?'は端末内保存済み':'はメモリに残っています')+'。再生形式の読み込み失敗: '+decodeError.message+'。一括バックアップ推奨。');
+        }
+        // Durable TAKE storage is independent of preview decoding. A failed decoder
+        // must not leave a completed recording marked as interrupted on next launch.
+        if(stored&&sessionPersistent){
+          try{await deleteRecordingSession(sessionId)}
+          catch(e){$('recoveryStatus').textContent='録音は保存済みですが、一時録音データの整理に失敗しました。'}
         }
       }catch(err){say('録音の完了処理で失敗: '+err.message)}
       finally{

@@ -80,6 +80,18 @@ has(app,'🪟 実タブ往復診断','Studio exposes real child-tab roundtrip di
 has(vocal,'実タブ往復診断：本物の中断録音には触れず','Vocal diagnostic is isolated from real recovery');
 has(app,'既存ガイド/他トラックが変化しました','Studio diagnostic protects pre-existing tracks');
 
+// A saved raw TAKE remains valid even when browser audio decoding fails.
+// The temporary recording session must be cleaned only after durable save,
+// and cleanup must not depend on a successful preview decode.
+const stopBegin=vocal.indexOf('recorder.onstop=async()=>{');
+const stopEnd=vocal.indexOf('recorder.onerror=',stopBegin);
+check(stopBegin>=0&&stopEnd>stopBegin,'Vocal recording stop handler exists');
+const stopBody=vocal.slice(stopBegin,stopEnd);
+const previewDecodeCatch=stopBody.indexOf('}catch(decodeError){');
+const savedCleanup=stopBody.indexOf('if(stored&&sessionPersistent){');
+check(previewDecodeCatch>=0&&savedCleanup>previewDecodeCatch,'Completed raw TAKE cleanup is independent of preview audio decoding');
+check(stopBody.includes('await persistTake();')&&stopBody.includes('await deleteRecordingSession(sessionId)'), 'Recording cleanup happens after durable TAKE storage');
+
 await import('../integration/asahi-project-reader.js');
 const reader=globalThis.ASAHIProjectReader;
 check(reader?.version==='1.1.1','ASAHIProjectReader v1.1.1 loaded');
