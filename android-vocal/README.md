@@ -97,3 +97,13 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - APK SHA-256 `ea312f139ccf2d54f37e431be1f7655f720fa855758cffeac38b27e9465d16a5`（1,189,601 bytes）。APK の ZIP/Manifest/証明書フィンガープリント抽出を検査したが、端末インストール・実録音・暗号署名の完全検証は未実施。
 - GitHub Actions ランナーで生成するデバッグ署名はビルド間で異なることがある。**QA APK を既存 `com.asahi.vocal` に上書きしない。QA APK 自体の次回上書きも互換保証しない。** 重要な録音は外部に書き出す。旧アプリを削除・初期化しない。
 - Web 録音連携 CI Run `41169166339` は contract と実 Chromium roundtrip とも PASS。QA 変更は Gradle/Manifest だけ。実機の iPhone Safari / Android マイク録音・保存／復元・音ズレは要検証。
+
+
+## Android 書き出し失敗時の再選択（2026-10-31 R5）
+- commit `f700dd85381873140ba8ddfb3f388ef8627d0311` で、Android保存先へのコピー失敗時に一時ファイルを直ちに破棄せず、ダイアログの「保存先を選び直す」から再試行できるよう変更。
+- `InputStream` と `OutputStream` をクローズし、読み出して書き込んだバイト数が元ファイル長と一致してから成功通知する。これは外部ストレージのファイル再読込・音声再生の成功を保証するものではない。
+- 保存先を明示的にキャンセルした場合は一時ファイルを破棄する。アプリを閉じた後の一時ファイル保持や失敗先の不完全ファイル削除は保証しない。原本の端末内TAKEと外部バックアップ運用を継続する。
+- GitHub Actions `41183290506`: Android QA debug APK build + package ID + app label + APK署名 + 同梱HTML一致チェックは PASS。
+- GitHub Actions `41183290500`: 連携契約 + Chromium実タブ往復は PASS。これらは Android 保存失敗時ダイアログの実機UIテストではない。
+- 検証済みQA APK SHA-256: `034ffcc4f95c80628f1434b66f2469340c444f22f99fb799d11083afa2de4a90`（1,191,225 bytes）。
+- 未確認: Android実機でファイル書き出し失敗時の再選択、保存ファイル読戻し、実録音、イヤホン遅延、および iPhone Safari の実録音。
