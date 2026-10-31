@@ -2,6 +2,7 @@ package com.asahi.vocal;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -23,6 +24,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
 
@@ -46,6 +48,7 @@ public final class MainActivity extends Activity {
     private File exportPendingFile;
     private String exportPendingFilename;
     private String exportPendingMime;
+    private boolean exportCopyInProgress;
 
     private static boolean trusted(Uri uri) {
         return uri != null && "https".equalsIgnoreCase(uri.getScheme())
@@ -145,6 +148,48 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void discardPendingExport() {
+        synchronized (exportLock) {
+            if (exportCopyInProgress) return;
+            if (exportPendingFile != null) exportPendingFile.delete();
+            exportPendingFile = null;
+            exportPendingFilename = null;
+            exportPendingMime = null;
+        }
+    }
+
+    private void launchExportPicker() {
+        final String mime;
+        final String filename;
+        synchronized (exportLock) {
+            if (exportPendingFile == null || exportCopyInProgress) return;
+            mime = exportPendingMime;
+            filename = exportPendingFilename;
+        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType(mime == null ? "application/octet-stream" : mime);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_TITLE, filename);
+        try {
+            startActivityForResult(intent, REQUEST_EXPORT);
+        } catch (Exception error) {
+            offerExportRetry("保存先の選択を開けませんでした。");
+        }
+    }
+
+    private void offerExportRetry(String reason) {
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("ファイル保存が未完了です")
+                    .setMessage(reason + " 一時ファイルを保持しています。保存先を選び直すか、今回の書き出しを中止してください。")
+                    .setPositiveButton("保存先を選び直す", (dialog, which) -> launchExportPicker())
+                    .setNegativeButton("書き出しを中止", (dialog, which) -> discardPendingExport())
+                    .setCancelable(false)
+                    .show();
+        });
+    }
+
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
@@ -156,31 +201,52 @@ public final class MainActivity extends Activity {
             return;
         }
         if (request != REQUEST_EXPORT) return;
-        File file;
+        final Uri destination = result == RESULT_OK && data != null ? data.getData() : null;
+        final File file;
         synchronized (exportLock) {
+            if (exportCopyInProgress) return;
             file = exportPendingFile;
-            exportPendingFile = null;
-            exportPendingFilename = null;
-            exportPendingMime = null;
-        }
-        Uri destination = result == RESULT_OK && data != null ? data.getData() : null;
-        if (destination == null || file == null) {
-            if (file != null) file.delete();
-            return;
+            if (file == null) return;
+            if (destination == null) {
+                discardPendingExport();
+                notifyUser("ファイル書き出しを中止しました");
+                return;
+            }
+            exportCopyInProgress = true;
         }
         new Thread(() -> {
-            try (InputStream input = new FileInputStream(file);
-                 OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
-                if (output == null) throw new IllegalStateException("保存先が開けません");
-                byte[] buffer = new byte[32768];
-                int length;
-                while ((length = input.read(buffer)) != -1) output.write(buffer, 0, length);
-                output.flush();
-                notifyUser("録音ファイルを保存しました");
+            boolean copiedSuccessfully = false;
+            try {
+                long written = 0;
+                final long expectedBytes = file.length();
+                try (InputStream input = new FileInputStream(file);
+                     OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
+                    if (output == null) throw new IOException("保存先が開けません");
+                    byte[] buffer = new byte[32768];
+                    int length;
+                    while ((length = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, length);
+                        written += length;
+                    }
+                    output.flush();
+                }
+                if (written != expectedBytes) throw new IOException("保存データのサイズが一致しません");
+                copiedSuccessfully = true;
             } catch (Exception error) {
-                notifyUser("ファイル保存失敗: " + error.getMessage());
+                offerExportRetry("保存先へのコピーに失敗しました: " + error.getMessage());
             } finally {
-                file.delete();
+                synchronized (exportLock) {
+                    exportCopyInProgress = false;
+                    if (copiedSuccessfully) {
+                        exportPendingFile = null;
+                        exportPendingFilename = null;
+                        exportPendingMime = null;
+                    }
+                }
+                if (copiedSuccessfully) {
+                    file.delete();
+                    notifyUser("録音ファイルを保存しました");
+                }
             }
         }, "asahi-export-copy").start();
     }
@@ -207,7 +273,7 @@ public final class MainActivity extends Activity {
         public boolean startDownload(String session, String filename, String mime) {
             synchronized (exportLock) {
                 if (session == null || session.isEmpty() || exportStream != null
-                        || exportPendingFile != null) return false;
+                        || exportPendingFile != null || exportCopyInProgress) return false;
                 try {
                     exportWritingFile = File.createTempFile("asahi-vocal-", ".part", getCacheDir());
                     exportStream = new FileOutputStream(exportWritingFile);
@@ -262,21 +328,7 @@ public final class MainActivity extends Activity {
                     return false;
                 }
             }
-            runOnUiThread(() -> {
-                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                intent.setType(exportPendingMime == null ? "application/octet-stream" : exportPendingMime);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.putExtra(Intent.EXTRA_TITLE, exportPendingFilename);
-                try {
-                    startActivityForResult(intent, REQUEST_EXPORT);
-                } catch (Exception error) {
-                    synchronized (exportLock) {
-                        if (exportPendingFile != null) exportPendingFile.delete();
-                        exportPendingFile = null;
-                    }
-                    notifyUser("保存先の選択を開けませんでした");
-                }
-            });
+            runOnUiThread(MainActivity.this::launchExportPicker);
             return true;
         }
 
@@ -315,8 +367,8 @@ public final class MainActivity extends Activity {
         }
         synchronized (exportLock) {
             cleanupWriting();
-            if (exportPendingFile != null) exportPendingFile.delete();
-            exportPendingFile = null;
+            if (!exportCopyInProgress && exportPendingFile != null) exportPendingFile.delete();
+            if (!exportCopyInProgress) exportPendingFile = null;
         }
         if (webView != null) {
             webView.removeJavascriptInterface("ASAHIAndroid");
