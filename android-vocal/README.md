@@ -87,3 +87,13 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - Studio v10.9.13とのWeb往復契約を `tests/vocal-bridge-contract.test.mjs` で自動検証。
 - 共通ASAHI Project Readerはv1.1.1。旧 `.asahiproj` の開始位置欠落を0秒として正規化し、不正な開始位置は拒否。
 - GitHub Actionsで往復ブリッジ契約テストを実行し、変更時の回帰を検出。
+
+
+## QA専用デバッグビルド（2026-10-31）
+- 実機テスト時に既存インストール済みアプリを消さずに済むよう、開発ブランチの `debug` ビルドに `applicationIdSuffix '.qa'` を指定。QA APK の package は `com.asahi.vocal.qa`、画面名は `ASAHI 歌入れ QA`。
+- `release` 向けの元 applicationId `com.asahi.vocal` は変更しない。既存 Android アプリ／保存データ／本番 Web には触れない。
+- Manifest は `com.asahi.vocal.MainActivity` の完全修飾名を明示。従来と同じ録音 HTML を APK 内にコピーする。
+- GitHub Actions Run `41170354912`（commit `d401228021b65b9fb34009a9974236dcd7da2040`）で QA debug APK ビルド成功。APK内 HTML Git blob SHA-1 `619a6e7a518c95d0005a5d5098b754ed06031c96` と小画面 CSS 修正元ソースが一致。
+- APK SHA-256 `ea312f139ccf2d54f37e431be1f7655f720fa855758cffeac38b27e9465d16a5`（1,189,601 bytes）。APK の ZIP/Manifest/証明書フィンガープリント抽出を検査したが、端末インストール・実録音・暗号署名の完全検証は未実施。
+- GitHub Actions ランナーで生成するデバッグ署名はビルド間で異なることがある。**QA APK を既存 `com.asahi.vocal` に上書きしない。QA APK 自体の次回上書きも互換保証しない。** 重要な録音は外部に書き出す。旧アプリを削除・初期化しない。
+- Web 録音連携 CI Run `41169166339` は contract と実 Chromium roundtrip とも PASS。QA 変更は Gradle/Manifest だけ。実機の iPhone Safari / Android マイク録音・保存／復元・音ズレは要検証。
