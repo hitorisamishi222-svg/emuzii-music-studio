@@ -10,6 +10,13 @@ android {
         targetSdk 34
         versionCode 29
         versionName '0.20.6'
+        manifestPlaceholders = [asahiAppLabel: 'ASAHI 歌入れ']
+    }
+    buildTypes {
+        debug {
+            applicationIdSuffix '.qa'
+            manifestPlaceholders['asahiAppLabel'] = 'ASAHI 歌入れ QA'
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
