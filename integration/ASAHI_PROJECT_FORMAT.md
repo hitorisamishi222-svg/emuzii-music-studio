@@ -26,7 +26,7 @@ const {metadata, vocalBlob, backingBlob} = await ASAHIProjectReader.read(file);
 
 ## 現状と未実装
 
-v0.20.5の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.13とは同一オリジンhandoff＋`.asahiproj`で双方向に往復できます。Androidアプリは`.asahiproj`ファイル受け渡しを使用します。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
+v0.20.6の歌入れ専用アプリはプロジェクトの書き出し・復元、曲中録音の開始位置の編集・再録音・試聴・WAV配置に対応しています。開発版の総合ミュージックv10.9.16とは同一オリジンhandoff＋`.asahiproj`で双方向に往復できます。Androidアプリは`.asahiproj`ファイル受け渡しを使用します。クラウド同期と本番サイトへの反映は未実装です。総合ミュージック本番環境の既存データは変更していません。
 
 
 ## v0.20.1 Web自動往復
@@ -80,3 +80,13 @@ Android WebView版はオリジンが `appassets.androidplatform.net` のため�
 - 開始位置は0〜7200秒、0.05秒刻みを検証。
 - CRC32不一致、余分な末尾データ、不正サイズ、不正録音モードを拒否。
 - GitHub ActionsのVocal bridge contract testで旧形式互換と破損拒否を継続確認。
+
+
+## v10.9.16 / Vocal v0.20.6 最新安全仕様
+- Web版のStudio→Vocalは別タブで開き、元タブを保持したまま同一オリジンhandoffを使用する。
+- Vocal→Studioの戻りでは `ASAHI_VOCAL_RETURN` / `ASAHI_VOCAL_RETURN_ACK` 契約を使い、戻りフラグ不整合を拒否する。
+- 実タブ診断の戻り取り込み前に対象SONG IDを揃え、診断用プロジェクトを別作品へ誤保存しない。
+- 旧画面ワークフローのイベントバインドをメインスコープへ維持し、子タブ連携追加による既存操作の回帰を防ぐ。
+- GitHub Actions `vocal-bridge-contract` と実Chromium `browser-roundtrip` は v10.9.16 でPASS。
+- Android WebView版は引き続き `.asahiproj` ファイル受け渡しを使用し、Webの同一オリジン自動handoffは使用しない。
+- 本番URL・本番データは変更していない。
