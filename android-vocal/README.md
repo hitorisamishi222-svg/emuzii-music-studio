@@ -107,3 +107,14 @@ GitHub Actionsの `Build Android Vocal APK` でデバッグAPKをビルドする
 - GitHub Actions `41183290500`: 連携契約 + Chromium実タブ往復は PASS。これらは Android 保存失敗時ダイアログの実機UIテストではない。
 - 検証済みQA APK SHA-256: `034ffcc4f95c80628f1434b66f2469340c444f22f99fb799d11083afa2de4a90`（1,191,225 bytes）。
 - 未確認: Android実機でファイル書き出し失敗時の再選択、保存ファイル読戻し、実録音、イヤホン遅延、および iPhone Safari の実録音。
+
+
+## Android 保存先読み戻し検査（2026-11-01 R6）
+- 開発版コミット `61a9c74e73f3977cc7f9f3d772b00336e4c534fe`。Android の `ACTION_CREATE_DOCUMENT` 結果URIへの書き込みを完了してストリームを閉じた後、`ContentResolver.openInputStream()` で保存先の内容を再読込。
+- 原本のSHA-256/バイト数と保存先のSHA-256/バイト数の両方が一致したときだけ保存成功通知を表示。書き込み・再読込失敗時は一時ファイルを保持し、保存先の再選択ダイアログへ進める。保存先選択キャンセルも即時破棄せず確認ダイアログで明示的な中止を求める。
+- ファイルプロバイダーが読み戻しを許可しない場合は保存完了と見なさず、別の保存先で再試行できるようにする。保存先には不完全なファイルが残る可能性があるため、ユーザーがファイル管理アプリで確認する。再試行用一時ファイルはアプリ終了後の保持を保証しない。
+- Androidビルド Run `41264984847`：SUCCESS（APK署名・QA package ID・表示名・同梱HTML一致も PASS）。
+- Web連携/実Chromium往復 Run `41264984862`：双方SUCCESS。ただしAndroid実機の保存先選択・ファイル読戻し操作を自動実行したものではない。
+- 配布成果物のアーカイブSHA-256：`0820fc58dfb99d0d9b99f8212e97850e2bc13a03b5b5764f181ec7dff6876f18`。抽出APK 1,192,265 bytes、SHA-256：`e8a816f0d6442baef135fe98036dfc169b2be2be6ae21abb390dada86f33ae3b`。APK ZIP、内部HTML Git blob照合もPASS。
+- QA APKはデバッグ署名固定ではないため上書き更新可能性を保証しない。旧アプリ・既存QA版をアンインストールせず、SONG ID/TAKEの外部バックアップを先行する。
+- 未確認：Android実機のマイク録音、失敗時再試行ダイアログ、読み戻したファイルの再生、イヤホン音ズレ、iPhone Safariでの実録音。本番のWeb URL、main、既存データは変更しない。
