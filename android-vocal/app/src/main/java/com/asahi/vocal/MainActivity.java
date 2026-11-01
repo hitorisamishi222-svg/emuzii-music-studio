@@ -26,6 +26,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.security.MessageDigest;
 import java.util.Arrays;
 
 public final class MainActivity extends Activity {
@@ -207,18 +208,21 @@ public final class MainActivity extends Activity {
             if (exportCopyInProgress) return;
             file = exportPendingFile;
             if (file == null) return;
-            if (destination == null) {
-                discardPendingExport();
-                notifyUser("ファイル書き出しを中止しました");
-                return;
-            }
-            exportCopyInProgress = true;
+            if (destination != null) exportCopyInProgress = true;
+        }
+        // Picker cancellation may be accidental. Keep the staged export until the
+        // user explicitly chooses "書き出しを中止" in the retry dialog.
+        if (destination == null) {
+            offerExportRetry("保存先が選択されませんでした。");
+            return;
         }
         new Thread(() -> {
             boolean copiedSuccessfully = false;
+            String failureReason = "保存先への書き出しを確認できませんでした。";
             try {
                 long written = 0;
                 final long expectedBytes = file.length();
+                final MessageDigest sourceDigest = MessageDigest.getInstance("SHA-256");
                 try (InputStream input = new FileInputStream(file);
                      OutputStream output = getContentResolver().openOutputStream(destination, "w")) {
                     if (output == null) throw new IOException("保存先が開けません");
@@ -226,14 +230,34 @@ public final class MainActivity extends Activity {
                     int length;
                     while ((length = input.read(buffer)) != -1) {
                         output.write(buffer, 0, length);
+                        sourceDigest.update(buffer, 0, length);
                         written += length;
                     }
                     output.flush();
                 }
-                if (written != expectedBytes) throw new IOException("保存データのサイズが一致しません");
+                if (written != expectedBytes) throw new IOException("原本の読み出しサイズが一致しません");
+
+                // Read the destination back after close; a successful output.write
+                // alone does not establish that the saved bytes match the source.
+                final MessageDigest destinationDigest = MessageDigest.getInstance("SHA-256");
+                long verifiedBytes = 0;
+                try (InputStream savedInput = getContentResolver().openInputStream(destination)) {
+                    if (savedInput == null) throw new IOException("保存先の読み戻しに対応していません");
+                    byte[] buffer = new byte[32768];
+                    int length;
+                    while ((length = savedInput.read(buffer)) != -1) {
+                        destinationDigest.update(buffer, 0, length);
+                        verifiedBytes += length;
+                    }
+                }
+                if (verifiedBytes != expectedBytes
+                        || !MessageDigest.isEqual(sourceDigest.digest(), destinationDigest.digest())) {
+                    throw new IOException("保存先のファイルが原本と一致しません");
+                }
                 copiedSuccessfully = true;
             } catch (Exception error) {
-                offerExportRetry("保存先へのコピーに失敗しました: " + error.getMessage());
+                failureReason = "保存先のコピー・読み戻し検査に失敗しました: " + error.getMessage()
+                        + "。保存先に不完全なファイルが残る場合があります。";
             } finally {
                 synchronized (exportLock) {
                     exportCopyInProgress = false;
@@ -245,7 +269,9 @@ public final class MainActivity extends Activity {
                 }
                 if (copiedSuccessfully) {
                     file.delete();
-                    notifyUser("録音ファイルを保存しました");
+                    notifyUser("保存先のファイルを読み戻して原本との一致を確認しました");
+                } else {
+                    offerExportRetry(failureReason);
                 }
             }
         }, "asahi-export-copy").start();
