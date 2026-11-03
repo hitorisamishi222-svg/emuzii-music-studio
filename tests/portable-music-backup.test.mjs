@@ -17,7 +17,7 @@ function sample(){
         {id:'back',type:'backing',name:'伴奏',blobId:'asset:back',start:0},
         {id:'synth',type:'guide',name:'ガイド',blobId:null,notes:[{start:0,duration:.3,midi:64}]}
       ]},
-    audio:[{id:'asset:voice',blob:voice},{id:'asset:back',blob:back}],
+    audio:[{id:'asset:voice',blob:voice},{id:'asset:back',blob:backing}],
     voice,backing
   };
 }
