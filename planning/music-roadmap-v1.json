@@ -73,7 +73,7 @@
       "id": "MUSIC-010",
       "title": "手動編集70%・AI補助30%の制作機能を実コードで棚卸し",
       "track": "manual-editing",
-      "state": "todo",
+      "state": "done",
       "priority": 90,
       "dependsOn": [
         "MUSIC-001"
@@ -84,7 +84,11 @@
         "取り込み/編曲/編集/MIX/MASTER/書出しをコード照合",
         "完成/部分/未実装/実機待ちを根拠で区分"
       ],
-      "evidence": []
+      "evidence": [
+        "docs/MUSIC_FEATURE_AUDIT_2026-11-03.md",
+        "app-v10.3.2.html#L41-L41",
+        "app-v10.3.2.html#L2952-L2986"
+      ]
     },
     {
       "id": "MUSIC-011",
@@ -170,6 +174,24 @@
       "acceptance": [
         "GPU/課金/API秘密鍵なしのモック試験",
         "実生成成功と混同しない"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-031",
+      "title": "ACE-Stepを制作画面へ安全に接続するオフラインプレビュー",
+      "track": "ai-assist",
+      "state": "todo",
+      "priority": 73,
+      "dependsOn": [
+        "MUSIC-030"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "実GPU/課金なしのモックで操作と失敗経路を検証",
+        "手動制作フローを上書きしない",
+        "ユーザー承認なしに外部へ送信しない"
       ],
       "evidence": []
     },
