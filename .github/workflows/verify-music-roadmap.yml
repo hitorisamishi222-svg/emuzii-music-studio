@@ -1,0 +1,25 @@
+name: Verify ASAHI MUSIC roadmap
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'planning/music-roadmap-v1.json'
+      - 'scripts/music-plan.mjs'
+      - 'tests/music-plan.test.mjs'
+      - '.github/workflows/verify-music-roadmap.yml'
+  workflow_dispatch:
+
+jobs:
+  roadmap-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate plan, evidence and production safeguards
+        run: node --test tests/music-plan.test.mjs
+      - name: Print eligible tasks without executing them
+        run: node scripts/music-plan.mjs

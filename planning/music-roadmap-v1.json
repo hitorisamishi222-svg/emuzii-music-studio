@@ -1,0 +1,257 @@
+{
+  "schema": "asahi-music-roadmap/v1",
+  "asOf": "2026-11-03",
+  "repository": "hitorisamishi222-svg/emuzii-music-studio",
+  "developmentBranch": "feature/vocal-recorder-v1",
+  "productionBaseline": "ec5b91b70829a085784a80fc9f4172daba0913e3",
+  "purpose": "作る。歌う。自分で直す。 MANUAL FIRST · EDIT 70% / AI ASSIST 30% (design principle, not a measured ratio)",
+  "engineIntegration": "draft only — no verified live common-engine API or worker synchronization",
+  "constraints": {
+    "protectProduction": true,
+    "protectUserAudioAndSongIdentity": true,
+    "neverAutoDeploy": true,
+    "noNewProjects": true,
+    "noPaidApiWithoutApproval": true,
+    "allowIndependentTasksWhileDeviceTestingIsHeld": true,
+    "manualApprovalRequiredForRelease": true
+  },
+  "workItems": [
+    {
+      "id": "MUSIC-001",
+      "title": "本番と開発ブランチの隔離・資産所在確認",
+      "track": "safety",
+      "state": "done",
+      "priority": 100,
+      "dependsOn": [],
+      "blockers": [],
+      "execution": "read-only",
+      "acceptance": [
+        "既存repo/branch/本番commitを照合",
+        "録音原本とSONG IDの保護境界を記録"
+      ],
+      "evidence": [
+        "docs/ACE_STEP_CLOUD.md",
+        "integration/ASAHI_PROJECT_FORMAT.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/tree/feature/vocal-recorder-v1"
+      ]
+    },
+    {
+      "id": "MUSIC-002",
+      "title": "Studio→Web Vocal→Studio の実ブラウザ往復検証",
+      "track": "vocal",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "SONG ID/TAKE/offset/start/ACK の照合",
+        "Chromium往復テスト合格"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41264984862"
+      ]
+    },
+    {
+      "id": "MUSIC-003",
+      "title": "Android R6隔離QA APKと保存照合コード",
+      "track": "vocal",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "署名・QA package・同梱HTMLを自動検査",
+        "保存後読戻しSHA-256検査を実装"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41264984847"
+      ]
+    },
+    {
+      "id": "MUSIC-010",
+      "title": "手動編集70%・AI補助30%の制作機能を実コードで棚卸し",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 90,
+      "dependsOn": [
+        "MUSIC-001"
+      ],
+      "blockers": [],
+      "execution": "read-only",
+      "acceptance": [
+        "取り込み/編曲/編集/MIX/MASTER/書出しをコード照合",
+        "完成/部分/未実装/実機待ちを根拠で区分"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-011",
+      "title": "ACE-Step中継の認証・予算・未設定時fail-closed監査",
+      "track": "ai-assist",
+      "state": "todo",
+      "priority": 88,
+      "dependsOn": [
+        "MUSIC-001"
+      ],
+      "blockers": [],
+      "execution": "read-only",
+      "acceptance": [
+        "認証なし/未設定でGPU到達しない要件を整理",
+        "有料API呼出なしで試験可能な方針"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-012",
+      "title": "SONG ID・TAKE・原音・タイミングの形式保護検査",
+      "track": "project-data",
+      "state": "todo",
+      "priority": 85,
+      "dependsOn": [
+        "MUSIC-001"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "旧形式互換と破損拒否の回帰を強化",
+        "実録音・本番DBを変更しない"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-013",
+      "title": "共通エンジン用の作業状態・証拠・保留理由のローカル契約",
+      "track": "common-engine",
+      "state": "todo",
+      "priority": 82,
+      "dependsOn": [
+        "MUSIC-001"
+      ],
+      "blockers": [],
+      "execution": "read-only",
+      "acceptance": [
+        "依存を判定し次の実行可能な工程を選択",
+        "本番/端末/外部キューへの自動接続なし"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-020",
+      "title": "手動編集の不足機能を優先順に修正・回帰",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 79,
+      "dependsOn": [
+        "MUSIC-010",
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "原音を保護",
+        "編集結果と保存復元一致",
+        "変更影響のある検査だけ再実行"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-030",
+      "title": "ACE-Stepのオフラインモック契約試験",
+      "track": "ai-assist",
+      "state": "todo",
+      "priority": 75,
+      "dependsOn": [
+        "MUSIC-011"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "GPU/課金/API秘密鍵なしのモック試験",
+        "実生成成功と混同しない"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-040",
+      "title": "共通エンジン実API接続・再起動復元",
+      "track": "common-engine",
+      "state": "blocked",
+      "priority": 65,
+      "dependsOn": [
+        "MUSIC-013"
+      ],
+      "blockers": [
+        "共通エンジンの接続先・API契約・権限未照合"
+      ],
+      "execution": "external-integration",
+      "acceptance": [
+        "重複実行防止と実相互接続を検証"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-050",
+      "title": "Android R6の実機録音・保存・復旧・音ズレ確認",
+      "track": "vocal",
+      "state": "blocked",
+      "priority": 48,
+      "dependsOn": [
+        "MUSIC-003"
+      ],
+      "blockers": [
+        "ユーザー指定により実機テスト保留",
+        "実機録音と保存の証拠なし"
+      ],
+      "execution": "human-device",
+      "acceptance": [
+        "実機音源の録音・再生確認",
+        "既存録音の無断消去なし"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-060",
+      "title": "ACE-Step実GPU接続・音楽生成の実証",
+      "track": "ai-assist",
+      "state": "blocked",
+      "priority": 42,
+      "dependsOn": [
+        "MUSIC-030"
+      ],
+      "blockers": [
+        "GPU接続環境/費用/秘密鍵の実確認なし",
+        "追加費用の事前承認が必要"
+      ],
+      "execution": "approved-external",
+      "acceptance": [
+        "予算と権限を事前確認",
+        "実生成音声を検証"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-070",
+      "title": "既存本番URLへの統合・公開",
+      "track": "release",
+      "state": "blocked",
+      "priority": 10,
+      "dependsOn": [
+        "MUSIC-012",
+        "MUSIC-020",
+        "MUSIC-030"
+      ],
+      "blockers": [
+        "本番反映の明示承認なし",
+        "受入検査未完了"
+      ],
+      "execution": "human-approval",
+      "acceptance": [
+        "既存URL/データ/ロールバック維持",
+        "対象CI合格とユーザーの明示承認"
+      ],
+      "evidence": []
+    }
+  ]
+}
