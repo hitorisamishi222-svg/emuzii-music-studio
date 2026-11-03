@@ -298,6 +298,52 @@
       ]
     },
     {
+      "id": "MUSIC-027",
+      "title": "保存トラックの不正な音量・PAN・音符を検査し編集中の作品を保護",
+      "track": "project-data",
+      "state": "done",
+      "priority": 83,
+      "dependsOn": [
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "保存形式の旧オプション省略を安全に補完",
+        "不正値/重複ID/危険な種別を適用前に拒否",
+        "ブラウザで既存音源と編集中トラックを保護"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624114660",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624114666",
+        "tests/manual-project-save-scope.test.mjs",
+        "docs/MUSIC_027_STORED_TRACK_VALIDATION.md"
+      ]
+    },
+    {
+      "id": "MUSIC-028",
+      "title": "トラック名を手動変更し保存・再読込で保持",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 80,
+      "dependsOn": [
+        "MUSIC-010"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "日本語・絵文字を含む名前編集ができる",
+        "トラックID/音声Blobを変更しない",
+        "実Chromiumの保存復元で名称が維持される"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624525303",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624525281",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_028_TRACK_RENAME.md"
+      ]
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",
