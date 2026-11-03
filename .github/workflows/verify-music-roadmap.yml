@@ -8,6 +8,8 @@ on:
       - 'tests/music-plan.test.mjs'
       - 'tests/ace-proxy-contract.test.mjs'
       - 'tests/ace-generation-mock.test.mjs'
+      - 'tests/music-portable-bundle.test.mjs'
+      - 'integration/music-portable-bundle.js'
       - 'tests/ace-draft-contract.test.mjs'
       - 'integration/ace-step-request.js'
       - 'v104-loader.js'
@@ -36,6 +38,8 @@ jobs:
         run: node --test tests/ace-generation-mock.test.mjs
       - name: Verify offline ACE-Step 1.5 draft and native task response parsing
         run: node --test tests/ace-draft-contract.test.mjs
+      - name: Verify offline portable project bundle integrity without any user audio
+        run: node --test tests/music-portable-bundle.test.mjs
       - name: Verify project import safety without user recordings
         run: node --test tests/asahi-project-reader-safety.test.mjs
       - name: Protect difference between settings export and full local project
