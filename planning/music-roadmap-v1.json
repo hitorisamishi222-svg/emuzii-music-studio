@@ -224,7 +224,7 @@
       "id": "MUSIC-030",
       "title": "ACE-Stepのオフラインモック契約試験",
       "track": "ai-assist",
-      "state": "todo",
+      "state": "done",
       "priority": 75,
       "dependsOn": [
         "MUSIC-011"
@@ -235,7 +235,11 @@
         "GPU/課金/API秘密鍵なしのモック試験",
         "実生成成功と混同しない"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41602877265",
+        "tests/ace-generation-mock.test.mjs",
+        "tests/ace-proxy-contract.test.mjs"
+      ]
     },
     {
       "id": "MUSIC-031",

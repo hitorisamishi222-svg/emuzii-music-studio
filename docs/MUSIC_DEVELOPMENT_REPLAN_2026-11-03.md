@@ -47,3 +47,8 @@ MUSIC-010は2026-11-03にコード照合を完了。確認結果は [MUSIC_FEATU
 - MUSIC-013: 依存・待機・完了・証拠を持つ読み取り専用タスク選択器が稼働。実COMMON ENGINEのAPI接続ではない。
 - MUSIC-021: 「v8プロジェクト保存」が実際は音源を含まないJSONだったため、画面を「編集設定JSON保存」と修正。原音付きのIndexedDB保存機能には手を加えず、違いを明記。専用テストPASS（Run 41599137517）。
 - MUSIC-020は全体の手動編集品質改善として未完了のまま保持。実ブラウザ/Android実機の成功範囲を混同しない。
+
+## MUSIC-030 オフライン検査完了
+- GitHub Actions [41602877265](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41602877265) PASS。
+- 実GPUを使わず、架空のトークン/タスクID/音声バイト列で `POST /release_task` → `POST /query_result` → `GET /v1/audio` を中継。認証失敗は外部へ転送しない。
+- **実曲生成は未検証**。MUSIC-031（制作画面UI）は未完了で、MUSIC-060（実GPU接続）は承認待ち。
