@@ -248,6 +248,35 @@ test('song section labels are inserted as text instead of executable HTML',()=>{
   assert.match(src,/document\.createTextNode/);
   assert.doesNotMatch(src,/innerHTML/);
 });
+test('manual arrangement metadata is preserved as independent track fields in local save',async()=>{
+  const sectionSource=section('async function makeProjectRecord(id){','async function persistProject(id,');
+  const t={id:'chord-design-test',name:'CHORDS Aメロ',type:'chord-design',gain:.55,pan:0,start:0,fadeIn:0,fadeOut:0,
+    chords:[{root:9,suffix:'m7'}],tone:'piano',beats:4,bpm:96,section:'Aメロ',style:'pop',power:.78};
+  const state={tracks:[t],guideNotes:[],chordProgression:[],songForm:[],guideWave:'triangle',guideInstrument:'electone'};
+  const input={value:'A',textContent:''},els=new Proxy({}, {get:()=>input});
+  const make=(new Function('state','els','cleanAsahiText','persistTrackBlob',sectionSource+';return makeProjectRecord;'))(
+    state,els,x=>String(x||''),async()=>null
+  );
+  const saved=await make('last');
+  assert.deepEqual(saved.tracks[0].chords,[{root:9,suffix:'m7'}]);
+  assert.deepEqual([saved.tracks[0].tone,saved.tracks[0].beats,saved.tracks[0].bpm,saved.tracks[0].section,saved.tracks[0].style,saved.tracks[0].power],
+    ['piano',4,96,'Aメロ','pop',.78]);
+  assert.equal(saved.tracks[0].blobId,null);
+});
+test('saved arrangement fields are validated before being restored, while old tracks stay readable',()=>{
+  const src=section('function normalizeSavedTrack(m){','async function restoreProjectRecord(');
+  const normalize=(new Function(src+';return normalizeSavedTrack;'))();
+  const original={id:'arrange-ci',type:'chord-design',chords:[{root:9,suffix:'m7'}],tone:'piano',beats:4,bpm:96,section:'verse',style:'pop',power:.8};
+  const restored=normalize(original);
+  assert.deepEqual(restored.chords,[{root:9,suffix:'m7'}]);
+  assert.equal(restored.power,.8);
+  const legacy=normalize({id:'old-arrangement',type:'chord-design'});
+  assert.equal(legacy.chords,null);assert.equal(legacy.tone,null);assert.equal(legacy.bpm,null);
+  for(const value of [{...original,chords:'Aminor'},{...original,chords:[{root:99,suffix:'m7'}]},
+    {...original,tone:'<script>'},{...original,bpm:NaN},{...original,beats:0},{...original,power:3}]){
+    assert.throws(()=>normalize(value),/不正/);
+  }
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

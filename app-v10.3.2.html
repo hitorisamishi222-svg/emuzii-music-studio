@@ -1951,7 +1951,12 @@
     // awaits. Otherwise edits made while writing earlier audio blobs can mix
     // different versions of one song into the same saved record.
     const sources=state.tracks.map(t=>({id:t.id,blob:t.blob,_blobId:t._blobId,hasAudio:!!t.buffer}));
-    const meta=state.tracks.map(t=>({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes?structuredClone(t.notes):null,blobId:null,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?structuredClone(t.asahiProject):null}));
+    const meta=state.tracks.map(t=>({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes?structuredClone(t.notes):null,
+      // Editing information stored on each generated arrangement track.
+      chords:t.chords?structuredClone(t.chords):null,
+      tone:t.tone??null,beats:t.beats??null,bpm:t.bpm??null,
+      section:t.section??null,style:t.style??null,power:t.power??null,
+      blobId:null,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?structuredClone(t.asahiProject):null}));
     const manualEditor={
       guideNotes:structuredClone(Array.isArray(state.guideNotes)?state.guideNotes:[]),
       chordProgression:structuredClone(Array.isArray(state.chordProgression)?state.chordProgression:[]),
@@ -2022,7 +2027,21 @@
         return normalized;
       });
     })();
+    // Old backups omit these fields; retain null rather than invent values.
+    // Validate all provided arrangement fields before replacing live tracks.
+    const boundedText=(value,label)=>{
+      if(value==null)return null;
+      if(typeof value!=="string"||value.length>100||/[<>]/.test(value))invalid(label);
+      return value;
+    };
+    const chords=m.chords==null?null:normalizeSavedManualEditor({chordProgression:m.chords}).chordProgression;
     return {...m,name:m.name??m.type,
+      chords,tone:boundedText(m.tone,"音色"),
+      section:boundedText(m.section,"セクション"),
+      style:boundedText(m.style,"スタイル"),
+      beats:m.beats==null?null:field(m.beats,4,1,16,"拍数"),
+      bpm:m.bpm==null?null:field(m.bpm,120,30,300,"BPM"),
+      power:m.power==null?null:field(m.power,1,0,2,"密度"),
       gain:field(m.gain,1,0,2,"音量"),
       pan:field(m.pan,0,-1,1,"PAN"),
       start:field(m.start,0,-3600,86400,"開始位置"),
