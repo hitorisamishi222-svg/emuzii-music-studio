@@ -131,6 +131,16 @@ test('duplicate identifiers and malformed track metadata are rejected before rep
   await assert.rejects(()=>restore({tracks:[{id:'invalid',type:'vocal',pan:'NaN'}]}),/PANが不正/);
   assert.equal(state.tracks,existing);
 });
+test('track rename changes metadata only and supports cancel/blank name protection',()=>{
+  const s=section('item.querySelector(".track-name").textContent = track.name;','item.querySelectorAll("[data-field]").forEach(input => {');
+  assert.match(app,/data-action="rename"/);
+  assert.match(s,/finishRename\(true\)/);
+  assert.match(s,/finishRename\(false\)/);
+  assert.match(s,/track\.name=next;scheduleAutoSave\(\)/);
+  assert.doesNotMatch(s,/track\.id\s*=/);
+  assert.doesNotMatch(s,/track\.blob\s*=/);
+  assert.match(s,/トラック名は空欄にできません/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

@@ -307,6 +307,31 @@ try{
 
 
 
+  // Inline track rename must persist across reload without replacing the audio.
+  const renamePage=await browser.newPage();
+  await renamePage.goto(base,{waitUntil:'domcontentloaded'});
+  await renamePage.waitForSelector('#mainFile',{state:'attached'});
+  await renamePage.locator('#mainFile').setInputFiles({name:'original-backing-ci.wav',mimeType:'audio/wav',buffer:backing});
+  await renamePage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('original-backing-ci'));
+  const beforeRenameId=await renamePage.locator('#tracks article.track').first().getAttribute('data-id');
+  await renamePage.locator('#tracks article.track').first().locator('[data-action="rename"]').click();
+  const renameInput=renamePage.locator('#tracks article.track').first().locator('.track-rename');
+  await renameInput.fill('優しい伴奏 🎵');
+  await renameInput.press('Enter');
+  assert.match(await renamePage.locator('#tracks .track-name').first().textContent(),/優しい伴奏 🎵/);
+  assert.equal(await renamePage.locator('#tracks article.track').first().getAttribute('data-id'),beforeRenameId);
+  await renamePage.locator('[data-view="project"]').click();
+  await renamePage.locator('#saveProject').click();
+  await renamePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await renamePage.reload({waitUntil:'domcontentloaded'});
+  await renamePage.locator('[data-view="project"]').click();
+  await renamePage.locator('#loadProject').click();
+  await renamePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await renamePage.locator('#tracks .track-name').first().textContent(),/優しい伴奏 🎵/);
+  assert.equal(await renamePage.locator('#tracks article.track').first().getAttribute('data-id'),beforeRenameId);
+  await renamePage.close();
+  console.log('PASS manual track rename survives project save/reload with original audio identity');
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{

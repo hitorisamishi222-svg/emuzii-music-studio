@@ -721,8 +721,8 @@
       item.dataset.id = track.id;
       item.innerHTML = `
         <div class="track-head">
-          <div class="track-id"><span class="type-chip" data-type="${track.type.toUpperCase()}">${track.type.toUpperCase()}</span><span class="track-name"></span></div>
-          <div class="track-actions"><button data-action="solo" class="${track.solo ? "active-solo" : ""}">${track.solo ? "SOLO中" : "SOLO"}</button><button data-action="mute" class="${track.mute ? "active-mute" : ""}">${track.mute ? "MUTE中" : "MUTE"}</button><button data-action="duplicate">複製</button><button data-action="delete">削除</button></div>
+          <div class="track-id"><span class="type-chip" data-type="${track.type.toUpperCase()}">${track.type.toUpperCase()}</span><span class="track-name"></span><input class="track-rename hidden" type="text" maxlength="160" aria-label="トラック名を編集"></div>
+          <div class="track-actions"><button data-action="rename">名前変更</button><button data-action="solo" class="${track.solo ? "active-solo" : ""}">${track.solo ? "SOLO中" : "SOLO"}</button><button data-action="mute" class="${track.mute ? "active-mute" : ""}">${track.mute ? "MUTE中" : "MUTE"}</button><button data-action="duplicate">複製</button><button data-action="delete">削除</button></div>
         </div>
         ${track.buffer ? '<canvas class="wave"></canvas>' : ''}
         <div class="mix-grid">
@@ -739,6 +739,32 @@
         ${pianoRollHTML(track)}
       `;
       item.querySelector(".track-name").textContent = track.name;
+      const renameInput=item.querySelector(".track-rename");
+      let renaming=false;
+      function finishRename(commit){
+        if(!renaming)return;
+        renaming=false;
+        if(!commit){renderTracks();setStatus("トラック名の変更をキャンセルしました");return;}
+        const next=renameInput.value.trim();
+        if(!next){renderTracks();setStatus("トラック名は空欄にできません");return;}
+        const previous=track.name;
+        if(next!==previous){track.name=next;scheduleAutoSave();}
+        renderTracks();
+        setStatus(next!==previous?`「${previous}」を「${next}」に変更しました`:"トラック名は変更されていません");
+      }
+      item.querySelector("[data-action='rename']").addEventListener("click",()=>{
+        if(renaming)return;
+        renaming=true;
+        renameInput.value=track.name;
+        item.querySelector(".track-name").classList.add("hidden");
+        renameInput.classList.remove("hidden");
+        renameInput.focus();renameInput.select();
+      });
+      renameInput.addEventListener("keydown",event=>{
+        if(event.key==="Enter"){event.preventDefault();finishRename(true)}
+        else if(event.key==="Escape"){event.preventDefault();finishRename(false)}
+      });
+      renameInput.addEventListener("blur",()=>{if(renaming)finishRename(true)});
       item.querySelectorAll("[data-field]").forEach(input => {
         const field = input.dataset.field;
         input.addEventListener("input", () => {
