@@ -2156,10 +2156,23 @@
         if(els.portableProjectStatus)els.portableProjectStatus.textContent="取り込みをキャンセルしました。現在の作品はそのままです";
         return;
       }
-      await restoreProjectRecord(parsed.project,"portable","持ち運びバックアップ",id=>parsed.blobs.get(id));
-      // Imported Blobs are not silently written to site storage. A successful
-      // explicit local save will persist them under this device's own IDs.
-      if(els.portableProjectStatus)els.portableProjectStatus.textContent="✓ 音源 "+parsed.blobs.size+"件のバックアップを復元しました。端末にも残すには「編集状態を保存」を押してください";
+      // Never let a pending debounce or pagehide autosave silently replace
+      // the previous device project with this imported one. Save remains
+      // an explicit user decision after the portable file has been reviewed.
+      const wasSuspended=autoSaveSuspended;
+      clearTimeout(autoSaveTimer);
+      autoSaveSuspended=true;
+      try{
+        await projectWriteQueue;
+        await restoreProjectRecord(parsed.project,"portable","持ち運びバックアップ",id=>parsed.blobs.get(id));
+      }catch(error){
+        autoSaveSuspended=wasSuspended;
+        if(!wasSuspended&&state.tracks.length)scheduleAutoSave(350);
+        throw error;
+      }
+      // Imported Blobs are not silently written to site storage.
+      if(els.autosaveStatus)els.autosaveStatus.textContent="持ち運び作品を読込済み · 自動保存停止中。端末に残すには手動保存";
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="✓ 音源 "+parsed.blobs.size+"件のバックアップを復元しました。自動保存を停止中。端末にも残すには「編集状態を保存」を押してください";
       setStatus("✓ 持ち運び作品を復元しました。端末内の保存はまだ行っていません");
     }catch(error){
       console.error("portable import",error);

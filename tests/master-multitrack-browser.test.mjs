@@ -467,6 +467,49 @@ try{
   await portablePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
   assert.deepEqual(await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
   assert.equal(calls.length,0,'Portable backup must never contact ACE API');
+
+  // Simulate importing on a different device with a fresh browser profile.
+  // Import alone must NOT create local last/autosave even if pagehide fires.
+  const separateContext=await browser.newContext({acceptDownloads:true});
+  const transferPage=await separateContext.newPage();
+  await transferPage.goto(base,{waitUntil:'domcontentloaded'});
+  await transferPage.waitForSelector('#portableProjectFile',{state:'attached'});
+  await transferPage.locator('[data-view="project"]').click();
+  await transferPage.locator('#portableProjectFile').setInputFiles({name:'cross-device.asahi-music',mimeType:'application/octet-stream',buffer:portableBytes});
+  await transferPage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('自動保存を停止中'));
+  assert.deepEqual(await transferPage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  await transferPage.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+  await transferPage.waitForTimeout(1500);
+  const savedCounts=async()=>transferPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v45',1);
+      q.onupgradeneeded=()=>{
+        if(!q.result.objectStoreNames.contains('projects'))q.result.createObjectStore('projects',{keyPath:'id'});
+        if(!q.result.objectStoreNames.contains('blobs'))q.result.createObjectStore('blobs',{keyPath:'id'});
+      };
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    const count=await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['projects','blobs'],'readonly');
+      const projects=tx.objectStore('projects').count(),blobs=tx.objectStore('blobs').count();
+      tx.oncomplete=()=>resolve({projects:projects.result,blobs:blobs.result});
+      tx.onerror=()=>reject(tx.error);
+    });
+    db.close();return count;
+  });
+  assert.deepEqual(await savedCounts(),{projects:0,blobs:0},'Import alone must not persist private audio automatically');
+  await transferPage.locator('#saveProject').click();
+  await transferPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  const savedAfterConfirm=await savedCounts();
+  assert.ok(savedAfterConfirm.projects>=1&&savedAfterConfirm.blobs===2,'Explicit manual save must persist both raw recordings');
+  await transferPage.reload({waitUntil:'domcontentloaded'});
+  await transferPage.locator('[data-view="project"]').click();
+  await transferPage.locator('#loadProject').click();
+  await transferPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.deepEqual(await transferPage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  await separateContext.close();
+  console.log('PASS separate device import is transient until explicit save and recovers both audio tracks');
+
   await portablePage.close();
   console.log('PASS offline portable song export, checksum refusal, import and local save restore');
   }
