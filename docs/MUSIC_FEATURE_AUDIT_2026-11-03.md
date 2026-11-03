@@ -73,3 +73,16 @@
 - **MUSIC-027 保存済み編集情報の安全検査**: 読み込み前に音量、PAN、開始位置、Fade、音符、トラック種別、IDの形式を検査する。旧バージョンの省略項目には安全な初期値を補完。破損データがあれば、現在のトラックを入れ替える前に拒否する。合成ブラウザテストで、悪いPAN値による復元を拒否し現行編集を維持。[CIの証拠](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624114666)。
 - **MUSIC-028 手動トラック名変更**: インラインで歌声・伴奏の名称を変更可能。日本語/絵文字の名称を保存→再読込しても音声IDを保持。Escキャンセル、空名拒否。再生音声や原音の内容を改変しない。[CIの証拠](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41624525281)。
 - **MUSIC-020 は引き続き未完了**。個別改善を完了として記録しながら、手動編集全体の品質・操作性は残タスクとして維持。実機確認と実GPU接続は別に保留。
+
+
+## MUSIC-020 個別品質改善の区切り（2026-11-03）
+
+MUSIC-020 の受入条件（原音保護、編集結果の保存復元一致、影響対象の回帰検査）について、複数トラックWAV、保存欠落拒否、旧DB移行、誤削除Undo、カウントイン復元、名前変更、保存スナップショット、負開始位置、ガイドメロディ・コード・曲構成の端末保存、曲構成名の安全表示を対象に合成素材でブラウザ検証を実施し、**本開発ブランチの既知問題への修正範囲を完了**とした。
+
+証拠：
+- [保存中の編集スナップショット 41626157229](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626157229)
+- [負開始クリップの曲尺 41626426786](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626426786)
+- [手動編集内容の永続化 41627323518](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627323518)
+- [保存済み曲構成名の安全表示 41627625052](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627625052)
+
+これはすべての音楽制作機能・端末・歌唱音質を保証するものではない。**追加課題 MUSIC-035（音源を含む持ち運び可能なバックアップ）**を分離して開発継続とした。Android実機/実GPU/本番統合はそれぞれ従来通りブロックし、本番 URL・main・既存音声を変更しない。

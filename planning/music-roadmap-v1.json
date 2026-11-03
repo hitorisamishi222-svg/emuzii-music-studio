@@ -344,10 +344,117 @@
       ]
     },
     {
+      "id": "MUSIC-029",
+      "title": "非同期の複数音声保存で編集前後の情報が混在しないスナップショット",
+      "track": "project-data",
+      "state": "done",
+      "priority": 85,
+      "dependsOn": [
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "音源書込前に名称・音量・音符・歌入れメタデータを固定",
+        "書込待ち中のユーザー編集で同一記録に新旧情報を混ぜない",
+        "実ブラウザ保存・再読込と遅延テストで検査"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626157229",
+        "tests/manual-project-save-scope.test.mjs",
+        "docs/MUSIC_029_CONSISTENT_SAVE_SNAPSHOT.md"
+      ]
+    },
+    {
+      "id": "MUSIC-032",
+      "title": "負の開始位置を伴う録音クリップの表示尺を正確にする",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 75,
+      "dependsOn": [
+        "MUSIC-010"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "マイナス開始位置の曲尺を実際の可聴長と一致",
+        "正の開始位置の既存挙動を維持",
+        "実Chromium操作と回帰検査PASS"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626426786",
+        "docs/MUSIC_030A_NEGATIVE_START_DURATION.md"
+      ]
+    },
+    {
+      "id": "MUSIC-033",
+      "title": "ガイドメロディ・コード進行・曲構成を音声付き作品保存に含める",
+      "track": "project-data",
+      "state": "done",
+      "priority": 89,
+      "dependsOn": [
+        "MUSIC-012",
+        "MUSIC-020"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "音源と手動編集の3情報を同じ保存記録に保持",
+        "旧形式の省略に対応し壊れた値を適用前に拒否",
+        "ブラウザ保存・再読込後の3情報一致"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627323518",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_031B_MANUAL_EDITOR_PERSISTENCE.md"
+      ]
+    },
+    {
+      "id": "MUSIC-034",
+      "title": "読み込んだ曲構成の名称をHTMLとして実行しない",
+      "track": "project-data",
+      "state": "done",
+      "priority": 86,
+      "dependsOn": [
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "曲構成名をDOMのテキストとして描画",
+        "タグ風の名前で要素やコードを生成しない",
+        "実ブラウザの不正形式文字列検査PASS"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627625052",
+        "docs/MUSIC_034_SAFE_SONG_FORM_RENDER.md"
+      ]
+    },
+    {
+      "id": "MUSIC-035",
+      "title": "端末を替えても音源と編集状態を持ち運べるオフライン作品バックアップ",
+      "track": "project-data",
+      "state": "todo",
+      "priority": 78,
+      "dependsOn": [
+        "MUSIC-012",
+        "MUSIC-033"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "音声Blob・トラックID・手動編集内容をひとつの持ち運び可能なファイルに格納",
+        "破損ファイルを読み込む際は現在の作品を保護",
+        "元音源を改変せずにブラウザで往復検査",
+        "追加費用や外部API・サーバー保存なし"
+      ],
+      "evidence": []
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",
-      "state": "todo",
+      "state": "done",
       "priority": 79,
       "dependsOn": [
         "MUSIC-010",
@@ -360,7 +467,14 @@
         "編集結果と保存復元一致",
         "変更影響のある検査だけ再実行"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626157229",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41626426786",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627323518",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41627625052",
+        "tests/manual-project-save-scope.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
     },
     {
       "id": "MUSIC-030",
