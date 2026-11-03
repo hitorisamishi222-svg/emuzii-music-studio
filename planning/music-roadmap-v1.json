@@ -553,6 +553,32 @@
       ]
     },
     {
+      "id": "MUSIC-037",
+      "title": "複製した音声トラックの不要な再書き込みを防止",
+      "track": "project-data",
+      "state": "done",
+      "priority": 75,
+      "dependsOn": [
+        "MUSIC-012",
+        "MUSIC-035"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "一つの元Blobに紐づく複数のトラック保存IDを正確に管理",
+        "繰返し保存で同一Blobを再書込みしない",
+        "保存削除後は新世代として安全に保存し直す",
+        "実Chromiumで複製→2回保存→再読込を確認"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41633560395",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41633560392",
+        "docs/MUSIC_036_DUPLICATE_AUDIO_SAVE.md",
+        "tests/manual-project-save-scope.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
