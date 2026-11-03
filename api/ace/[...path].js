@@ -21,8 +21,13 @@ export default async function handler(req, res) {
   const path = targetPath(req);
   if (!ALLOWED.has(path)) return res.status(404).json({ error: 'ACE route not allowed' });
 
+  // Fail closed: without a configured access token, an otherwise working GPU
+  // URL must never become a publicly callable generation proxy.
   const required = process.env.EMUZII_PROXY_TOKEN || '';
-  if (required && req.headers['x-emuzii-access'] !== required) {
+  if (!required) {
+    return res.status(503).json({ error: 'Proxy access token is not configured' });
+  }
+  if (req.headers['x-emuzii-access'] !== required) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

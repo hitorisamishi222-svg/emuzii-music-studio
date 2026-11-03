@@ -6,6 +6,8 @@ on:
       - 'planning/music-roadmap-v1.json'
       - 'scripts/music-plan.mjs'
       - 'tests/music-plan.test.mjs'
+      - 'tests/ace-proxy-contract.test.mjs'
+      - 'api/ace/**'
       - '.github/workflows/verify-music-roadmap.yml'
   workflow_dispatch:
 
@@ -21,5 +23,7 @@ jobs:
           node-version: '20'
       - name: Validate plan, evidence and production safeguards
         run: node --test tests/music-plan.test.mjs
+      - name: Verify ACE-Step proxy auth with mocked upstream (no GPU)
+        run: node --test tests/ace-proxy-contract.test.mjs
       - name: Print eligible tasks without executing them
         run: node scripts/music-plan.mjs

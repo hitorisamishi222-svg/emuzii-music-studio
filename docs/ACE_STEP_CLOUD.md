@@ -83,3 +83,9 @@ The app treats progress/remaining time as an estimate, not a fabricated completi
 Do not commit real secrets to GitHub.
 Do not put `ACESTEP_API_KEY` in browser storage.
 Use `EMUZII_PROXY_TOKEN` only as the front-to-proxy access token.
+
+## 2026-11-03 開発ブランチの安全性変更
+
+`EMUZII_PROXY_TOKEN` が未設定の場合、`/api/ace/*` はHTTP 503で拒否する（従来の暗黙的な匿名許可を廃止）。値が設定されていても、不正な `X-Emuzii-Access` は401で拒否する。GPU URLが設定されてもトークン無しでGPUへ中継しない。適用範囲は現時点では `feature/vocal-recorder-v1` のみ。本番環境への反映は行っていない。
+
+`tests/ace-proxy-contract.test.mjs` は `fetch` をモックに差し替え、実GPU接続・課金API・秘密鍵を使わずに検査。安全な開発環境ではトークン未設定を正常系と見なして匿名中継を許可しない。
