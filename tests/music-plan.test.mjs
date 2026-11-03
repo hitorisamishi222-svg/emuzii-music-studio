@@ -16,10 +16,10 @@ test('preserves baseline and safe policies',()=>{
   assert.match(original.purpose,/70% \/ AI ASSIST 30%/);
   assert.doesNotThrow(()=>validate(original));
 });
-test('device QA held while independent work proceeds',()=>{
+test('device QA stays blocked even when all independent work is complete',()=>{
   const x=summary(original);
   assert.ok(x.blocked.some(t=>t.id==='MUSIC-050'));
-  assert.ok(x.eligible.length>0);
+  assert.ok(Array.isArray(x.eligible));
   assert.ok(x.eligible.every(t=>t.state==='todo'&&t.blockers.length===0));
 });
 test('dependency gating unlocks only eligible tasks',()=>{
@@ -45,10 +45,10 @@ test('unknown dependencies, cycles, duplicate ids are rejected',()=>{
   const b=clone();b.workItems.push(fake('MUSIC-900',['MUSIC-901']),fake('MUSIC-901',['MUSIC-900']));assert.throws(()=>validate(b),/cycle/);
   const c=clone();c.workItems.push(structuredClone(c.workItems[0]));assert.throws(()=>validate(c),/task id/);
 });
-test('CLI exposes next task without executing work',()=>{
+test('CLI exposes next task or null without executing work',()=>{
   const r=spawnSync(process.execPath,['scripts/music-plan.mjs','--next'],{encoding:'utf8'});
   assert.equal(r.status,0,r.stderr);
-  assert.equal(JSON.parse(r.stdout).id,summary(original).eligible[0]?.id);
+  assert.deepEqual(JSON.parse(r.stdout),summary(original).eligible[0]||null);
 });
 test('CLI shows independent status groups',()=>{
   const r=spawnSync(process.execPath,['scripts/music-plan.mjs','--json'],{encoding:'utf8'});
