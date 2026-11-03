@@ -96,7 +96,7 @@ test('deleted tracks have a session undo with project-switch guard',()=>{
   assert.match(helpers,/deletedTrackStack\.push\(\{track,index\}\)/);
   assert.match(helpers,/state\.tracks\.splice\(Math\.min\(last\.index,state\.tracks\.length\),0,last\.track\)/);
   assert.match(app,/id="undoTrackDelete"/);
-  assert.match(app,/state\.deletedTrackStack=\[\];state\.guideWave/);
+  assert.match(app,/state\.deletedTrackStack=\[\];state\.guideNotes=editor\.guideNotes/);
   assert.match(app,/state\.deletedTrackStack=\[\];renderTracks\(\)/);
 });
 test('legacy track fields normalize without losing the source identifiers',()=>{
