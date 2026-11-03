@@ -450,8 +450,10 @@ try{
   await portablePage.locator('#portableProjectFile').setInputFiles({name:'damaged.asahi-music',mimeType:'application/octet-stream',buffer:damaged});
   await portablePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('CRCが一致'));
   assert.deepEqual(await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  await portablePage.locator('[data-view="edit"]').click();
   await portablePage.locator('#tracks article.track').first().locator('[data-action="delete"]').click();
   assert.equal(await portablePage.locator('#tracks article.track').count(),1);
+  await portablePage.locator('[data-view="project"]').click();
   portablePage.once('dialog',dialog=>dialog.accept());
   await portablePage.locator('#portableProjectFile').setInputFiles({name:'valid.asahi-music',mimeType:'application/octet-stream',buffer:portableBytes});
   await portablePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
