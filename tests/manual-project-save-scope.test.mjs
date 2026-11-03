@@ -242,6 +242,12 @@ test('malformed manual editor cannot replace current project and old saves remai
     {songForm:[{name:'Chorus',start:0,duration:'invalid',power:1}]}
   ])assert.throws(()=>normalize(invalid),/不正/);
 });
+test('song section labels are inserted as text instead of executable HTML',()=>{
+  const src=section('function renderSongForm(){','async function previewSongArrangement(){');
+  assert.match(src,/name\.textContent=/);
+  assert.match(src,/document\.createTextNode/);
+  assert.doesNotMatch(src,/innerHTML/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

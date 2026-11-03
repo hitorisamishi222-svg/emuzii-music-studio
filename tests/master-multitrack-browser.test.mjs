@@ -393,8 +393,29 @@ try{
   assert.match(await editorPage.locator('#pianoRollInfo').textContent(),/1音/);
   assert.equal(await editorPage.locator('#chordProgression').inputValue(),'Cmaj7 | Gm7');
   assert.match(await editorPage.locator('#songFormView').textContent(),/Aメロ/);
+  // A section title is plain user data. Even if a saved project contains
+  // markup-shaped text, restoring it must never create HTML elements.
+  await editorPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v45');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readwrite'),q=tx.objectStore('projects').get('last');
+      q.onsuccess=()=>{
+        const record=q.result;
+        record.manualEditor.songForm[0].name='<img src=x onerror=window.__sectionExecuted=1>';
+        tx.objectStore('projects').put(record);
+      };
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  });
+  await editorPage.locator('#loadProject').click();
+  await editorPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.equal(await editorPage.locator('#songFormView img').count(),0);
+  assert.match(await editorPage.locator('#songFormView').textContent(),/<img src=x/);
+  assert.equal(await editorPage.evaluate(()=>window.__sectionExecuted),undefined);
   await editorPage.close();
-  console.log('PASS guide melody / chord progression / song form persist across local save');
+  console.log('PASS guide melody / chord progression / song form persist across local save and names render as text');
 
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');

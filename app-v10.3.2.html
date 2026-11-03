@@ -2168,7 +2168,21 @@
     state.songForm=(SONG_FORMS[key]||SONG_FORMS.pop).map((x,i)=>({id:`sec-${Date.now()}-${i}`,name:x[0],power:x[1],start:i*sectionDuration,duration:sectionDuration,style:els.arrangeStyle?.value||"pop"}));
     renderSongForm();autoHCC?.("structure","曲全体のセクション構成を作成",null,state.songForm.map(x=>({name:x.name,power:x.power,start:x.start,duration:x.duration})));addCreativeLog?.("曲構成",state.songForm.map(x=>x.name).join(" → "));scheduleAutoSave?.(50);setStatus("曲全体の構成を作成しました")
   }
-  function renderSongForm(){if(!els.songFormView)return;if(!state.songForm.length){els.songFormView.textContent="曲構成がありません";return}els.songFormView.innerHTML=state.songForm.map((x,i)=>`<div style="padding:7px 0;border-bottom:1px solid rgba(128,128,128,.25)"><b>${i+1}. ${x.name}</b> ｜ ${(x.start).toFixed(1)}s〜${(x.start+x.duration).toFixed(1)}s ｜ 密度 ${Math.round(x.power*100)}%</div>`).join("")}
+  function renderSongForm(){
+    const root=els.songFormView;if(!root)return;
+    root.replaceChildren();
+    if(!state.songForm.length){root.textContent="曲構成がありません";return}
+    // Stored section names are user data: never interpolate them into HTML.
+    for(const [i,x] of state.songForm.entries()){
+      const row=document.createElement("div");
+      row.style.padding="7px 0";
+      row.style.borderBottom="1px solid rgba(128,128,128,.25)";
+      const name=document.createElement("b");
+      name.textContent=`${i+1}. ${x.name}`;
+      row.append(name,document.createTextNode(` ｜ ${x.start.toFixed(1)}s〜${(x.start+x.duration).toFixed(1)}s ｜ 密度 ${Math.round(x.power*100)}%`));
+      root.appendChild(row);
+    }
+  }
   async function previewSongArrangement(){
     if(!state.songForm.length)buildSongForm();if(!state.chordProgression?.length){applyChordProgression();if(!state.chordProgression?.length)return}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;stopArrangementSound();state.audioCtx=state.audioCtx||new AC();const ctx=state.audioCtx;if(ctx.state!=="running")await ctx.resume();
