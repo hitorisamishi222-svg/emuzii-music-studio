@@ -245,7 +245,7 @@
       "id": "MUSIC-031",
       "title": "ACE-Stepを制作画面へ安全に接続するオフラインプレビュー",
       "track": "ai-assist",
-      "state": "todo",
+      "state": "done",
       "priority": 73,
       "dependsOn": [
         "MUSIC-030"
@@ -257,7 +257,12 @@
         "手動制作フローを上書きしない",
         "ユーザー承認なしに外部へ送信しない"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603494143",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603493986",
+        "integration/ace-step-request.js",
+        "app-v10.3.2.html"
+      ]
     },
     {
       "id": "MUSIC-040",

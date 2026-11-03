@@ -52,3 +52,10 @@ MUSIC-010は2026-11-03にコード照合を完了。確認結果は [MUSIC_FEATU
 - GitHub Actions [41602877265](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41602877265) PASS。
 - 実GPUを使わず、架空のトークン/タスクID/音声バイト列で `POST /release_task` → `POST /query_result` → `GET /v1/audio` を中継。認証失敗は外部へ転送しない。
 - **実曲生成は未検証**。MUSIC-031（制作画面UI）は未完了で、MUSIC-060（実GPU接続）は承認待ち。
+
+
+## MUSIC-031 オフライン制作画面の送信前プレビュー完了
+- 「作る」にACE-Step 1.5の **送信前プレビュー（実通信なし）** ボタンを追加。曲設計・歌詞・BPM・KEY・曲尺から公式仕様のリクエストJSONを端末内で組み立て表示する。**録音・原音・トラックの変更、外部API呼出、GPU起動、課金は行わない。**
+- `integration/ace-step-request.js` はACE-Step公式 `data.task_id`、`task_id_list` による照会、数値status、JSON文字列result、音声取得のpathをパース。安全な`/api/ace/v1/audio?audio_path=...`のURLにのみ変換し、実通信はしない。
+- CI: [計画・API契約 41603494143](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603494143)、[Chromium UI操作/既存WAV・Vocal往復 41603493986](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603493986) ともにPASS。
+- 完了は**送信前UIのオフライン実装とテスト**に限る。実GPUでの曲生成・ユーザーによる接続承認・実作品の音質受入試験は **MUSIC-060/070 に保持**。UI自動送信は導入しない。
