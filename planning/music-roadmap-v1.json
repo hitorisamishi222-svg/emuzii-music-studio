@@ -202,6 +202,29 @@
       ]
     },
     {
+      "id": "MUSIC-023",
+      "title": "破損・欠損音源を含むプロジェクト復元を拒否し編集中作品を保護",
+      "track": "project-data",
+      "state": "done",
+      "priority": 88,
+      "dependsOn": [
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "不足Blob/復号不能な音源を黙って空トラックにしない",
+        "全参照音源の検証完了までstate.tracksを変更しない",
+        "実Chromiumの破損バックアップ復元で編集中の2トラックを保護"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603914906",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603915045",
+        "tests/manual-project-save-scope.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",

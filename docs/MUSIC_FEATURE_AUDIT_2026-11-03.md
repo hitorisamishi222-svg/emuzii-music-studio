@@ -48,3 +48,9 @@
 - `tests/master-multitrack-browser.test.mjs` はテスト用WAV二つを実Chromiumで読み込み、前半だけ伴奏、後半だけ歌声を鳴らす条件でMASTER WAVを書き出す。出力WAVの二つの時間窓のRMSがそれぞれ閾値を超えることを検査。実音声の複数トラック混合を検証した。
 - `tests/master-multitrack-contract.test.mjs` は正/負開始位置、タイムライン構成カットとコピー、PAN/フェード情報、ミュート/ソロ選別、マスター音量0の扱いを検査。
 - Windows/iPhone/Androidでの実機確認やユーザー提供音源の聴感評価とは別。MUSIC-020（DAW編集機能全体）は未完了のまま。
+
+## MUSIC-023 破損プロジェクト復元の安全化（2026-11-03）
+
+以前の`restoreProjectRecord`は、保存記録に`blobId`があるのに実音源Blobが見つからない場合、音源なしのトラックを編集状態へ読み込む可能性があった。**全Blobの取得と復号が正常に完了するまでは`state.tracks`を置き換えない**よう改修。欠損音源・復号失敗・不正なtrack配列では明示エラーを出し、編集中の状態を保持する。
+
+合格：GitHub Actions [41603914906](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603914906) — Playwright Chromiumで2トラックを開いた状態に欠損音源の保存記録を注入し「前回を復元」を操作。警告と現在の2トラック不変を確認。形式・スキーマのユニット検査は [41603915045](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603915045) 合格。実際のユーザーデータは一切使用しない。MUSIC-020の広範な手動編集改善は未完了。
