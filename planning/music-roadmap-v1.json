@@ -157,7 +157,7 @@
       "id": "MUSIC-021",
       "title": "設定JSONと原音付き端末保存の違いを明記してデータ喪失を防ぐ",
       "track": "manual-editing",
-      "state": "todo",
+      "state": "done",
       "priority": 80,
       "dependsOn": [
         "MUSIC-010",
@@ -170,7 +170,11 @@
         "原音込みのIndexedDB保存を変更しない",
         "警告UIとコード境界の回帰テスト合格"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41599137517",
+        "tests/manual-project-save-scope.test.mjs",
+        "app-v10.3.2.html"
+      ]
     },
     {
       "id": "MUSIC-020",
