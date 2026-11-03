@@ -8,6 +8,9 @@ on:
       - 'tests/music-plan.test.mjs'
       - 'tests/ace-proxy-contract.test.mjs'
       - 'tests/ace-generation-mock.test.mjs'
+      - 'tests/ace-draft-contract.test.mjs'
+      - 'integration/ace-step-request.js'
+      - 'v104-loader.js'
       - 'tests/asahi-project-reader-safety.test.mjs'
       - 'tests/manual-project-save-scope.test.mjs'
       - 'app-v10.3.2.html'
@@ -31,6 +34,8 @@ jobs:
         run: node --test tests/ace-proxy-contract.test.mjs
       - name: Verify ACE-Step mock release / poll / audio retrieval without GPU
         run: node --test tests/ace-generation-mock.test.mjs
+      - name: Verify offline ACE-Step 1.5 draft and native task response parsing
+        run: node --test tests/ace-draft-contract.test.mjs
       - name: Verify project import safety without user recordings
         run: node --test tests/asahi-project-reader-safety.test.mjs
       - name: Protect difference between settings export and full local project

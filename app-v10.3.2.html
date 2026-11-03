@@ -209,6 +209,12 @@
           <div class="free-core-card"><strong>FREE LOCAL CORE</strong><span>作曲・編集・WAV化は端末内処理。外部の有料AI APIは呼びません。emuzii側の生成回数制限もありません。</span></div>
           <p class="note"><b>LOCAL COMPOSER</b> は外部AIなし・課金なしで、伴奏＋メロディを端末内生成します。歌声は生成せず、作った伴奏へ②「歌入れ」で自分の声を重ねます。</p>
         </section>
+        <section class="panel" id="aceDraftPanel">
+          <div class="section-head"><div><small>ACE-STEP 1.5 / OFFLINE PREFLIGHT</small><h2>AI生成内容の送信前プレビュー</h2></div><span class="local-badge">実通信なし</span></div>
+          <p class="note">上の曲設計・歌詞・BPM・KEY・曲尺から、ACE-Step 1.5へ送信する予定の内容だけを確認します。<b>この画面から外部送信・GPU起動・音楽生成・課金は行いません。</b> ローカル作曲・既存トラック・録音内容は変更しません。</p>
+          <button id="aceDraftPreview" class="btn">🎼 送信内容を確認（オフライン）</button>
+          <pre id="aceDraftOutput" class="arrangement" aria-live="polite">未作成。曲設計を入力してから確認できます。</pre>
+        </section>
       </section>
 
 
@@ -539,6 +545,7 @@
   };
 
   const els = {
+  aceDraftPreview:$("aceDraftPreview"),aceDraftOutput:$("aceDraftOutput"),
     status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
     vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), testVocalBridge:$("testVocalBridge"), testVocalBridgeTabs:$("testVocalBridgeTabs"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
@@ -2998,6 +3005,18 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   els.exportMidi.addEventListener("click",()=>{const blob=midiFile();if(!blob){setStatus("先に③でガイドメロディを作ってください");return;}downloadBlob(blob,"piyoko-guide.mid");setStatus("MIDIを書き出しました");});
   document.querySelectorAll("[data-listen]").forEach(b=>b.addEventListener("click",()=>setListenPreset(b.dataset.listen)));
   els.playMix.addEventListener("click",()=>{const fn=isIOSLike()?compatPlayback:playMix;fn().catch(e=>{console.error(e);setStatus(`再生エラー: ${e?.message||e}`);});});els.stopMix.addEventListener("click",()=>{try{els.compatAudio?.pause();}catch{}stopPlayback();});els.audioTest?.addEventListener("click",testAudioOutput);els.nativeAudioTest?.addEventListener("click",nativeAudioTest);els.compatPlay?.addEventListener("click",()=>compatPlayback().catch(e=>{console.error(e);setStatus(`互換再生エラー: ${e?.message||e}`);}));els.makeWav.addEventListener("click",exportWav);els.shareWav.addEventListener("click",shareWav);
+  function previewAceStepDraft(){
+    const out=els.aceDraftOutput;
+    if(!out)return;
+    try{
+      if(!window.ASAHIAceStep)throw Error("生成リクエストの検査モジュールが読み込めません");
+      const payload=window.ASAHIAceStep.buildDraft({prompt:els.songDesign.value,lyrics:els.lyrics.value,
+        length:els.songLength.value,bpm:els.bpm.value,key:els.songKey.value});
+      out.textContent=JSON.stringify({mode:"OFFLINE_ONLY_NO_NETWORK",note:"これは送信前の入力チェックです。音声は生成しません。",request:payload},null,2);
+      setStatus("ACE-Step送信前プレビュー完了。外部通信・音楽生成・課金なし");
+    }catch(error){out.textContent="入力を確認してください："+error.message;setStatus("ACE-Step入力チェック："+error.message)}
+  }
+  els.aceDraftPreview?.addEventListener("click",previewAceStepDraft);
   els.aiAmount.addEventListener("input",()=>els.aiAmountLabel.textContent=`${els.aiAmount.value}%`);els.phoneArrange.addEventListener("click",phoneArrange);els.localCompose.addEventListener("click",createLocalSong);els.goEdit.addEventListener("click",openEditView);els.copyArrange.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(els.arrangement.textContent);setStatus("曲設計をコピーしました");}catch{setStatus("コピーできませんでした。長押しで選択してください");}});
   els.autoHccEnabled?.addEventListener("change",()=>{state.autoHccEnabled=!!els.autoHccEnabled.checked;if(els.autoHccStatus)els.autoHccStatus.textContent=`自動記録：${state.autoHccEnabled?"ON":"OFF"}`;scheduleAutoSave?.(50);});els.hccCheckpoint?.addEventListener("click",hccCheckpoint);els.exportHccCsv?.addEventListener("click",exportHccCsv);if(els.autoHccEnabled)els.autoHccEnabled.checked=state.autoHccEnabled;
   els.recordContribution?.addEventListener("click",manualHCC);els.snapshotContribution?.addEventListener("click",snapshotHCC);els.exportContributionReport?.addEventListener("click",exportHCC);renderHCC();

@@ -50,6 +50,20 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(String(e)));
   await page.goto(base,{waitUntil:'domcontentloaded'});
   await page.waitForSelector('#mainFile',{state:'attached',timeout:30000});
+  let aceRequests=0;
+  page.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/ace'))aceRequests++});
+  await page.locator('[data-view="create"]').click();
+  await page.locator('#songDesign').fill('Warm city pop with gentle piano and acoustic guitar');
+  await page.locator('#lyrics').fill('[Verse]\\nここから始まる');
+  await page.locator('#aceDraftPreview').click();
+  await page.waitForFunction(()=>document.querySelector('#aceDraftOutput')?.textContent?.includes('OFFLINE_ONLY_NO_NETWORK'));
+  const draft=await page.locator('#aceDraftOutput').textContent();
+  assert.match(draft,/"audio_duration": 270/);
+  assert.match(draft,/"bpm": 96/);
+  assert.match(draft,/音声は生成しません/);
+  assert.equal(aceRequests,0,'Offline preview must make no ACE calls');
+  await page.locator('[data-view="edit"]').click();
+
   const backing=syntheticWav({start:.05,end:.4,freq:440});
   const vocal=syntheticWav({start:.8,end:1.15,freq:659});
   await page.locator('#mainFile').setInputFiles({name:'backing-ci.wav',mimeType:'audio/wav',buffer:backing});
