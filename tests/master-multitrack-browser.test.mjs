@@ -313,6 +313,13 @@ try{
   await renamePage.waitForSelector('#mainFile',{state:'attached'});
   await renamePage.locator('#mainFile').setInputFiles({name:'original-backing-ci.wav',mimeType:'audio/wav',buffer:backing});
   await renamePage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('original-backing-ci'));
+  // A clip starting before zero should show only its audible positive-time
+  // portion, matching playback and the offline master renderer.
+  const earlyStart=renamePage.locator('#tracks article.track').first().locator('[data-field="start"]');
+  await earlyStart.fill('-0.5');
+  assert.match(await renamePage.locator('#durationLabel').textContent(),/0\.8s/);
+  await earlyStart.fill('0');
+  assert.match(await renamePage.locator('#durationLabel').textContent(),/1\.3s/);
   const beforeRenameId=await renamePage.locator('#tracks article.track').first().getAttribute('data-id');
   await renamePage.locator('#tracks article.track').first().locator('[data-action="rename"]').click();
   const renameInput=renamePage.locator('#tracks article.track').first().locator('.track-rename');

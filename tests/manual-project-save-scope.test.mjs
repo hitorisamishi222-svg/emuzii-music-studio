@@ -186,6 +186,20 @@ test('asynchronous blob saving writes one consistent pre-edit snapshot',async()=
   assert.deepEqual(persisted.map(t=>t.id),['backing','vocal']);
   assert.equal(persisted[1].blob,vocal.blob);
 });
+test('negative clip start reduces total audible timeline instead of extending it',()=>{
+  const src=section('function maxDuration() {','function waveform(');
+  const state={tracks:[
+    {id:'backing',start:-.5,buffer:{duration:1.3}},
+    {id:'vocal',start:.2,buffer:{duration:.9}},
+    {id:'guide',start:-.1,duration:.4,notes:[{start:0,duration:.15}]}
+  ]};
+  const compute=(new Function('state',src+';return maxDuration;'))(state);
+  assert.ok(Math.abs(compute()-1.1)<1e-9,'End must match audible positive-time content');
+  state.tracks=[{id:'vocal',start:-.5,buffer:{duration:1.3}}];
+  assert.ok(Math.abs(compute()-.8)<1e-9,'Trimmed start should remove .5s from visible duration');
+  state.tracks[0].start=.3;
+  assert.ok(Math.abs(compute()-1.6)<1e-9,'Positive start should extend visible duration');
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

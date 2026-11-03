@@ -635,8 +635,11 @@
   function maxDuration() {
     let end = 0;
     state.tracks.forEach(t => {
-      if (t.buffer) end = Math.max(end, Math.max(0, t.start) + t.buffer.duration);
-      if (Number.isFinite(Number(t.duration)) && Number(t.duration)>0) end = Math.max(end, Math.max(0, t.start) + Number(t.duration));
+      // Negative clip starts omit the leading audio, so the audible end is
+      // start + duration (clamped at zero), not duration + max(0,start).
+      const clipStart=Number(t.start)||0;
+      if (t.buffer) end = Math.max(end, Math.max(0, clipStart + t.buffer.duration));
+      if (Number.isFinite(Number(t.duration)) && Number(t.duration)>0) end = Math.max(end, Math.max(0, clipStart + Number(t.duration)));
       if (t.notes?.length) t.notes.forEach(n => end = Math.max(end, Math.max(0, t.start + n.start + n.duration)));
     });
     return end;
