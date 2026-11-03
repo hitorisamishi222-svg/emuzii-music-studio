@@ -329,6 +329,21 @@ try{
   await renamePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
   assert.match(await renamePage.locator('#tracks .track-name').first().textContent(),/優しい伴奏 🎵/);
   assert.equal(await renamePage.locator('#tracks article.track').first().getAttribute('data-id'),beforeRenameId);
+  await renamePage.locator('[data-view="edit"]').click();
+  const gain=renamePage.locator('#tracks article.track').first().locator('[data-field="gain"]');
+  await gain.fill('0.70');
+  const start=renamePage.locator('#tracks article.track').first().locator('[data-field="start"]');
+  await start.fill('0.3');
+  await renamePage.locator('[data-view="project"]').click();
+  await renamePage.locator('#saveProject').click();
+  await renamePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await renamePage.reload({waitUntil:'domcontentloaded'});
+  await renamePage.locator('[data-view="project"]').click();
+  await renamePage.locator('#loadProject').click();
+  await renamePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  const savedTrack=renamePage.locator('#tracks article.track').first();
+  assert.equal(await savedTrack.locator('[data-field="gain"]').inputValue(),'0.7');
+  assert.equal(await savedTrack.locator('[data-field="start"]').inputValue(),'0.30');
   await renamePage.close();
   console.log('PASS manual track rename survives project save/reload with original audio identity');
 

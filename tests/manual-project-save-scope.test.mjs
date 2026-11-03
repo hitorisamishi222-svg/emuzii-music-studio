@@ -141,6 +141,51 @@ test('track rename changes metadata only and supports cancel/blank name protecti
   assert.doesNotMatch(s,/track\.blob\s*=/);
   assert.match(s,/トラック名は空欄にできません/);
 });
+test('asynchronous blob saving writes one consistent pre-edit snapshot',async()=>{
+  const s=section('async function makeProjectRecord(id){','async function persistProject(id,');
+  let releaseFirst;
+  const gate=new Promise(resolve=>{releaseFirst=resolve});
+  const backing={id:'backing',name:'伴奏A',type:'backing',blob:new Blob(['backing-a']),gain:.8,pan:-.2,start:0,fadeIn:0,fadeOut:0,notes:null};
+  const vocal={id:'vocal',name:'歌TAKE 1',type:'vocal',blob:new Blob(['vocal-a']),gain:.6,pan:.3,start:.2,fadeIn:0,fadeOut:0,notes:[{midi:64,start:0,duration:.3}],asahiProject:{songId:'SONG-001',takeName:'TAKE 1'}};
+  const state={tracks:[backing,vocal],guideWave:'sine',guideInstrument:'electone',asahiSongId:'SONG-001',asahiTakeName:'TAKE 1'};
+  const wrap=value=>({value});
+  const els={
+    projectName:wrap('作品A'),songTitle:wrap('First title'),songDesign:wrap('ballad'),lyrics:wrap('first words'),
+    bpm:wrap('96'),songKey:wrap('A minor'),songLength:wrap('4:30'),aiAmount:wrap('10'),localStyle:wrap('jpop'),
+    arrangement:{textContent:'original arrangement'},
+    vocalBridgeSongId:wrap('SONG-001'),vocalBridgeTakeName:wrap('TAKE 1'),recordOffset:wrap('120')
+  };
+  const persisted=[];
+  const persistTrackBlob=async source=>{
+    persisted.push({id:source.id,blob:source.blob});
+    if(source.id==='backing')await gate;
+    return 'asset:'+source.id;
+  };
+  const build=(new Function('state','els','cleanAsahiText','persistTrackBlob',s+';return makeProjectRecord;'))(
+    state,els,x=>String(x),persistTrackBlob
+  );
+  const pending=build('last');
+  // Edits while the first audio blob is awaiting storage must not leak into
+  // an already initiated save.
+  vocal.name='edited during save';
+  vocal.notes[0].midi=83;
+  vocal.asahiProject.takeName='TAKE 2';
+  state.tracks.splice(0,1);
+  state.tracks.push({id:'new-track',name:'new',type:'vocal',blob:new Blob(['new'])});
+  els.songTitle.value='second title';
+  els.arrangement.textContent='second arrangement';
+  releaseFirst();
+  const saved=await pending;
+  assert.deepEqual(saved.tracks.map(t=>t.id),['backing','vocal']);
+  assert.deepEqual(saved.tracks.map(t=>t.blobId),['asset:backing','asset:vocal']);
+  assert.equal(saved.tracks[1].name,'歌TAKE 1');
+  assert.equal(saved.tracks[1].notes[0].midi,64);
+  assert.equal(saved.tracks[1].asahiProject.takeName,'TAKE 1');
+  assert.equal(saved.create.title,'First title');
+  assert.equal(saved.create.arrangement,'original arrangement');
+  assert.deepEqual(persisted.map(t=>t.id),['backing','vocal']);
+  assert.equal(persisted[1].blob,vocal.blob);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

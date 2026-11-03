@@ -1932,12 +1932,16 @@
     return blobId;
   }
   async function makeProjectRecord(id){
-    const meta=[];
-    for(const t of state.tracks){
-      const blobId=await persistTrackBlob(t);
-      meta.push({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes||null,blobId,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?{...t.asahiProject}:null});
-    }
-    return {id,name:els.projectName.value||"My emuzii Song",tracks:meta,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
+    // Capture ALL metadata in one synchronous pass, before any IndexedDB
+    // awaits. Otherwise edits made while writing earlier audio blobs can mix
+    // different versions of one song into the same saved record.
+    const sources=state.tracks.map(t=>({id:t.id,blob:t.blob,_blobId:t._blobId}));
+    const meta=state.tracks.map(t=>({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes?structuredClone(t.notes):null,blobId:null,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?structuredClone(t.asahiProject):null}));
+    const record={id,name:els.projectName.value||"My emuzii Song",tracks:meta,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
+    // Blob is immutable: hold references to the original audio bytes, not
+    // memory-heavy copies. Any later user edits belong to the NEXT save.
+    for(let i=0;i<sources.length;i++)meta[i].blobId=await persistTrackBlob(sources[i]);
+    return record;
   }
   async function persistProject(id,{announce=false}={}){
     if(id==="autosave"&&(autoSaveRunning||autoSaveSuspended))return;
