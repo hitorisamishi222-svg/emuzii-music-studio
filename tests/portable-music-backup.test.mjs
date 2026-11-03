@@ -55,6 +55,19 @@ test('missing, extra, duplicated audio references cannot be exported',async()=>{
   await assert.rejects(()=>api.create({project:s.project,audio:[s.audio[0],s.audio[0]]}),/重複/);
   await assert.rejects(()=>api.create({project:s.project,audio:[s.audio[0],{id:'asset:bad',blob:s.backing}]}),/欠損/);
 });
+test('export refuses duplicate track IDs so it cannot create a file that import would reject',async()=>{
+  const s=sample(),p=structuredClone(s.project);
+  p.tracks[2].id=p.tracks[0].id;
+  await assert.rejects(()=>api.create({project:p,audio:s.audio}),/トラックIDの重複/);
+});
+test('export uses same per-audio size limit as reader before any expensive checksum',async()=>{
+  class FakeHugeBlob extends Blob{
+    get size(){return 2147483649}
+  }
+  const p={id:'last',tracks:[{id:'large',type:'vocal',blobId:'asset:large'}]};
+  const fake=new FakeHugeBlob([Uint8Array.of(42)]);
+  await assert.rejects(()=>api.create({project:p,audio:[{id:'asset:large',blob:fake}]}),/読み込み上限/);
+});
 test('audio-free synthetic arrangement can be backed up without network',async()=>{
   const project={id:'last',tracks:[{id:'synth',type:'guide',notes:[{start:0,duration:1,midi:60}],blobId:null}]};
   const file=await api.create({project,audio:[]}),loaded=await api.read(file);

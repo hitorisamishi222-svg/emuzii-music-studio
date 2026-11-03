@@ -7,7 +7,7 @@
   const schema='asahi-music-portable-v1';
   const encoder=new TextEncoder(), decoder=new TextDecoder('utf-8',{fatal:true});
   const magic=encoder.encode('ASAHI-MUSIC-BACKUP-V1\n');
-  const maxManifest=16*1024*1024, maxAudio=250, maxTrack=250, chunk=1024*1024;
+  const maxManifest=16*1024*1024, maxAudio=250, maxTrack=250, maxAudioBytes=2147483648, chunk=1024*1024;
   const table=Array.from({length:256},(_,i)=>{
     let n=i;
     for(let j=0;j<8;j++)n=(n&1)?(0xedb88320^(n>>>1)):(n>>>1);
@@ -32,9 +32,11 @@
   function validateProject(project){
     if(!project||typeof project!=='object'||Array.isArray(project))fail('作品情報がありません');
     if(!Array.isArray(project.tracks)||project.tracks.length>maxTrack)fail('トラック一覧');
-    const refs=new Set();
+    const refs=new Set(),trackIds=new Set();
     for(const t of project.tracks){
-      if(!t||typeof t!=='object'||typeof t.id!=='string'||!t.id)fail('トラックID');
+      if(!t||typeof t!=='object'||typeof t.id!=='string'||!t.id||t.id.length>160)fail('トラックID');
+      if(trackIds.has(t.id))fail('トラックIDの重複');
+      trackIds.add(t.id);
       if(t.blobId!=null){
         if(typeof t.blobId!=='string'||!t.blobId||t.blobId.length>256||refs.has(t.blobId))fail('音源参照');
         refs.add(t.blobId);
@@ -48,7 +50,7 @@
     const byId=new Map(),parts=[];
     for(const row of audio){
       if(!row||typeof row.id!=='string'||!refs.has(row.id)||byId.has(row.id))fail('音声IDの重複・欠損');
-      if(!(row.blob instanceof Blob)||row.blob.size<=0||!Number.isSafeInteger(row.blob.size))fail('音声Blob');
+      if(!(row.blob instanceof Blob)||row.blob.size<=0||!Number.isSafeInteger(row.blob.size)||row.blob.size>maxAudioBytes)fail('音声Blobのサイズが読み込み上限を超えています');
       const entry={id:row.id,size:row.blob.size,type:row.blob.type||'application/octet-stream',crc32:await crc32(row.blob)};
       byId.set(row.id,entry);
       parts.push(row.blob);
@@ -79,7 +81,7 @@
     const blobs=new Map();
     for(const a of m.audio){
       if(!a||typeof a.id!=='string'||!refs.has(a.id)||blobs.has(a.id))fail('音声ID');
-      if(!Number.isSafeInteger(a.size)||a.size<=0||a.size>2147483648)fail('音声サイズ');
+      if(!Number.isSafeInteger(a.size)||a.size<=0||a.size>maxAudioBytes)fail('音声サイズ');
       if(typeof a.crc32!=='string'||!/^[0-9a-f]{8}$/.test(a.crc32))fail('音声CRC');
       if(typeof a.type!=='string'||a.type.length>120)fail('音声形式');
       if(pos+a.size>file.size)fail('音声ファイルが途中で切れています');
