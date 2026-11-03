@@ -434,7 +434,7 @@
       "id": "MUSIC-035",
       "title": "端末を替えても音源と編集状態を持ち運べるオフライン作品バックアップ",
       "track": "project-data",
-      "state": "todo",
+      "state": "done",
       "priority": 78,
       "dependsOn": [
         "MUSIC-012",
@@ -448,7 +448,14 @@
         "元音源を改変せずにブラウザで往復検査",
         "追加費用や外部API・サーバー保存なし"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41629366733",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41631739889",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41632535906",
+        "integration/portable-music-backup.js",
+        "tests/portable-music-backup.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
     },
     {
       "id": "MUSIC-020",
@@ -518,6 +525,31 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41603493986",
         "integration/ace-step-request.js",
         "app-v10.3.2.html"
+      ]
+    },
+    {
+      "id": "MUSIC-036",
+      "title": "作品バックアップでトラック固有のコード・音色・拍数・テンポ・セクションを保護",
+      "track": "project-data",
+      "state": "done",
+      "priority": 77,
+      "dependsOn": [
+        "MUSIC-035"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "編曲トラックごとのコード/音色/拍数/BPM/区間/スタイル/密度を含む",
+        "不正なトラック別設定を復元前に拒否",
+        "旧保存で欠けた情報を推測せず安全に読み込む",
+        "実Chromiumでオフライン移行・手動保存・再読込を検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41632255814",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41632535906",
+        "docs/MUSIC_036_ARRANGEMENT_TRACK_FIELDS.md",
+        "tests/manual-project-save-scope.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
       ]
     },
     {
