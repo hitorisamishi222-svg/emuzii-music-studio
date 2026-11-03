@@ -115,7 +115,7 @@
       "id": "MUSIC-012",
       "title": "SONG ID・TAKE・原音・タイミングの形式保護検査",
       "track": "project-data",
-      "state": "todo",
+      "state": "done",
       "priority": 85,
       "dependsOn": [
         "MUSIC-001"
@@ -126,13 +126,17 @@
         "旧形式互換と破損拒否の回帰を強化",
         "実録音・本番DBを変更しない"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41598803847",
+        "tests/asahi-project-reader-safety.test.mjs",
+        "integration/asahi-project-reader.js"
+      ]
     },
     {
       "id": "MUSIC-013",
       "title": "共通エンジン用の作業状態・証拠・保留理由のローカル契約",
       "track": "common-engine",
-      "state": "todo",
+      "state": "done",
       "priority": 82,
       "dependsOn": [
         "MUSIC-001"
@@ -143,7 +147,11 @@
         "依存を判定し次の実行可能な工程を選択",
         "本番/端末/外部キューへの自動接続なし"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41598803847",
+        "scripts/music-plan.mjs",
+        "tests/music-plan.test.mjs"
+      ]
     },
     {
       "id": "MUSIC-020",
