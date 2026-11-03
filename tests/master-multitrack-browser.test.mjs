@@ -109,6 +109,75 @@ try{
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源「missing-ci.wav」が見つかりません'));
   assert.equal(await page.locator('#tracks').textContent(),beforeTracks,'Broken backup must preserve current two tracks');
   console.log('PASS broken backup is refused without replacing current music');
+
+  // Safely erase saved data without erasing the two currently edited tracks.
+  await page.locator('#saveProject').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#clearProject').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('再保存するまで自動保存しません'));
+  assert.equal(await page.locator('#tracks').textContent(),beforeTracks);
+  await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));
+  await page.waitForTimeout(180);
+  const countDb=async()=>page.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('piyoko-music-v45',1);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});
+    const result=await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['projects','blobs'],'readonly');
+      const a=tx.objectStore('projects').count(),b=tx.objectStore('blobs').count();
+      tx.oncomplete=()=>resolve({projects:a.result,blobs:b.result});
+      tx.onerror=()=>reject(tx.error);
+    });
+    db.close();return result;
+  });
+  assert.deepEqual(await countDb(),{projects:0,blobs:0},'Deletion should not resurrect autosave or blobs');
+  await page.locator('#saveProject').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  const afterSave=await countDb();
+  assert.ok(afterSave.projects>=1&&afterSave.blobs>=2,'Manual save after delete must restore audio');
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('[data-view="project"]').click();
+  await page.locator('#loadProject').click();
+  await page.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('vocal-ci'));
+  assert.match(await page.locator('#tracks').textContent(),/backing-ci/);
+  console.log('PASS delete suspends autosave, manual save re-creates audio and reload restores tracks');
+
+  // Legacy migration: the historical blob lives ONLY in v44.
+  const legacy=await browser.newPage();
+  await legacy.goto(base,{waitUntil:'domcontentloaded'});
+  await legacy.waitForSelector('#loadProject',{state:'attached'});
+  await legacy.evaluate(async bytes=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v44',1);
+      q.onupgradeneeded=()=>{
+        if(!q.result.objectStoreNames.contains('projects'))q.result.createObjectStore('projects',{keyPath:'id'});
+        if(!q.result.objectStoreNames.contains('blobs'))q.result.createObjectStore('blobs',{keyPath:'id'});
+      };
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['projects','blobs'],'readwrite');
+      tx.objectStore('blobs').put({id:'asset:legacy-audio',blob:new Blob([Uint8Array.from(bytes)],{type:'audio/wav'})});
+      tx.objectStore('projects').put({id:'last',name:'CI legacy project',tracks:[{
+        id:'legacy-audio',name:'legacy-voice',type:'vocal',blobId:'asset:legacy-audio',
+        gain:1,pan:0,start:0,fadeIn:0,fadeOut:0,mute:false,solo:false
+      }]});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  },Array.from(vocal));
+  await legacy.locator('[data-view="project"]').click();
+  await legacy.locator('#loadProject').click();
+  await legacy.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('旧バージョンのプロジェクトを復元しました'));
+  assert.match(await legacy.locator('#tracks').textContent(),/legacy-voice/);
+  await legacy.locator('#saveProject').click();
+  await legacy.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await legacy.reload({waitUntil:'domcontentloaded'});
+  await legacy.locator('[data-view="project"]').click();
+  await legacy.locator('#loadProject').click();
+  await legacy.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await legacy.locator('#tracks').textContent(),/legacy-voice/);
+  await legacy.close();
+  console.log('PASS migration v44 audio copies into current v45 database and survives reload');
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{

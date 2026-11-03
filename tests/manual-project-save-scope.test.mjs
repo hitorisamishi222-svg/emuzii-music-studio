@@ -45,6 +45,40 @@ test('failed audio decode refuses restore before editing current work',async()=>
   await assert.rejects(()=>restore({tracks:[{id:'bad',blobId:'asset:bad'}]}),/復号できません/);
   assert.equal(state.tracks,existing);
 });
+test('audio references are scoped to the current database, not legacy pointers',async()=>{
+  const s=section('async function persistTrackBlob(t){','async function makeProjectRecord(id){');
+  const rows=[],cache=new WeakMap();
+  const persist=(new Function('idbPut','persistedBlobRefs','audioStorageGeneration',s+';return persistTrackBlob;'))(
+    async(store,row)=>{rows.push({store,row})},cache,0
+  );
+  const current={id:'legacy-take',blob:new Blob([Uint8Array.from([1,2,3])]),_blobId:'asset:legacy-take'};
+  assert.equal(await persist(current),'asset:legacy-take');
+  assert.equal(rows.length,1,'old _blobId alone does not skip saving audio');
+  await persist(current);
+  assert.equal(rows.length,1,'unchanged audio not re-written during autosave');
+});
+test('deleted storage invalidates cached audio even with same blob reference',async()=>{
+  const s=section('async function persistTrackBlob(t){','async function makeProjectRecord(id){');
+  const rows=[],cache=new WeakMap(),blob=new Blob(['recording']);
+  let generation=0;
+  const make=(gen)=>(new Function('idbPut','persistedBlobRefs','audioStorageGeneration',s+';return persistTrackBlob;'))(
+    async(store,row)=>rows.push(row),cache,gen
+  );
+  const audio={id:'take-1',blob};
+  await make(generation)(audio);
+  assert.equal(rows.length,1);
+  generation++;
+  await make(generation)(audio);
+  assert.equal(rows.length,2,'deleted destination must be re-populated');
+});
+test('autosave is suspended after explicit delete until manual save',()=>{
+  const s=section('async function persistProject(id,','async function restoreProjectRecord(p,');
+  assert.match(s,/autoSaveSuspended/);
+  assert.match(s,/queueProjectWrite/);
+  assert.match(s,/if\(id==="last"\)/);
+  assert.match(app,/audioStorageGeneration\+\+/);
+  assert.match(app,/自動保存停止中/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

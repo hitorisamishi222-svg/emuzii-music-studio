@@ -1843,7 +1843,14 @@
     const p=analyzeSongDesign(),tags=[p.sparseVerse&&"Aメロ抑制",p.bigChorus&&"サビ拡張",p.finalLift&&"ラスサビ強化",p.guitar&&"ギター",p.piano&&"ピアノ",p.synth&&"シンセ",p.strings&&"ストリングス",p.syncopated&&"グルーヴ"].filter(Boolean);const text=["emuzii PHONE ARRANGER v8.7.0 REAL SONG VALIDATION · FREE LOCAL",`曲名: ${title}`,`BPM: ${els.bpm.value} / KEY: ${els.songKey.value} / 尺: ${els.songLength.value}`,`AI介入度: ${amount}%（本人指定を優先）`,`構成: ${sections}`,`曲設計: ${design||"指定なし"}`,`自動検出: ${tags.join(" / ")||"標準バランス"}`,"固定ルール: 歌詞・BPM・KEY・構成・メロディ指示を勝手に変更しない。","歌詞反映: セクションごとの歌詞量を、メロディの休符・音数・伴奏密度にだけ反映する。","アレンジ方針: ボーカル帯域を空け、スマホスピーカーでも芯が残る中域を優先。サビは密度と高域を一段上げ、A/Bメロとの差を作る。","編集方針: 生成後はMANUAL EDITORで歌入れ・声/SE・ガイド化・タイミング補正・MIXを行う。"].join("\n");els.arrangement.textContent=text;setStatus("✓ PHONE ARRANGERで曲設計をまとめました");}
 
   const DB_NAME="piyoko-music-v45",DB_VERSION=1,LEGACY_DB_NAMES=["piyoko-music-v44","piyoko-music-v43"];
-  let autoSaveTimer=null,autoSaveRunning=false,lastAutoSavedAt=0;
+  let autoSaveTimer=null,autoSaveRunning=false,lastAutoSavedAt=0,autoSaveSuspended=false;
+  let projectWriteQueue=Promise.resolve(),audioStorageGeneration=0;
+  const persistedBlobRefs=new WeakMap();
+  function queueProjectWrite(work){
+    const run=projectWriteQueue.then(work);
+    projectWriteQueue=run.catch(()=>{});
+    return run;
+  }
   function openDB(name=DB_NAME){return new Promise((resolve,reject)=>{const req=indexedDB.open(name,DB_VERSION);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains("projects"))db.createObjectStore("projects",{keyPath:"id"});if(!db.objectStoreNames.contains("blobs"))db.createObjectStore("blobs",{keyPath:"id"});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
   async function idbPut(store,value,name=DB_NAME){const db=await openDB(name);return new Promise((resolve,reject)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).put(value);tx.oncomplete=()=>{db.close();resolve();};tx.onerror=()=>reject(tx.error);});}
   async function idbGet(store,id,name=DB_NAME){const db=await openDB(name);return new Promise((resolve,reject)=>{const tx=db.transaction(store,"readonly"),req=tx.objectStore(store).get(id);req.onsuccess=()=>{db.close();resolve(req.result);};req.onerror=()=>reject(req.error);});}
@@ -1851,9 +1858,15 @@
 
   async function persistTrackBlob(t){
     if(!t.blob)return t._blobId||null;
-    if(t._blobId)return t._blobId;
-    const blobId=`asset:${t.id}`;
+    // Legacy imports and prior "delete saved data" operations may leave an
+    // _blobId pointing to an audio object that is absent from this database.
+    // Never trust _blobId alone as proof that bytes are present.
+    const blobId=`asset:${t.id}`,cached=persistedBlobRefs.get(t.blob);
+    if(cached?.id===blobId&&cached.generation===audioStorageGeneration){
+      t._blobId=blobId;return blobId;
+    }
     await idbPut("blobs",{id:blobId,blob:t.blob});
+    persistedBlobRefs.set(t.blob,{id:blobId,generation:audioStorageGeneration});
     t._blobId=blobId;
     return blobId;
   }
@@ -1866,17 +1879,25 @@
     return {id,name:els.projectName.value||"My emuzii Song",tracks:meta,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
   }
   async function persistProject(id,{announce=false}={}){
-    if(autoSaveRunning&&id==="autosave")return;
+    if(id==="autosave"&&(autoSaveRunning||autoSaveSuspended))return;
     if(id==="autosave")autoSaveRunning=true;
     try{
-      if(navigator.storage?.persist){try{await navigator.storage.persist();}catch{}}
-      const record=await makeProjectRecord(id);await idbPut("projects",record);
-      if(id==="autosave"){lastAutoSavedAt=Date.now();if(els.autosaveStatus)els.autosaveStatus.textContent=`自動保存済み · ${new Date(lastAutoSavedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;}
-      if(announce)setStatus("✓ 音源を含めて端末に保存しました");
+      await queueProjectWrite(async()=>{
+        if(id==="autosave"&&autoSaveSuspended)return;
+        if(navigator.storage?.persist){try{await navigator.storage.persist();}catch{}}
+        const record=await makeProjectRecord(id);
+        await idbPut("projects",record);
+        if(id==="last"){
+          autoSaveSuspended=false;
+          if(els.autosaveStatus)els.autosaveStatus.textContent="手動保存完了 · 自動保存を再開しました";
+        }
+        if(id==="autosave"){lastAutoSavedAt=Date.now();if(els.autosaveStatus)els.autosaveStatus.textContent=`自動保存済み · ${new Date(lastAutoSavedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}`;}
+        if(announce)setStatus("✓ 音源を含めて端末に保存しました");
+      });
     }finally{if(id==="autosave")autoSaveRunning=false;}
   }
   function scheduleAutoSave(delay=1200){
-    if(!window.indexedDB)return;clearTimeout(autoSaveTimer);
+    if(!window.indexedDB||autoSaveSuspended)return;clearTimeout(autoSaveTimer);
     autoSaveTimer=setTimeout(()=>persistProject("autosave").catch(e=>{console.warn("autosave",e);if(els.autosaveStatus)els.autosaveStatus.textContent="自動保存に失敗 · 手動保存を使ってください";}),delay);
   }
   async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト"){
@@ -1895,6 +1916,12 @@
         blob=row.blob;buffer=decoded;
       }
       loaded.push({...m,buffer,blob,_blobId:m.blobId||null});
+    }
+    // Current-DB blobs were just verified by idbGet. Legacy-DB blobs must be
+    // copied on the next save, never represented as already stored locally.
+    if(sourceDb===DB_NAME)for(const t of loaded){
+      if(t.blob&&t._blobId===`asset:${t.id}`)
+        persistedBlobRefs.set(t.blob,{id:t._blobId,generation:audioStorageGeneration});
     }
     state.tracks=loaded;state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();setStatus(`✓ ${label}を復元しました`);return true;
   }
@@ -3081,7 +3108,25 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   els.recipeShort?.addEventListener("click",()=>selectArrangeRecipe("short")); els.recipeLive?.addEventListener("click",()=>selectArrangeRecipe("live")); els.recipeKaraoke?.addEventListener("click",()=>selectArrangeRecipe("karaoke")); els.recipeOriginal?.addEventListener("click",()=>selectArrangeRecipe("original"));
   els.logCreativeWork?.addEventListener("click",manualCreativeLog); els.exportCreativeLog?.addEventListener("click",exportCreativeLog); renderCreativeLog();
   els.guideExpression?.addEventListener("input",updateHqLabels);els.guideSpace?.addEventListener("input",updateHqLabels);els.masterStrength?.addEventListener("input",updateHqLabels);els.naturalizeGuide?.addEventListener("click",naturalizeGuide);els.safeMaster?.addEventListener("click",safeMaster);updateHqLabels();
-  els.runStabilityCheck?.addEventListener("click",()=>runStabilityCheck().catch(e=>setStatus(`端末チェック失敗: ${e?.message||e}`)));els.releaseAudioMemory?.addEventListener("click",releaseAudioMemory);els.saveProject.addEventListener("click",saveProject);els.loadProject.addEventListener("click",loadProject);els.loadAutosave?.addEventListener("click",loadAutosave);els.clearProject.addEventListener("click",async()=>{if(!confirm("端末内の保存プロジェクトを削除しますか？"))return;clearTimeout(autoSaveTimer);await idbClear();if(els.autosaveStatus)els.autosaveStatus.textContent="保存データはありません";setStatus("保存プロジェクトを削除しました");});
+  els.runStabilityCheck?.addEventListener("click",()=>runStabilityCheck().catch(e=>setStatus(`端末チェック失敗: ${e?.message||e}`)));els.releaseAudioMemory?.addEventListener("click",releaseAudioMemory);els.saveProject.addEventListener("click",saveProject);els.loadProject.addEventListener("click",loadProject);els.loadAutosave?.addEventListener("click",loadAutosave);els.clearProject.addEventListener("click",async()=>{
+    if(!confirm("保存済みのプロジェクトと音源を削除します。今開いている編集は残しますが、自動保存は停止します。続けますか？"))return;
+    clearTimeout(autoSaveTimer);
+    const priorSuspended=autoSaveSuspended;autoSaveSuspended=true;
+    try{
+      await queueProjectWrite(async()=>{
+        await idbClear();
+        audioStorageGeneration++;
+        for(const t of state.tracks)delete t._blobId;
+        autoSaveSuspended=true;
+      });
+      if(els.autosaveStatus)els.autosaveStatus.textContent="保存データ削除済み · 自動保存停止中。再保存は「編集状態を保存」から";
+      setStatus("保存データを削除しました。編集中の音声は保持しています。再保存するまで自動保存しません");
+    }catch(error){
+      autoSaveSuspended=priorSuspended;
+      console.error("clear project",error);
+      setStatus("保存データの削除に失敗しました: "+(error?.message||error));
+    }
+  });
   window.addEventListener("resize",()=>{document.querySelectorAll(".track canvas").forEach((c,i)=>{const track=state.tracks.filter(t=>t.buffer)[i];if(track)waveform(c,track.buffer);});});
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"&&state.tracks.length)scheduleAutoSave(50);else if(document.visibilityState==="visible"&&state.recording)keepAwake();});
   window.addEventListener("pagehide",()=>{if(state.tracks.length)scheduleAutoSave(10);});
