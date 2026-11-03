@@ -331,7 +331,7 @@ try{
   assert.equal(await renamePage.locator('#tracks article.track').first().getAttribute('data-id'),beforeRenameId);
   await renamePage.locator('[data-view="edit"]').click();
   const gain=renamePage.locator('#tracks article.track').first().locator('[data-field="gain"]');
-  await gain.fill('0.70');
+  await gain.evaluate(el=>{el.value='0.70';el.dispatchEvent(new Event('input',{bubbles:true}))});
   const start=renamePage.locator('#tracks article.track').first().locator('[data-field="start"]');
   await start.fill('0.3');
   await renamePage.locator('[data-view="project"]').click();
