@@ -420,6 +420,7 @@ try{
 
   // Full portable backup is a single offline file with actual microphone
   // bytes, not just settings JSON; corruption must preserve current work.
+  {
   const portablePage=await browser.newPage({acceptDownloads:true});
   const calls=[];portablePage.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/ace'))calls.push(r.url())});
   await portablePage.goto(base,{waitUntil:'domcontentloaded'});
@@ -468,6 +469,7 @@ try{
   assert.equal(calls.length,0,'Portable backup must never contact ACE API');
   await portablePage.close();
   console.log('PASS offline portable song export, checksum refusal, import and local save restore');
+  }
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
