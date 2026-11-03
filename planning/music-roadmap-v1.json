@@ -154,6 +154,25 @@
       ]
     },
     {
+      "id": "MUSIC-021",
+      "title": "設定JSONと原音付き端末保存の違いを明記してデータ喪失を防ぐ",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 80,
+      "dependsOn": [
+        "MUSIC-010",
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "JSONには音声が含まれないことを画面で明示",
+        "原音込みのIndexedDB保存を変更しない",
+        "警告UIとコード境界の回帰テスト合格"
+      ],
+      "evidence": []
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",

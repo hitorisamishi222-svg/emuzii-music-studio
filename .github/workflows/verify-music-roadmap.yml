@@ -8,6 +8,8 @@ on:
       - 'tests/music-plan.test.mjs'
       - 'tests/ace-proxy-contract.test.mjs'
       - 'tests/asahi-project-reader-safety.test.mjs'
+      - 'tests/manual-project-save-scope.test.mjs'
+      - 'app-v10.3.2.html'
       - 'api/ace/**'
       - '.github/workflows/verify-music-roadmap.yml'
   workflow_dispatch:
@@ -28,5 +30,7 @@ jobs:
         run: node --test tests/ace-proxy-contract.test.mjs
       - name: Verify project import safety without user recordings
         run: node --test tests/asahi-project-reader-safety.test.mjs
+      - name: Protect difference between settings export and full local project
+        run: node --test tests/manual-project-save-scope.test.mjs
       - name: Print eligible tasks without executing them
         run: node scripts/music-plan.mjs
