@@ -579,6 +579,30 @@
       ]
     },
     {
+      "id": "MUSIC-038",
+      "title": "持ち運びバックアップの書出しと読込のサイズ・トラックID条件を一致させる",
+      "track": "project-data",
+      "state": "done",
+      "priority": 74,
+      "dependsOn": [
+        "MUSIC-035"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "読み込み不能な超大容量Blobを新規書出し前に拒否する",
+        "重複トラックIDを持つ作品ファイルを生成しない",
+        "既存の音源付き・音源なし・破損拒否の回帰を守る",
+        "ユーザーの楽曲データを変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41634238405",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41634238340",
+        "docs/MUSIC_038_BACKUP_EXPORT_SAFETY.md",
+        "tests/portable-music-backup.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
