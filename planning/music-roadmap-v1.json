@@ -225,6 +225,30 @@
       ]
     },
     {
+      "id": "MUSIC-024",
+      "title": "旧保存DB移行と保存削除後の音声再保存を安全化",
+      "track": "project-data",
+      "state": "done",
+      "priority": 87,
+      "dependsOn": [
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "旧DBからの復元後、新DBへ音声Blob本体を保存できる",
+        "保存データ削除後、編集中の音声を残し、自動保存が勝手に再作成されない",
+        "手動保存で音声を再保存でき、再起動後も復元できる",
+        "保存・削除を直列化して参照先の破損を防ぐ"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41615137016",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41615136980",
+        "tests/master-multitrack-browser.test.mjs",
+        "tests/manual-project-save-scope.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",
