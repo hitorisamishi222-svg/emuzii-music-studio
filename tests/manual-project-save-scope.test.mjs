@@ -277,6 +277,22 @@ test('saved arrangement fields are validated before being restored, while old tr
     assert.throws(()=>normalize(value),/不正/);
   }
 });
+test('duplicated tracks sharing one raw audio Blob are persisted once per track id per generation',async()=>{
+  const src=section('async function persistTrackBlob(t){','async function makeProjectRecord(id){');
+  const writes=[],cache=new WeakMap(),sound=new Blob([Uint8Array.from([7,3,9,0])]);
+  const create=(generation)=>(new Function('idbPut','persistedBlobRefs','audioStorageGeneration',src+';return persistTrackBlob;'))(
+    async(store,row)=>{writes.push({store,id:row.id})},cache,generation
+  );
+  const original={id:'original',blob:sound},copy={id:'duplicated',blob:sound};
+  const first=create(0);
+  await first(original);await first(copy);
+  assert.deepEqual(writes.map(x=>x.id),['asset:original','asset:duplicated']);
+  await first(original);await first(copy);
+  assert.equal(writes.length,2,'Second autosave must not re-write either duplicated audio Blob');
+  const afterClear=create(1);
+  await afterClear(original);await afterClear(copy);
+  assert.equal(writes.length,4,'Cleared storage generation must restore each asset exactly once');
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

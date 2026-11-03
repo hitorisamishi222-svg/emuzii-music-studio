@@ -559,6 +559,41 @@ try{
   await portablePage.close();
   console.log('PASS offline portable song export, checksum refusal, import and local save restore');
   }
+  // A duplicated audio track points at the same raw Blob in memory but must
+  // be saved under both distinct asset ids. Re-saving must not rewrite them.
+  const duplicateContext=await browser.newContext();
+  const duplicatePage=await duplicateContext.newPage();
+  await duplicatePage.goto(base,{waitUntil:'domcontentloaded'});
+  await duplicatePage.waitForSelector('#mainFile',{state:'attached'});
+  await duplicatePage.locator('#mainFile').setInputFiles({name:'shared-original.wav',mimeType:'audio/wav',buffer:backing});
+  await duplicatePage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('shared-original'));
+  await duplicatePage.locator('[data-view="edit"]').click();
+  await duplicatePage.locator('#tracks article.track').first().locator('[data-action="duplicate"]').click();
+  assert.equal(await duplicatePage.locator('#tracks article.track').count(),2);
+  await duplicatePage.evaluate(()=>{
+    const native=IDBObjectStore.prototype.put;
+    window.__blobPutCount=0;
+    IDBObjectStore.prototype.put=function(...args){
+      if(this.name==='blobs')window.__blobPutCount++;
+      return native.apply(this,args);
+    };
+  });
+  await duplicatePage.locator('[data-view="project"]').click();
+  await duplicatePage.locator('#saveProject').click();
+  await duplicatePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  const initialWrites=await duplicatePage.evaluate(()=>window.__blobPutCount);
+  assert.equal(initialWrites,2,'Distinct duplicated track assets must both be persisted');
+  await duplicatePage.locator('#saveProject').click();
+  await duplicatePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  assert.equal(await duplicatePage.evaluate(()=>window.__blobPutCount),2,'Repeated saves must not write both Blobs again');
+  await duplicatePage.reload({waitUntil:'domcontentloaded'});
+  await duplicatePage.locator('[data-view="project"]').click();
+  await duplicatePage.locator('#loadProject').click();
+  await duplicatePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.equal(await duplicatePage.locator('#tracks article.track').count(),2);
+  await duplicateContext.close();
+  console.log('PASS duplicated audio tracks persist separately without repeated Blob writes');
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{

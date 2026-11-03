@@ -1932,11 +1932,16 @@
     // _blobId pointing to an audio object that is absent from this database.
     // Never trust _blobId alone as proof that bytes are present.
     const blobId=`asset:${t.id}`,cached=persistedBlobRefs.get(t.blob);
-    if(cached?.id===blobId&&cached.generation===audioStorageGeneration){
+    // A duplicated track shares the same immutable Blob with its source,
+    // but has a DIFFERENT asset id. Cache all persisted ids for that Blob;
+    // a single-id cache would make each autosave re-write both large files.
+    if(cached?.generation===audioStorageGeneration&&cached.ids?.has(blobId)){
       t._blobId=blobId;return blobId;
     }
     await idbPut("blobs",{id:blobId,blob:t.blob});
-    persistedBlobRefs.set(t.blob,{id:blobId,generation:audioStorageGeneration});
+    if(cached?.generation===audioStorageGeneration&&cached.ids instanceof Set)
+      cached.ids.add(blobId);
+    else persistedBlobRefs.set(t.blob,{ids:new Set([blobId]),generation:audioStorageGeneration});
     t._blobId=blobId;
     return blobId;
   }
@@ -2121,8 +2126,12 @@
     // Current-DB blobs were just verified by idbGet. Legacy-DB blobs must be
     // copied on the next save, never represented as already stored locally.
     if(sourceDb===DB_NAME)for(const t of loaded){
-      if(t.blob&&t._blobId===`asset:${t.id}`)
-        persistedBlobRefs.set(t.blob,{id:t._blobId,generation:audioStorageGeneration});
+      if(t.blob&&t._blobId===`asset:${t.id}`){
+        const cached=persistedBlobRefs.get(t.blob);
+        if(cached?.generation===audioStorageGeneration&&cached.ids instanceof Set)
+          cached.ids.add(t._blobId);
+        else persistedBlobRefs.set(t.blob,{ids:new Set([t._blobId]),generation:audioStorageGeneration});
+      }
     }
     state.tracks=loaded;state.deletedTrackStack=[];state.guideNotes=editor.guideNotes;state.chordProgression=editor.chordProgression;state.songForm=editor.songForm;state.selectedGuideNoteIndex=-1;state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();
     if(els.chordProgression)els.chordProgression.value=state.chordProgression.map(c=>NOTE_NAMES[c.root]+c.suffix).join(" | ");
