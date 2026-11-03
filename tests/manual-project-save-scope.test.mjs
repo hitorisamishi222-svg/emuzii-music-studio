@@ -200,6 +200,48 @@ test('negative clip start reduces total audible timeline instead of extending it
   state.tracks[0].start=.3;
   assert.ok(Math.abs(compute()-1.6)<1e-9,'Positive start should extend visible duration');
 });
+test('local audio project record snapshots manual guide, chords, and song form before async persistence',async()=>{
+  const s=section('async function makeProjectRecord(id){','async function persistProject(id,');
+  let release;const gate=new Promise(resolve=>release=resolve);
+  const state={
+    tracks:[{id:'take',name:'Audio take',type:'vocal',blob:new Blob(['original'])}],
+    guideNotes:[{start:.1,duration:.4,midi:64}],
+    chordProgression:[{root:0,suffix:'maj7'}],
+    songForm:[{id:'section-a',name:'Verse',start:0,duration:3,power:.7}],
+    guideWave:'triangle',guideInstrument:'electone',asahiSongId:'SONG-A',asahiTakeName:'TAKE-A'
+  };
+  const v=value=>({value});
+  const els={projectName:v('A'),songTitle:v('Song A'),songDesign:v('soft'),lyrics:v('words'),bpm:v('96'),
+    songKey:v('A minor'),songLength:v('4:30'),aiAmount:v('10'),localStyle:v('jpop'),arrangement:{textContent:'pre-edit'},
+    vocalBridgeSongId:v('SONG-A'),vocalBridgeTakeName:v('TAKE-A'),recordOffset:v('0')};
+  const build=(new Function('state','els','cleanAsahiText','persistTrackBlob',s+';return makeProjectRecord;'))(
+    state,els,x=>String(x),async t=>{await gate;return 'asset:'+t.id}
+  );
+  const promise=build('last');
+  state.guideNotes[0].midi=80;
+  state.chordProgression[0].root=8;
+  state.songForm[0].name='Another song';
+  release();
+  const result=await promise;
+  assert.equal(result.manualEditor.guideNotes[0].midi,64);
+  assert.equal(result.manualEditor.chordProgression[0].root,0);
+  assert.equal(result.manualEditor.songForm[0].name,'Verse');
+  assert.equal(result.tracks[0].blobId,'asset:take');
+});
+test('malformed manual editor cannot replace current project and old saves remain compatible',()=>{
+  const s=section('function normalizeSavedManualEditor(editor){','async function restoreProjectRecord(');
+  const normalize=(new Function(s+';return normalizeSavedManualEditor;'))();
+  assert.deepEqual(normalize(undefined),{guideNotes:[],chordProgression:[],songForm:[]});
+  const ed={guideNotes:[{start:.5,duration:.2,midi:72}],chordProgression:[{root:9,suffix:'m7'}],
+    songForm:[{name:'Aメロ',start:0,duration:3.2,power:.8}]};
+  assert.deepEqual(normalize(ed),ed);
+  for(const invalid of [
+    {guideNotes:[{start:'no',duration:.2,midi:64}]},
+    {guideNotes:[{start:0,duration:-1,midi:64}]},
+    {chordProgression:[{root:99,suffix:'m'}]},
+    {songForm:[{name:'Chorus',start:0,duration:'invalid',power:1}]}
+  ])assert.throws(()=>normalize(invalid),/不正/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

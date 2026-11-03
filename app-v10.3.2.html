@@ -1940,7 +1940,12 @@
     // different versions of one song into the same saved record.
     const sources=state.tracks.map(t=>({id:t.id,blob:t.blob,_blobId:t._blobId}));
     const meta=state.tracks.map(t=>({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes?structuredClone(t.notes):null,blobId:null,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?structuredClone(t.asahiProject):null}));
-    const record={id,name:els.projectName.value||"My emuzii Song",tracks:meta,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
+    const manualEditor={
+      guideNotes:structuredClone(Array.isArray(state.guideNotes)?state.guideNotes:[]),
+      chordProgression:structuredClone(Array.isArray(state.chordProgression)?state.chordProgression:[]),
+      songForm:structuredClone(Array.isArray(state.songForm)?state.songForm:[])
+    };
+    const record={id,name:els.projectName.value||"My emuzii Song",tracks:meta,manualEditor,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
     // Blob is immutable: hold references to the original audio bytes, not
     // memory-heavy copies. Any later user edits belong to the NEXT save.
     for(let i=0;i<sources.length;i++)meta[i].blobId=await persistTrackBlob(sources[i]);
@@ -2008,12 +2013,53 @@
       fadeOut:field(m.fadeOut,0,0,86400,"Fade OUT"),
       mute:!!m.mute,solo:!!m.solo,notes};
   }
+  // Preserve the actual manually edited guide/chord/form with the audio.
+  // Legacy projects have no manualEditor field: keep them loadable and never
+  // mix in stale edits from a different song.
+  function normalizeSavedManualEditor(editor){
+    const bad=field=>{throw Error("保存された編集データの"+field+"が不正です。今の作品は保持しています")};
+    if(editor==null)return {guideNotes:[],chordProgression:[],songForm:[]};
+    if(typeof editor!=="object"||Array.isArray(editor))bad("形式");
+    const list=(value,limit,label)=>{
+      if(value==null)return [];
+      if(!Array.isArray(value)||value.length>limit)bad(label);
+      return value;
+    };
+    const number=(value,min,max,label)=>{
+      const n=Number(value);
+      if(!Number.isFinite(n)||n<min||n>max)bad(label);
+      return n;
+    };
+    const guideNotes=list(editor.guideNotes,50000,"ガイドメロディ").map(n=>{
+      if(!n||typeof n!=="object"||Array.isArray(n))bad("ガイド音符");
+      number(n.start??n.time??0,0,86400,"ガイド開始");
+      number(n.duration??n.dur??.1,.001,86400,"ガイド長さ");
+      number(n.midi??n.note??n.pitch??60,0,127,"ガイド音程");
+      return structuredClone(n);
+    });
+    const chordProgression=list(editor.chordProgression,1000,"コード進行").map(c=>{
+      if(!c||typeof c!=="object"||Array.isArray(c))bad("コード");
+      const root=number(c.root,0,11,"コードルート");
+      if(!Number.isInteger(root)||typeof c.suffix!=="string"||c.suffix.length>40||/[<>]/.test(c.suffix))bad("コード表記");
+      return {...structuredClone(c),root};
+    });
+    const songForm=list(editor.songForm,200,"曲構成").map(sec=>{
+      if(!sec||typeof sec!=="object"||Array.isArray(sec))bad("曲構成");
+      if(typeof sec.name!=="string"||sec.name.length>100)bad("セクション名");
+      const start=number(sec.start,0,86400,"セクション開始");
+      const duration=number(sec.duration,.001,86400,"セクション長さ");
+      const power=number(sec.power,0,2,"セクション密度");
+      return {...structuredClone(sec),start,duration,power};
+    });
+    return {guideNotes,chordProgression,songForm};
+  }
   async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト"){
     if(!p){setStatus(`${label}がありません`);return false;}
     // Stage and validate every referenced audio blob BEFORE replacing the user's
     // current working tracks. A broken backup must never silently erase takes.
     if(!Array.isArray(p.tracks))throw Error("保存プロジェクトのトラック一覧が不正です。編集中の作品は保持しています");
     if(p.tracks.length>250)throw Error("トラック数が安全上限を超えています。現在の編集は保持しています");
+    const editor=normalizeSavedManualEditor(p.manualEditor);
     const ids=new Set(),loaded=[];
     for(const raw of p.tracks){
       const m=normalizeSavedTrack(raw);
@@ -2042,7 +2088,10 @@
       if(t.blob&&t._blobId===`asset:${t.id}`)
         persistedBlobRefs.set(t.blob,{id:t._blobId,generation:audioStorageGeneration});
     }
-    state.tracks=loaded;state.deletedTrackStack=[];state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();setStatus(`✓ ${label}を復元しました`);return true;
+    state.tracks=loaded;state.deletedTrackStack=[];state.guideNotes=editor.guideNotes;state.chordProgression=editor.chordProgression;state.songForm=editor.songForm;state.selectedGuideNoteIndex=-1;state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();
+    if(els.chordProgression)els.chordProgression.value=state.chordProgression.map(c=>NOTE_NAMES[c.root]+c.suffix).join(" | ");
+    renderTouchPianoRoll();renderSongForm();
+    setStatus(`✓ ${label}を復元しました`);return true;
   }
   async function saveProject(){setStatus("プロジェクト保存中…");try{await persistProject("last",{announce:true});}catch(e){console.error(e);setStatus("保存に失敗しました。ブラウザのストレージ許可を確認してください");}}
   async function loadProject(){setStatus("前回プロジェクトを復元中…");try{let sourceDb=DB_NAME,p=await idbGet("projects","last",sourceDb);if(!p){for(const legacy of LEGACY_DB_NAMES){const candidate=await idbGet("projects","last",legacy);if(candidate){p=candidate;sourceDb=legacy;break;}}}if(!p){setStatus("保存済みプロジェクトがありません");return;}await restoreProjectRecord(p,sourceDb,sourceDb===DB_NAME?"前回プロジェクト":"旧バージョンのプロジェクト");}

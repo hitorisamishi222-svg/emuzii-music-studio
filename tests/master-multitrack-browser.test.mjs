@@ -354,6 +354,48 @@ try{
   await renamePage.close();
   console.log('PASS manual track rename survives project save/reload with original audio identity');
 
+  // Ensure manual melody, chord progression, and song form survive ordinary
+  // local project save/reload alongside the audio editing workflow.
+  const editorPage=await browser.newPage();
+  await editorPage.goto(base,{waitUntil:'domcontentloaded'});
+  await editorPage.waitForSelector('#loadProject',{state:'attached'});
+  await editorPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v45',1);
+      q.onupgradeneeded=()=>{
+        if(!q.result.objectStoreNames.contains('projects'))q.result.createObjectStore('projects',{keyPath:'id'});
+        if(!q.result.objectStoreNames.contains('blobs'))q.result.createObjectStore('blobs',{keyPath:'id'});
+      };
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readwrite');
+      tx.objectStore('projects').put({id:'last',name:'Manual editor CI',tracks:[],manualEditor:{
+        guideNotes:[{start:.2,duration:.3,midi:65}],
+        chordProgression:[{root:0,suffix:'maj7'},{root:7,suffix:'m7'}],
+        songForm:[{id:'ci-verse',name:'Aメロ',start:0,duration:4,power:.65}]
+      }});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  });
+  await editorPage.locator('[data-view="project"]').click();
+  await editorPage.locator('#loadProject').click();
+  await editorPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await editorPage.locator('#pianoRollInfo').textContent(),/1音/);
+  assert.equal(await editorPage.locator('#chordProgression').inputValue(),'Cmaj7 | Gm7');
+  assert.match(await editorPage.locator('#songFormView').textContent(),/Aメロ/);
+  await editorPage.locator('#saveProject').click();
+  await editorPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await editorPage.reload({waitUntil:'domcontentloaded'});
+  await editorPage.locator('[data-view="project"]').click();
+  await editorPage.locator('#loadProject').click();
+  await editorPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await editorPage.locator('#pianoRollInfo').textContent(),/1音/);
+  assert.equal(await editorPage.locator('#chordProgression').inputValue(),'Cmaj7 | Gm7');
+  assert.match(await editorPage.locator('#songFormView').textContent(),/Aメロ/);
+  await editorPage.close();
+  console.log('PASS guide melody / chord progression / song form persist across local save');
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
