@@ -7,6 +7,7 @@ on:
       - 'scripts/music-plan.mjs'
       - 'tests/music-plan.test.mjs'
       - 'tests/ace-proxy-contract.test.mjs'
+      - 'tests/asahi-project-reader-safety.test.mjs'
       - 'api/ace/**'
       - '.github/workflows/verify-music-roadmap.yml'
   workflow_dispatch:
@@ -25,5 +26,7 @@ jobs:
         run: node --test tests/music-plan.test.mjs
       - name: Verify ACE-Step proxy auth with mocked upstream (no GPU)
         run: node --test tests/ace-proxy-contract.test.mjs
+      - name: Verify project import safety without user recordings
+        run: node --test tests/asahi-project-reader-safety.test.mjs
       - name: Print eligible tasks without executing them
         run: node scripts/music-plan.mjs

@@ -94,7 +94,7 @@
       "id": "MUSIC-011",
       "title": "ACE-Step中継の認証・予算・未設定時fail-closed監査",
       "track": "ai-assist",
-      "state": "todo",
+      "state": "done",
       "priority": 88,
       "dependsOn": [
         "MUSIC-001"
@@ -105,7 +105,11 @@
         "認証なし/未設定でGPU到達しない要件を整理",
         "有料API呼出なしで試験可能な方針"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41598489623",
+        "tests/ace-proxy-contract.test.mjs",
+        "docs/ACE_STEP_CLOUD.md"
+      ]
     },
     {
       "id": "MUSIC-012",
