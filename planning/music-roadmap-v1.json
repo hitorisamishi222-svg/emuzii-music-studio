@@ -177,6 +177,31 @@
       ]
     },
     {
+      "id": "MUSIC-022",
+      "title": "完成WAVを複数の歌・伴奏トラックから正しく生成する",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 86,
+      "dependsOn": [
+        "MUSIC-010",
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "複数トラックを開始位置/音量/左右PAN/フェードで出力",
+        "ミュート・ソロと構成マップに準拠",
+        "実Chromium合成2音源の完成WAVで両方の信号を測定",
+        "原音やTAKE保存形式を変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41602549326",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "app-v10.3.2.html"
+      ]
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",

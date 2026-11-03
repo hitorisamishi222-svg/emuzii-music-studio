@@ -41,3 +41,10 @@
 
 合否はGitHub CIで対象テスト完了後に判断。今回のテストはJavaScriptスケジューラの合成モックと既存ブラウザ連携であり、実音声の全構成・実機音質評価とは区別する。
 
+
+
+## MUSIC-022 実音声ブラウザ確認（2026-11-03）
+- 合格記録: [GitHub Actions 41602549326](https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41602549326)。すべてのジョブSUCCESS。
+- `tests/master-multitrack-browser.test.mjs` はテスト用WAV二つを実Chromiumで読み込み、前半だけ伴奏、後半だけ歌声を鳴らす条件でMASTER WAVを書き出す。出力WAVの二つの時間窓のRMSがそれぞれ閾値を超えることを検査。実音声の複数トラック混合を検証した。
+- `tests/master-multitrack-contract.test.mjs` は正/負開始位置、タイムライン構成カットとコピー、PAN/フェード情報、ミュート/ソロ選別、マスター音量0の扱いを検査。
+- Windows/iPhone/Androidでの実機確認やユーザー提供音源の聴感評価とは別。MUSIC-020（DAW編集機能全体）は未完了のまま。
