@@ -12,6 +12,7 @@ on:
       - 'tests/vocal-bridge-contract.test.mjs'
       - 'tests/vocal-bridge-browser.test.mjs'
       - 'tests/master-multitrack-contract.test.mjs'
+      - 'tests/master-multitrack-browser.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
 
@@ -48,3 +49,5 @@ jobs:
         run: node tests/vocal-bridge-browser.test.mjs
       - name: Validate multi-track master scheduling and mute / solo / timeline behavior
         run: node --test tests/master-multitrack-contract.test.mjs
+      - name: Verify actual Chromium MASTER WAV includes backing and vocal
+        run: node tests/master-multitrack-browser.test.mjs
