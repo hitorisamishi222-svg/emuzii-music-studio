@@ -85,6 +85,30 @@ try{
   console.log('MASTER_AUDIO_RMS',JSON.stringify({first,second,bytes:rendered.length}));
   assert.ok(first>.012,'Backing must be audible in exported master at 0.2 seconds');
   assert.ok(second>.012,'Vocal must be audible in exported master at 1.0 seconds');
+  // Broken saved project must not replace the live two-track editor state.
+  const beforeTracks=await page.locator('#tracks').textContent();
+  await page.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{
+      const req=indexedDB.open('piyoko-music-v45',1);
+      req.onupgradeneeded=()=>{
+        const d=req.result;
+        if(!d.objectStoreNames.contains('projects'))d.createObjectStore('projects',{keyPath:'id'});
+        if(!d.objectStoreNames.contains('blobs'))d.createObjectStore('blobs',{keyPath:'id'});
+      };
+      req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readwrite');
+      tx.objectStore('projects').put({id:'last',name:'Broken synthetic CI restore',tracks:[{id:'ci-missing',name:'missing-ci.wav',type:'vocal',blobId:'asset:not-present'}]});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });
+    db.close();
+  });
+  await page.locator('[data-view="project"]').click();
+  await page.locator('#loadProject').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源「missing-ci.wav」が見つかりません'));
+  assert.equal(await page.locator('#tracks').textContent(),beforeTracks,'Broken backup must preserve current two tracks');
+  console.log('PASS broken backup is refused without replacing current music');
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{

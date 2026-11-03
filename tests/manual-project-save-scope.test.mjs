@@ -23,6 +23,28 @@ test('local project save still persists audio blobs and does not depend on setti
   assert.match(s,/音源を含めて端末に保存しました/);
   assert.doesNotMatch(s,/v8ProjectData\(/);
 });
+test('broken audio backup refuses restore before changing current tracks',async()=>{
+  const s=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  const existing=[{id:'current',name:'Live take',gain:1}];
+  const state={tracks:existing};
+  const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',s+';return restoreProjectRecord;'))(
+    async()=>null,async()=>null,state,()=>{},'piyoko-music-v45'
+  );
+  const project={tracks:[{id:'bad',name:'Missing WAV',type:'vocal',blobId:'asset:not-found'}]};
+  await assert.rejects(()=>restore(project),/見つかりません/);
+  assert.equal(state.tracks,existing,'The existing track array must not be replaced');
+  await assert.rejects(()=>restore({}),/一覧が不正/);
+  assert.equal(state.tracks,existing);
+});
+test('failed audio decode refuses restore before editing current work',async()=>{
+  const s=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  const existing=[{id:'current'}],state={tracks:existing};
+  const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',s+';return restoreProjectRecord;'))(
+    async()=>({blob:new Blob([Uint8Array.from([1,2,3])])}),async()=>null,state,()=>{},'piyoko-music-v45'
+  );
+  await assert.rejects(()=>restore({tracks:[{id:'bad',blobId:'asset:bad'}]}),/復号できません/);
+  assert.equal(state.tracks,existing);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

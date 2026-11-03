@@ -1880,14 +1880,28 @@
     autoSaveTimer=setTimeout(()=>persistProject("autosave").catch(e=>{console.warn("autosave",e);if(els.autosaveStatus)els.autosaveStatus.textContent="自動保存に失敗 · 手動保存を使ってください";}),delay);
   }
   async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト"){
-    if(!p){setStatus(`${label}がありません`);return false;}const loaded=[];
-    for(const m of p.tracks||[]){let buffer=null,blob=null;if(m.blobId){const row=await idbGet("blobs",m.blobId,sourceDb);if(row?.blob){blob=row.blob;buffer=await decodeBlob(blob);}}loaded.push({...m,buffer,blob,_blobId:m.blobId||null});}
+    if(!p){setStatus(`${label}がありません`);return false;}
+    // Stage and validate every referenced audio blob BEFORE replacing the user's
+    // current working tracks. A broken backup must never silently erase takes.
+    if(!Array.isArray(p.tracks))throw Error("保存プロジェクトのトラック一覧が不正です。編集中の作品は保持しています");
+    const loaded=[];
+    for(const m of p.tracks){
+      let buffer=null,blob=null;
+      if(m.blobId){
+        const row=await idbGet("blobs",m.blobId,sourceDb);
+        if(!row?.blob)throw Error(`音源「${m.name||m.id||"不明"}」が見つかりません。編集中の作品は保持しています`);
+        const decoded=await decodeBlob(row.blob);
+        if(!decoded)throw Error(`音源「${m.name||m.id||"不明"}」を復号できません。編集中の作品は保持しています`);
+        blob=row.blob;buffer=decoded;
+      }
+      loaded.push({...m,buffer,blob,_blobId:m.blobId||null});
+    }
     state.tracks=loaded;state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();setStatus(`✓ ${label}を復元しました`);return true;
   }
   async function saveProject(){setStatus("プロジェクト保存中…");try{await persistProject("last",{announce:true});}catch(e){console.error(e);setStatus("保存に失敗しました。ブラウザのストレージ許可を確認してください");}}
   async function loadProject(){setStatus("前回プロジェクトを復元中…");try{let sourceDb=DB_NAME,p=await idbGet("projects","last",sourceDb);if(!p){for(const legacy of LEGACY_DB_NAMES){const candidate=await idbGet("projects","last",legacy);if(candidate){p=candidate;sourceDb=legacy;break;}}}if(!p){setStatus("保存済みプロジェクトがありません");return;}await restoreProjectRecord(p,sourceDb,sourceDb===DB_NAME?"前回プロジェクト":"旧バージョンのプロジェクト");}
-    catch(e){console.error(e);setStatus("復元に失敗しました");}}
-  async function loadAutosave(){setStatus("自動保存を復元中…");try{const p=await idbGet("projects","autosave");if(!p){setStatus("自動保存データがありません");return;}await restoreProjectRecord(p,DB_NAME,"自動保存");}catch(e){console.error(e);setStatus("自動保存の復元に失敗しました");}}
+    catch(e){console.error(e);setStatus("復元を中止しました: "+(e?.message||"不明なエラー")+"（今の編集は保持）");}}
+  async function loadAutosave(){setStatus("自動保存を復元中…");try{const p=await idbGet("projects","autosave");if(!p){setStatus("自動保存データがありません");return;}await restoreProjectRecord(p,DB_NAME,"自動保存");}catch(e){console.error(e);setStatus("自動保存の復元を中止しました: "+(e?.message||"不明なエラー")+"（今の編集は保持）");}}
 
   async function runRuntimeSelfTest(){
     if(!els.runtimeReport)return;
