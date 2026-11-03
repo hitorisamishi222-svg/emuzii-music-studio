@@ -89,3 +89,14 @@ Use `EMUZII_PROXY_TOKEN` only as the front-to-proxy access token.
 `EMUZII_PROXY_TOKEN` が未設定の場合、`/api/ace/*` はHTTP 503で拒否する（従来の暗黙的な匿名許可を廃止）。値が設定されていても、不正な `X-Emuzii-Access` は401で拒否する。GPU URLが設定されてもトークン無しでGPUへ中継しない。適用範囲は現時点では `feature/vocal-recorder-v1` のみ。本番環境への反映は行っていない。
 
 `tests/ace-proxy-contract.test.mjs` は `fetch` をモックに差し替え、実GPU接続・課金API・秘密鍵を使わずに検査。安全な開発環境ではトークン未設定を正常系と見なして匿名中継を許可しない。
+
+
+## API契約照合（2026-11-03 / ACE-Step 1.5公式）
+一次資料: https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/API.md
+
+- 生成: `POST /release_task` → `response.data.task_id`
+- 照会: `POST /query_result` に `{"task_id_list":["<task_id>"]}` → `response.data[0].status` は0=処理中、1=成功、2=失敗
+- 成功時: `response.data[0].result` はJSON文字列なので配列としてパース。各要素の `file` に `/v1/audio?path=...` を含む
+- **Web中継特有の注意**：Vercel catch-allがルート指定に `req.query.path` を使うため、フロント→Vercel側は `GET /api/ace/v1/audio?audio_path=<encoded source path>` とする。プロキシは音声取得のときだけ `audio_path` をACE-Step上流の `path` に変換する。
+- ブラウザへ上流のACE-Step APIキーや上流ホストを渡さない。ユーザーが明示的に実行するまでGPUへリクエストしない。
+- 本資料はAPI仕様確認および**モック検査**の記録で、実GPU生成成功を示さない。

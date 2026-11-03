@@ -34,11 +34,22 @@ export default async function handler(req, res) {
   const base = (process.env.ACESTEP_API_URL || '').replace(/\/+$/, '');
   if (!base) return res.status(503).json({ error: 'ACESTEP_API_URL is not configured' });
 
+  // Vercel's [...path] uses req.query.path for the route itself. ACE-Step's
+  // GET /v1/audio uses a *different* query parameter named path. Expose it as
+  // audio_path at the frontend and translate safely here, never clobbering
+  // the catch-all route parameter.
+  if (path === 'v1/audio'
+      && (typeof req.query.audio_path !== 'string' || !req.query.audio_path
+          || req.query.audio_path.length > 1024)) {
+    return res.status(400).json({ error: 'Missing or invalid audio_path' });
+  }
   const url = new URL(`${base}/${path}`);
   for (const [k, v] of Object.entries(req.query || {})) {
     if (k === 'path') continue;
-    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
-    else if (v != null) url.searchParams.set(k, String(v));
+    if (k === 'audio_path' && path !== 'v1/audio') continue;
+    const upstreamKey = k === 'audio_path' ? 'path' : k;
+    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(upstreamKey, x));
+    else if (v != null) url.searchParams.set(upstreamKey, String(v));
   }
 
   const headers = {};

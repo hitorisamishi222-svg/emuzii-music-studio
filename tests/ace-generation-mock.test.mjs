@@ -23,8 +23,8 @@ async function withFakeServer(check){
     const body=opts.body?JSON.parse(opts.body):null;
     trace.push({path:u.pathname,query:u.searchParams.toString(),method:opts.method,body});
     let response;
-    if(u.pathname==='/release_task')response={task_id:'mock-task-001',status:'queued'};
-    else if(u.pathname==='/query_result')response={task_id:body?.task_id,status:'success',audio_path:'ci-sine.wav'};
+    if(u.pathname==='/release_task')response={data:{task_id:'mock-task-001'},code:200,error:null};
+    else if(u.pathname==='/query_result')response={data:[{task_id:body?.task_id_list?.[0],status:1,result:JSON.stringify([{file:'/v1/audio?path=%2Ftmp%2Fci-sine.wav',status:1}])}],code:200,error:null};
     else if(u.pathname==='/health')response={status:'healthy',mock:true};
     else if(u.pathname==='/v1/audio'){
       return {status:200,headers:{get:()=> 'audio/wav'},arrayBuffer:async()=>Uint8Array.from(payload).buffer};
@@ -47,18 +47,25 @@ test('ACE-Step mock: manual release, status query, then audio bytes without GPU'
     const release=await request('release_task',{method:'POST',body:{prompt:'synthetic demo only',duration:3}});
     assert.equal(release.code,200);
     assert.equal(release.headers['Cache-Control'],'no-store');
-    assert.equal(JSON.parse(release.body).task_id,'mock-task-001');
-    const query=await request('query_result',{method:'POST',body:{task_id:'mock-task-001'}});
+    assert.equal(JSON.parse(release.body).data.task_id,'mock-task-001');
+    const query=await request('query_result',{method:'POST',body:{task_id_list:['mock-task-001']}});
     const result=JSON.parse(query.body);
-    assert.equal(result.status,'success');assert.equal(result.audio_path,'ci-sine.wav');
-    const audio=await request('v1/audio',{query:{path:['v1','audio'],file:'ci-sine.wav'}});
+    assert.equal(result.code,200);
+    assert.equal(result.data[0].status,1);
+    const files=JSON.parse(result.data[0].result);
+    assert.equal(files.length,1);
+    const resultURL=new URL(files[0].file,'https://only-mocked.invalid');
+    const audioPath=resultURL.searchParams.get('path');
+    assert.equal(audioPath,'/tmp/ci-sine.wav');
+    const audio=await request('v1/audio',{query:{path:['v1','audio'],audio_path:audioPath}});
     assert.equal(audio.code,200);
     assert.equal(audio.headers['Content-Type'],'audio/wav');
     assert.ok(Buffer.isBuffer(audio.body));
     assert.deepEqual(audio.body,payload);
     assert.deepEqual(trace.map(x=>x.method+' '+x.path),['POST /release_task','POST /query_result','GET /v1/audio']);
     assert.equal(trace[0].body.prompt,'synthetic demo only');
-    assert.equal(trace[2].query,'file=ci-sine.wav');
+    assert.equal(trace[1].body.task_id_list[0],'mock-task-001');
+    assert.equal(trace[2].query,'path=%2Ftmp%2Fci-sine.wav');
   });
 });
 test('ACE-Step mock: wrong token cannot create a task or fetch audio',async()=>{
@@ -67,6 +74,14 @@ test('ACE-Step mock: wrong token cannot create a task or fetch audio',async()=>{
       const r=await request(path,{method,access:'invalid'});
       assert.equal(r.code,401);
     }
+    assert.equal(trace.length,0);
+  });
+});
+test('audio path parameter is required and cannot collide with catch-all route',async()=>{
+  await withFakeServer(async({request,trace})=>{
+    const missing=await request('v1/audio');
+    assert.equal(missing.code,400);
+    assert.match(missing.body.error,/audio_path/);
     assert.equal(trace.length,0);
   });
 });
