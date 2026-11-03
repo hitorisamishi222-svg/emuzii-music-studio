@@ -180,6 +180,7 @@
             <div id="durationLabel">0 tracks · 0.0s</div>
           </div>
           <div id="emptyTracks" class="empty">①「ファイルを選択」から曲を入れてください。</div>
+          <div class="row wrap"><button id="undoTrackDelete" class="btn" disabled>↶ トラック削除を取り消す</button><span class="note">この取り消しは、ページを閉じると利用できません。</span></div>
           <div id="tracks" class="tracks"></div>
         </section>
       </section>
@@ -524,6 +525,7 @@
   const $ = (id) => document.getElementById(id);
   const state = {
     tracks: [],
+    deletedTrackStack: [],
     playing: [],
     recording: null,
     recorder: null,
@@ -546,7 +548,7 @@
 
   const els = {
   aceDraftPreview:$("aceDraftPreview"),aceDraftOutput:$("aceDraftOutput"),
-    status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"),
+    status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"), undoTrackDelete:$("undoTrackDelete"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
     vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), testVocalBridge:$("testVocalBridge"), testVocalBridgeTabs:$("testVocalBridgeTabs"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
     makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
@@ -680,10 +682,39 @@
     return `<div class="piano-roll"><div class="piano-roll-inner" style="width:${width}px">${notes}</div></div><div class="pr-tools"><button data-pr-all="1">全選択</button><button data-pr-clear="1">解除</button><button class="accent" data-pr-quant="0.02">位置0.02s整列</button><button data-pr-quant="0.05">0.05s</button><button data-pr-quant="0.1">0.1s</button><button data-pr-legato="1">隙間をつなぐ</button><button data-pr-clean="1">短い誤検出を整理</button><button data-pr-smart="1">✨ 自動メロディ補正</button><button data-pr-breath="1">休符を守る</button><button data-pr-shift="-12">全体−12</button><button data-pr-shift="12">全体＋12</button></div><div class="pr-meta"><span class="pr-note-count">${track.notes.length} notes</span> · 音符タップで選択、複数選択してまとめて補正できます</div>`;
   }
 
+  function updateTrackDeleteUndo(){
+    const button=els.undoTrackDelete;
+    if(!button)return;
+    const last=state.deletedTrackStack[state.deletedTrackStack.length-1];
+    button.disabled=!last;
+    button.textContent=last?`↶ 「${last.track.name}」の削除を取り消す`:"↶ トラック削除を取り消す";
+  }
+  function deleteTrackWithUndo(track){
+    const index=state.tracks.indexOf(track);
+    if(index<0)return;
+    state.deletedTrackStack.push({track,index});
+    if(state.deletedTrackStack.length>10)state.deletedTrackStack.shift();
+    state.tracks.splice(index,1);
+    if(state.selectedGuideNote?.trackId===track.id)state.selectedGuideNote=null;
+    state.selectedGuideNotes=(state.selectedGuideNotes||[]).filter(x=>x.trackId!==track.id);
+    renderTracks();scheduleAutoSave();
+    setStatus(`「${track.name}」を削除しました。取り消しボタンで戻せます`);
+  }
+  function undoTrackDelete(){
+    const last=state.deletedTrackStack.pop();
+    if(!last)return;
+    if(state.tracks.some(t=>t.id===last.track.id)){
+      renderTracks();setStatus("既に同じトラックがあるため復元を中止しました");return;
+    }
+    state.tracks.splice(Math.min(last.index,state.tracks.length),0,last.track);
+    renderTracks();scheduleAutoSave();
+    setStatus(`✓ 「${last.track.name}」を元の位置へ戻しました`);
+  }
   function renderTracks() {
     els.tracks.innerHTML = "";
     els.empty.classList.toggle("hidden", state.tracks.length > 0);
     els.duration.textContent = `${state.tracks.length} tracks · ${maxDuration().toFixed(1)}s`;
+    updateTrackDeleteUndo();
     state.tracks.forEach(track => {
       const item = document.createElement("article");
       item.className = `track${track.solo ? " is-solo" : ""}${track.mute ? " is-muted" : ""}`;
@@ -720,7 +751,7 @@
       });
       item.querySelector("[data-action='solo']").addEventListener("click",()=>{track.solo=!track.solo;markListenCustom();renderTracks();scheduleAutoSave();setStatus(track.solo?`🎧 ${track.name} をSOLOにしました`:`${track.name} のSOLOを解除しました`);});
       item.querySelector("[data-action='mute']").addEventListener("click",()=>{track.mute=!track.mute;markListenCustom();renderTracks();scheduleAutoSave();setStatus(track.mute?`🔇 ${track.name} をMUTEにしました`:`${track.name} のMUTEを解除しました`);});
-      item.querySelector("[data-action='delete']").addEventListener("click",()=>{state.tracks=state.tracks.filter(t=>t.id!==track.id);renderTracks();scheduleAutoSave();setStatus("トラックを削除しました");});
+      item.querySelector("[data-action='delete']").addEventListener("click",()=>deleteTrackWithUndo(track));
       item.querySelector("[data-action='duplicate']").addEventListener("click",()=>{
         const copy={...track,id:uid(),name:`${track.name} copy`,solo:false,notes:track.notes?track.notes.map(n=>({...n})):undefined};
         state.tracks.push(copy);renderTracks();scheduleAutoSave();setStatus("トラックを複製しました");
@@ -1832,7 +1863,7 @@
         {name:"LOCAL MELODY GUIDE",type:"melody",synthKind:"melody",notes:hMelody,gain:.78,pan:.04,wave:style==="edm"?"square":style==="anime"?"sawtooth":"triangle"},
         ...(hHarmony.length?[{name:"LOCAL CHORUS HARMONY",type:"melody",synthKind:"melody",notes:hHarmony,gain:.38,pan:.1,wave:"sine"}]:[]),
       ].map(t=>({id:uid(),start:0,fadeIn:0,fadeOut:0,mute:false,solo:false,generated:true,...t}));
-      state.tracks=state.tracks.filter(t=>!t.generated);state.tracks.push(...generated);renderTracks();scheduleAutoSave(300);els.composeProgress.style.width="100%";if(els.composeEta)els.composeEta.textContent=`100% · 完了 (${((performance.now()-composeStartedAt)/1000).toFixed(1)}秒)`;
+      state.tracks=state.tracks.filter(t=>!t.generated);state.tracks.push(...generated);state.deletedTrackStack=[];renderTracks();scheduleAutoSave(300);els.composeProgress.style.width="100%";if(els.composeEta)els.composeEta.textContent=`100% · 完了 (${((performance.now()-composeStartedAt)/1000).toFixed(1)}秒)`;
       const actual=maxDuration();els.composeSummary.textContent=`${generated.length}トラック / ${sections.length}セクション / 約${Math.round(actual)}秒。編集・歌入れ・WAV保存へ進めます。`;els.composeResult.classList.remove("hidden");
       const designTags=[designProfile.sparseVerse&&"Aメロ抑制",designProfile.bigChorus&&"サビ拡張",designProfile.finalLift&&"ラスサビ強化",designProfile.guitar&&"ギター指定",designProfile.piano&&"ピアノ指定",designProfile.synth&&"シンセ指定",designProfile.strings&&"ストリングス指定",designProfile.syncopated&&"グルーヴ強化"].filter(Boolean);
       els.arrangement.textContent=[`emuzii LOCAL COMPOSER v8.7.0 REAL SONG VALIDATION · FREE LOCAL`,`曲名: ${els.songTitle.value.trim()||"未設定"}`,`STYLE: ${style.toUpperCase()} / BPM: ${bpm} / KEY: ${els.songKey.value} / 約${Math.round(actual)}秒`,`構成: ${sections.join(" → ")}`,`歌詞・曲設計反映: ON（歌詞量→休符/密度、曲設計→展開/伴奏/サビ差）`,`反映タグ: ${designTags.join(" / ")||"標準バランス"}`,`セクション別ハーモニー: ON（A/Bメロ・サビ・Bridgeで進行変化）`,`SOUND ENGINE 3.0: HQガイド音色 / 楽器別倍音・共鳴・アタック / 低負荷ステレオ空間 / 中域整理 / ソフトサチュレーション / Glue / Peak Control`,`生成: DRUMS / BASS / ${(style==="rock"||designProfile.guitar)?"GUITAR":"CHORDS"}${pad.length?" / PAD":""} / MELODY GUIDE${hHarmony.length?" / CHORUS HARMONY":""}`,`固定: 歌詞 / BPM / KEY は変更しない`,`次: 編集タブで再生 → 歌入れ → MIX → WAV保存`].join("\n");
@@ -1932,7 +1963,7 @@
       if(t.blob&&t._blobId===`asset:${t.id}`)
         persistedBlobRefs.set(t.blob,{id:t._blobId,generation:audioStorageGeneration});
     }
-    state.tracks=loaded;state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();setStatus(`✓ ${label}を復元しました`);return true;
+    state.tracks=loaded;state.deletedTrackStack=[];state.guideWave=p.guideWave||"triangle";state.guideInstrument=p.guideInstrument||loaded.find(t=>t.type==="guide"&&t.guideInstrument)?.guideInstrument||"electone";els.guideInstrument.value=state.guideInstrument;els.projectName.value=p.name||"My emuzii Song";if(p.asahiSongId&&els.vocalBridgeSongId){els.vocalBridgeSongId.value=cleanAsahiText(p.asahiSongId);state.asahiSongId=els.vocalBridgeSongId.value}if(p.asahiTakeName&&els.vocalBridgeTakeName){els.vocalBridgeTakeName.value=cleanAsahiText(p.asahiTakeName);state.asahiTakeName=els.vocalBridgeTakeName.value}if(Number.isFinite(Number(p.recordOffsetMs))&&els.recordOffset)els.recordOffset.value=String(Number(p.recordOffsetMs));if(p.create){els.songTitle.value=p.create.title||"";els.songDesign.value=p.create.design||"";els.lyrics.value=p.create.lyrics||"";els.bpm.value=p.create.bpm||96;els.songKey.value=p.create.key||"A minor";els.songLength.value=p.create.length||"4:30";els.aiAmount.value=p.create.aiAmount||10;els.aiAmountLabel.textContent=`${els.aiAmount.value}%`;els.localStyle.value=p.create.localStyle||"jpop";els.arrangement.textContent=p.create.arrangement||"";}renderTracks();setStatus(`✓ ${label}を復元しました`);return true;
   }
   async function saveProject(){setStatus("プロジェクト保存中…");try{await persistProject("last",{announce:true});}catch(e){console.error(e);setStatus("保存に失敗しました。ブラウザのストレージ許可を確認してください");}}
   async function loadProject(){setStatus("前回プロジェクトを復元中…");try{let sourceDb=DB_NAME,p=await idbGet("projects","last",sourceDb);if(!p){for(const legacy of LEGACY_DB_NAMES){const candidate=await idbGet("projects","last",legacy);if(candidate){p=candidate;sourceDb=legacy;break;}}}if(!p){setStatus("保存済みプロジェクトがありません");return;}await restoreProjectRecord(p,sourceDb,sourceDb===DB_NAME?"前回プロジェクト":"旧バージョンのプロジェクト");}
@@ -3038,6 +3069,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   // standalone build: service worker omitted
 
   document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));$(`${b.dataset.view}View`).classList.add("active");}));
+  els.undoTrackDelete?.addEventListener("click",undoTrackDelete);
   els.mainFile.addEventListener("change",e=>{addAudioFile(e.target.files?.[0],"backing");e.target.value="";});
   els.vocalFile.addEventListener("change",e=>{addAudioFile(e.target.files?.[0],"vocal");e.target.value="";});
   els.openVocalSupport?.addEventListener("click",openAsahiVocalSupport);

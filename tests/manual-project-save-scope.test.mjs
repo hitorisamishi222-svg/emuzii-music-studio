@@ -91,6 +91,14 @@ test('raw vocal count-in trim is persisted as metadata and restored safely',()=>
   assert.match(restore,/trimBuffer\(decoded,trim\)/);
   assert.match(restore,/トリム位置が不正です/);
 });
+test('deleted tracks have a session undo with project-switch guard',()=>{
+  const helpers=section('function updateTrackDeleteUndo(){','function renderTracks() {');
+  assert.match(helpers,/deletedTrackStack\.push\(\{track,index\}\)/);
+  assert.match(helpers,/state\.tracks\.splice\(Math\.min\(last\.index,state\.tracks\.length\),0,last\.track\)/);
+  assert.match(app,/id="undoTrackDelete"/);
+  assert.match(app,/state\.deletedTrackStack=\[\];state\.guideWave/);
+  assert.match(app,/state\.deletedTrackStack=\[\];renderTracks\(\)/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

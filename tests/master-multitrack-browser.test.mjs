@@ -85,6 +85,18 @@ try{
   console.log('MASTER_AUDIO_RMS',JSON.stringify({first,second,bytes:rendered.length}));
   assert.ok(first>.012,'Backing must be audible in exported master at 0.2 seconds');
   assert.ok(second>.012,'Vocal must be audible in exported master at 1.0 seconds');
+  // Deleting a track is reversible during the editing session. Restore
+  // its original ID, slot, and raw audio before autosave snapshots it.
+  const trackIds=await page.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
+  assert.equal(trackIds.length,2);
+  await page.locator('#tracks article.track').first().locator('[data-action="delete"]').click();
+  assert.equal(await page.locator('#tracks article.track').count(),1);
+  assert.equal(await page.locator('#undoTrackDelete').isEnabled(),true);
+  await page.locator('#undoTrackDelete').click();
+  assert.deepEqual(await page.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(n=>n.dataset.id)),trackIds);
+  assert.equal(await page.locator('#undoTrackDelete').isEnabled(),false);
+  console.log('PASS deleted backing track restores same identity and order');
+
   // Broken saved project must not replace the live two-track editor state.
   const beforeTracks=await page.locator('#tracks').textContent();
   await page.evaluate(async()=>{
