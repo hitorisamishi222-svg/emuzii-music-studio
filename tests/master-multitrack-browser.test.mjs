@@ -170,8 +170,7 @@ try{
       const tx=db.transaction(['projects','blobs'],'readwrite');
       tx.objectStore('blobs').put({id:'asset:legacy-audio',blob:new Blob([Uint8Array.from(bytes)],{type:'audio/wav'})});
       tx.objectStore('projects').put({id:'last',name:'CI legacy project',tracks:[{
-        id:'legacy-audio',name:'legacy-voice',type:'vocal',blobId:'asset:legacy-audio',
-        gain:1,pan:0,start:0,fadeIn:0,fadeOut:0,mute:false,solo:false
+        id:'legacy-audio',name:'legacy-voice',type:'vocal',blobId:'asset:legacy-audio'
       }]});
       tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
     });db.close();
@@ -261,6 +260,51 @@ try{
   assert.equal(await prerollPage.locator('#tracks').textContent(),validTracks);
   await prerollPage.close();
   console.log('PASS raw vocal recording preserved, trim metadata survives reload and unsafe trim rejected');
+
+  // A damaged edit mix field must not replace the currently audible recording.
+  const metadataPage=await browser.newPage();
+  await metadataPage.goto(base,{waitUntil:'domcontentloaded'});
+  await metadataPage.waitForSelector('#loadProject',{state:'attached'});
+  await metadataPage.evaluate(async bytes=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v45',1);
+      q.onupgradeneeded=()=>{
+        if(!q.result.objectStoreNames.contains('projects'))q.result.createObjectStore('projects',{keyPath:'id'});
+        if(!q.result.objectStoreNames.contains('blobs'))q.result.createObjectStore('blobs',{keyPath:'id'});
+      };
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['projects','blobs'],'readwrite');
+      tx.objectStore('blobs').put({id:'asset:normal-ci',blob:new Blob([Uint8Array.from(bytes)],{type:'audio/wav'})});
+      tx.objectStore('projects').put({id:'last',name:'safe original',tracks:[{
+        id:'normal-ci',name:'valid-ci-take',type:'vocal',blobId:'asset:normal-ci',gain:1,pan:0,start:0,fadeIn:0,fadeOut:0
+      }]});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  },Array.from(vocal));
+  await metadataPage.locator('[data-view="project"]').click();
+  await metadataPage.locator('#loadProject').click();
+  await metadataPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  const liveIds=await metadataPage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(n=>n.dataset.id));
+  const liveUI=await metadataPage.locator('#tracks').textContent();
+  await metadataPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('piyoko-music-v45');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readwrite'),q=tx.objectStore('projects').get('last');
+      q.onsuccess=()=>{
+        const item=q.result;item.tracks[0].pan='NaN';tx.objectStore('projects').put(item);
+      };
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  });
+  await metadataPage.locator('#loadProject').click();
+  await metadataPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('PANが不正'));
+  assert.deepEqual(await metadataPage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(n=>n.dataset.id)),liveIds);
+  assert.equal(await metadataPage.locator('#tracks').textContent(),liveUI,'Live edit must not be replaced by corrupt saved PAN');
+  await metadataPage.close();
+  console.log('PASS invalid stored mix field refused before editor state changes');
+
 
 
   assert.deepEqual(errors,[],'No page errors during real WAV render');

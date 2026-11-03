@@ -1935,13 +1935,59 @@
     if(!window.indexedDB||autoSaveSuspended)return;clearTimeout(autoSaveTimer);
     autoSaveTimer=setTimeout(()=>persistProject("autosave").catch(e=>{console.warn("autosave",e);if(els.autosaveStatus)els.autosaveStatus.textContent="自動保存に失敗 · 手動保存を使ってください";}),delay);
   }
+  // Validate and normalize the ENTIRE edit record before replacing live tracks.
+  // Legacy projects may omit mix fields; corrupt or unsafe values must be
+  // rejected, never displayed as invalid HTML or applied to the current work.
+  function normalizeSavedTrack(m){
+    const invalid=field=>{throw Error("保存トラック「"+String(m?.name||m?.id||"不明")+"」の"+field+"が不正です。現在の編集は保持しています")};
+    if(!m||typeof m!=="object"||Array.isArray(m))invalid("情報");
+    if(typeof m.id!=="string"||!m.id||m.id.length>160)invalid("ID");
+    if(typeof m.type!=="string"||!/^[a-z][a-z0-9_-]{0,39}$/i.test(m.type))invalid("種類");
+    if(m.name!=null&&typeof m.name!=="string")invalid("名前");
+    const field=(value,defaultValue,min,max,label)=>{
+      if(value===undefined||value===null||value==="")return defaultValue;
+      const number=Number(value);
+      if(!Number.isFinite(number)||number<min||number>max)invalid(label);
+      return number;
+    };
+    const notes=m.notes==null?null:(()=>{
+      if(!Array.isArray(m.notes)||m.notes.length>50000)invalid("音符");
+      return m.notes.map(note=>{
+        if(!note||typeof note!=="object"||Array.isArray(note))invalid("音符");
+        const start=field(note.start,0,0,86400,"音符開始");
+        const duration=field(note.duration,.1,.001,86400,"音符長");
+        const hasDrum=note.drum!==undefined&&note.drum!==null&&note.drum!=="";
+        if(hasDrum&&(typeof note.drum!=="string"||!/^[a-z0-9_-]{1,40}$/i.test(note.drum)))invalid("ドラム種別");
+        const hasMidi=note.midi!==undefined&&note.midi!==null&&note.midi!=="";
+        if(!hasMidi&&!hasDrum)invalid("音符音程");
+        const normalized={...note,start,duration};
+        if(hasMidi)normalized.midi=field(note.midi,60,0,127,"音符音程");
+        if(note.velocity!=null)normalized.velocity=field(note.velocity,1,0,2,"音符音量");
+        if(note.pan!=null)normalized.pan=field(note.pan,0,-1,1,"音符PAN");
+        return normalized;
+      });
+    })();
+    return {...m,name:m.name??m.type,
+      gain:field(m.gain,1,0,2,"音量"),
+      pan:field(m.pan,0,-1,1,"PAN"),
+      start:field(m.start,0,-3600,86400,"開始位置"),
+      fadeIn:field(m.fadeIn,0,0,86400,"Fade IN"),
+      fadeOut:field(m.fadeOut,0,0,86400,"Fade OUT"),
+      mute:!!m.mute,solo:!!m.solo,notes};
+  }
   async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト"){
     if(!p){setStatus(`${label}がありません`);return false;}
     // Stage and validate every referenced audio blob BEFORE replacing the user's
     // current working tracks. A broken backup must never silently erase takes.
     if(!Array.isArray(p.tracks))throw Error("保存プロジェクトのトラック一覧が不正です。編集中の作品は保持しています");
-    const loaded=[];
-    for(const m of p.tracks){
+    if(p.tracks.length>250)throw Error("トラック数が安全上限を超えています。現在の編集は保持しています");
+    const ids=new Set(),loaded=[];
+    for(const raw of p.tracks){
+      const m=normalizeSavedTrack(raw);
+      if(ids.has(m.id))throw Error("保存プロジェクトに重複トラックIDがあります。現在の編集は保持しています");
+      ids.add(m.id);
+      if(m.blobId!=null&&(typeof m.blobId!=="string"||!m.blobId||m.blobId.length>256))
+        throw Error("保存プロジェクトの音源参照が不正です。現在の編集は保持しています");
       let buffer=null,blob=null;
       if(m.blobId){
         const row=await idbGet("blobs",m.blobId,sourceDb);

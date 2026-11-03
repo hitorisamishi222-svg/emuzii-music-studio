@@ -24,7 +24,7 @@ test('local project save still persists audio blobs and does not depend on setti
   assert.doesNotMatch(s,/v8ProjectData\(/);
 });
 test('broken audio backup refuses restore before changing current tracks',async()=>{
-  const s=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  const s=section('function normalizeSavedTrack(m){','async function saveProject(){');
   const existing=[{id:'current',name:'Live take',gain:1}];
   const state={tracks:existing};
   const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',s+';return restoreProjectRecord;'))(
@@ -37,7 +37,7 @@ test('broken audio backup refuses restore before changing current tracks',async(
   assert.equal(state.tracks,existing);
 });
 test('failed audio decode refuses restore before editing current work',async()=>{
-  const s=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  const s=section('function normalizeSavedTrack(m){','async function saveProject(){');
   const existing=[{id:'current'}],state={tracks:existing};
   const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',s+';return restoreProjectRecord;'))(
     async()=>({blob:new Blob([Uint8Array.from([1,2,3])])}),async()=>null,state,()=>{},'piyoko-music-v45'
@@ -86,7 +86,7 @@ test('raw vocal count-in trim is persisted as metadata and restored safely',()=>
   assert.match(capture,/type,buffer,blob,recordTrimStartSec/);
   const serialized=section('async function makeProjectRecord(id){','async function persistProject(id,');
   assert.match(serialized,/recordTrimStartSec:Number\.isFinite/);
-  const restore=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  const restore=section('function normalizeSavedTrack(m){','async function saveProject(){');
   assert.match(restore,/Number\(m\.recordTrimStartSec\?\?0\)/);
   assert.match(restore,/trimBuffer\(decoded,trim\)/);
   assert.match(restore,/トリム位置が不正です/);
@@ -98,6 +98,38 @@ test('deleted tracks have a session undo with project-switch guard',()=>{
   assert.match(app,/id="undoTrackDelete"/);
   assert.match(app,/state\.deletedTrackStack=\[\];state\.guideWave/);
   assert.match(app,/state\.deletedTrackStack=\[\];renderTracks\(\)/);
+});
+test('legacy track fields normalize without losing the source identifiers',()=>{
+  const part=section('function normalizeSavedTrack(m){','async function restoreProjectRecord(p,');
+  const normalize=(new Function(part+';return normalizeSavedTrack;'))();
+  const result=normalize({id:'old-v43-take',name:'Old voice',type:'vocal',blobId:'asset:old-v43-take'});
+  assert.equal(result.id,'old-v43-take');
+  assert.equal(result.blobId,'asset:old-v43-take');
+  assert.deepEqual([result.gain,result.pan,result.start,result.fadeIn,result.fadeOut],[1,0,0,0,0]);
+  assert.equal(result.notes,null);
+});
+test('corrupt mix and note metadata cannot enter a restored track',()=>{
+  const part=section('function normalizeSavedTrack(m){','async function restoreProjectRecord(p,');
+  const normalize=(new Function(part+';return normalizeSavedTrack;'))();
+  const base={id:'take',name:'Saved take',type:'vocal'};
+  for(const v of [{...base,pan:'NaN'},{...base,gain:'Infinity'},{...base,start:'<script>'},
+    {...base,fadeIn:{}},{...base,type:'vocal"><img src=x>'},{...base,notes:[null]},
+    {...base,notes:[{start:0,duration:.2,midi:'NaN'}]}]){
+    assert.throws(()=>normalize(v),/不正/);
+  }
+  const notes=normalize({...base,type:'guide',notes:[{start:'0.5',duration:'0.3',midi:'64',velocity:0.8}]});
+  assert.equal(notes.notes[0].midi,64);
+  assert.equal(notes.notes[0].start,.5);
+});
+test('duplicate identifiers and malformed track metadata are rejected before replacing current audio',async()=>{
+  const part=section('function normalizeSavedTrack(m){','async function saveProject(){');
+  const existing=[{id:'still-editing',name:'Unchanged live take'}],state={tracks:existing};
+  const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',part+';return restoreProjectRecord;'))(
+    async()=>null,async()=>null,state,()=>{},'piyoko-music-v45'
+  );
+  await assert.rejects(()=>restore({tracks:[{id:'duplicate',type:'vocal'},{id:'duplicate',type:'vocal'}]}),/重複トラックID/);
+  await assert.rejects(()=>restore({tracks:[{id:'invalid',type:'vocal',pan:'NaN'}]}),/PANが不正/);
+  assert.equal(state.tracks,existing);
 });
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
