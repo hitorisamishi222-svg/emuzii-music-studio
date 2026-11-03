@@ -42,7 +42,7 @@ test('failed audio decode refuses restore before editing current work',async()=>
   const restore=(new Function('idbGet','decodeBlob','state','setStatus','DB_NAME',s+';return restoreProjectRecord;'))(
     async()=>({blob:new Blob([Uint8Array.from([1,2,3])])}),async()=>null,state,()=>{},'piyoko-music-v45'
   );
-  await assert.rejects(()=>restore({tracks:[{id:'bad',blobId:'asset:bad'}]}),/復号できません/);
+  await assert.rejects(()=>restore({tracks:[{id:'bad',type:'vocal',blobId:'asset:bad'}]}),/復号できません/);
   assert.equal(state.tracks,existing);
 });
 test('audio references are scoped to the current database, not legacy pointers',async()=>{
