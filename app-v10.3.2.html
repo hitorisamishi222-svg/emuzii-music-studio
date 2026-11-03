@@ -2066,13 +2066,22 @@
   }
 
   async function renderMasterMix(){
-    const sourceTrack=choosePitchTrack(),beat=60/bpmValue(),arrDur=Math.max(1,beat*4*Math.max(1,(state.chordProgression||[]).length)),sourceDur=sourceTrack?.buffer?.duration||0,baseDuration=Math.max(arrDur,sourceDur,pianoSongDuration?.()||0),duration=masterRenderDuration86(baseDuration),sr=44100,OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    // MASTER must contain every audible audio track, not merely the first
+    // vocal/pitch-analysis reference. Read-only selection protects source data.
+    const audibleAudioTracks=state.tracks.filter(t=>t.buffer&&shouldPlayTrack(t));
+    const beat=60/bpmValue(),arrDur=(state.chordProgression||[]).length*beat*4;
+    const audioSourceDur=Math.max(0,...audibleAudioTracks.map(t=>Math.max(0,(Number(t.start)||0)+t.buffer.duration)));
+    const structureMap=els.structuralRenderEnabled?.checked&&audioSourceDur>0?buildStructureMap84(audioSourceDur):null;
+    const sourceDur=structureMap?structureMap.duration:audioSourceDur;
+    const baseDuration=Math.max(arrDur,sourceDur,pianoSongDuration?.()||0);
+    const duration=masterRenderDuration86(Math.max(.1,baseDuration)),sr=44100,OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
     if(!OAC){setStatus("OfflineAudioContextに対応していません");return null}
-    if(!sourceTrack?.buffer&&!state.chordProgression?.length){setStatus("ミックスする音声または伴奏がありません");return null}
+    if(!audibleAudioTracks.length&&!state.chordProgression?.length&&!(els.masterIncludeGuide?.checked&&state.guideNotes?.length)){setStatus("ミックスする音声または伴奏がありません");return null}
     const ctx=new OAC(2,Math.ceil((duration+.5)*sr),sr),master=ctx.createGain(),comp=ctx.createDynamicsCompressor();master.gain.value=.9;
     if(els.masterLimiter?.checked){comp.threshold.value=-3;comp.knee.value=3;comp.ratio.value=18;comp.attack.value=.003;comp.release.value=.12;master.connect(comp).connect(ctx.destination)}else master.connect(ctx.destination);
     const toneInput=createMasterToneChain(ctx,master);
-    if(sourceTrack?.buffer){const sourceGain=(Number(els.masterSourceGain?.value||100)/100)*Math.max(0,Number(sourceTrack.gain??1));renderStructuredSource84(ctx,toneInput,sourceTrack.buffer,sourceGain)}
+    const audioBus=ctx.createGain();audioBus.gain.value=Math.max(0,Number(els.masterSourceGain?.value??100)/100);audioBus.connect(toneInput);
+    for(const track of audibleAudioTracks)renderStructuredSource84(ctx,audioBus,track,structureMap);
     const arrangeGain=ctx.createGain();arrangeGain.gain.value=Number(els.masterArrangeGain?.value||85)/100;arrangeGain.connect(toneInput);
     if(state.chordProgression?.length)state.chordProgression.forEach((c,i)=>{const t=i*4*beat,root=36+Number(c.root||0),bars=state.chordProgression.length,dyn=songSectionDynamics(i,bars),p=humanBarPower(i,bars)*dyn.power;
       if(els.renderDrums?.checked&&dyn.drums>.52)for(let b=0;b<4;b++){const tt=Math.max(0,t+b*beat+humanTimingOffset(i*4+b,1)),v=p*dyn.drums*humanVelocityFactor(i*4+b,2);if(b===0||(b===2&&dyn.drums>.72))renderKick(ctx,arrangeGain,tt,.15*v);if((b===1||b===3)&&dyn.drums>.62)renderSnare(ctx,arrangeGain,tt,.075*v);if(dyn.hat>.55)renderHat(ctx,arrangeGain,Math.max(0,t+(b+.5)*beat+humanTimingOffset(i*8+b,3)),.025*v*dyn.hat)}
@@ -2433,7 +2442,10 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
 
   state.timeline86=state.timeline86||{lastCheck:null};
   function timelineDuration86(){
-    const tr=choosePitchTrack?.(),source=tr?.buffer?.duration||0,map=(els.structuralRenderEnabled?.checked&&source)?buildStructureMap84(source):null,structured=map?.duration||source;
+    const audible=state.tracks.filter(t=>t.buffer&&shouldPlayTrack(t));
+    const source=Math.max(0,...audible.map(t=>Math.max(0,(Number(t.start)||0)+t.buffer.duration)));
+    const map=(els.structuralRenderEnabled?.checked&&source)?buildStructureMap84(source):null;
+    const structured=map?map.duration:source;
     const melody=Math.max(0,...(state.guideNotes||[]).map(n=>mtStart(n)+mtDur(n))),bar=4*chordBeatSeconds85(),chords=(state.chordProgression||[]).length*bar;
     return {source,structured,melody,chords,target:Math.max(structured,melody,chords)}
   }
@@ -2496,11 +2508,31 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
     const m=buildStructureMap84(dur);if(els.structuralRenderInfo)els.structuralRenderInfo.textContent=`${m.segments.length}区間 / 元 ${dur.toFixed(2)}秒 → 編集後 ${m.duration.toFixed(2)}秒 ｜ 操作 ${m.ops.length}件`;setStatus("構成レンダーマップを更新しました")
   }
   function clearStructureMap84(){state.structure84={ops:[],map:null};["structureEdits","arrangeEdits","editPlan","arrangementEdits","timelineEdits"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});if(els.structuralRenderInfo)els.structuralRenderInfo.textContent="構成編集を解除しました。";setStatus("構成編集を解除しました")}
-  function renderStructuredSource84(ctx,dest,buffer,gainValue){
-    if(!els.structuralRenderEnabled?.checked){const src=ctx.createBufferSource(),g=ctx.createGain();src.buffer=buffer;g.gain.value=gainValue;src.connect(g).connect(dest);src.start(0);return buffer.duration}
-    const m=buildStructureMap84(buffer.duration),fade=Math.max(0,Number(els.structuralCrossfade?.value||18))/1000;
-    for(const seg of m.segments){const src=ctx.createBufferSource(),g=ctx.createGain(),d=seg.duration;src.buffer=buffer;src.connect(g).connect(dest);const t=seg.dstStart,f=Math.min(fade,d/3);g.gain.setValueAtTime(f?0:gainValue,t);if(f)g.gain.linearRampToValueAtTime(gainValue,t+f);if(f){g.gain.setValueAtTime(gainValue,t+Math.max(f,d-f));g.gain.linearRampToValueAtTime(0,t+d)}src.start(t,seg.srcStart,d)}
-    return m.duration
+  function renderStructuredSource84(ctx,dest,track,map){
+    // Audio clip placement, track fade, mute/solo choice, and stereo pan now
+    // match normal playback. Segment edits share one global source timeline.
+    const buffer=track.buffer,trackStart=Number(track.start)||0,trackEnd=trackStart+buffer.duration;
+    const safeTrack={...track,start:trackStart,gain:Math.max(0,Number(track.gain??1)),pan:Number(track.pan)||0,
+      fadeIn:Math.max(0,Number(track.fadeIn)||0),fadeOut:Math.max(0,Number(track.fadeOut)||0)};
+    const segments=map?.segments||[{srcStart:0,srcEnd:Math.max(0,trackEnd),dstStart:0}];
+    const fade=map?Math.max(0,Number(els.structuralCrossfade?.value??18))/1000:0;
+    let scheduled=0;
+    for(const seg of segments){
+      const inStart=Math.max(0,seg.srcStart,trackStart),inEnd=Math.min(seg.srcEnd,trackEnd);
+      if(inEnd<=inStart)continue;
+      const src=ctx.createBufferSource(),gain=ctx.createGain(),edge=ctx.createGain();
+      src.buffer=buffer;src.connect(gain).connect(edge);
+      stereoDestination(ctx,edge,dest,safeTrack.pan);
+      envelope(gain.gain,safeTrack,seg.dstStart,inStart,inEnd,seg.srcStart);
+      if(fade){
+        const d=seg.srcEnd-seg.srcStart,t=seg.dstStart,f=Math.min(fade,d/3);
+        edge.gain.setValueAtTime(f?0:1,t);
+        if(f){edge.gain.linearRampToValueAtTime(1,t+f);edge.gain.setValueAtTime(1,t+Math.max(f,d-f));edge.gain.linearRampToValueAtTime(0,t+d)}
+      }else edge.gain.value=1;
+      src.start(seg.dstStart+(inStart-seg.srcStart),inStart-trackStart,inEnd-inStart);
+      scheduled++;
+    }
+    return scheduled
   }
 
   state.repair83=state.repair83||{backup:null,last:null};

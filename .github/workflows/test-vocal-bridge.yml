@@ -11,6 +11,7 @@ on:
       - 'android-vocal/app/src/main/java/com/asahi/vocal/MainActivity.java'
       - 'tests/vocal-bridge-contract.test.mjs'
       - 'tests/vocal-bridge-browser.test.mjs'
+      - 'tests/master-multitrack-contract.test.mjs'
       - '.github/workflows/test-vocal-bridge.yml'
   workflow_dispatch:
 
@@ -45,3 +46,5 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Verify real child-tab Studio ↔ Vocal roundtrip
         run: node tests/vocal-bridge-browser.test.mjs
+      - name: Validate multi-track master scheduling and mute / solo / timeline behavior
+        run: node --test tests/master-multitrack-contract.test.mjs
