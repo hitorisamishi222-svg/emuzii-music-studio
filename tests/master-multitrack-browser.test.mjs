@@ -510,6 +510,52 @@ try{
   await separateContext.close();
   console.log('PASS separate device import is transient until explicit save and recovers both audio tracks');
 
+  // Regression: restore and re-save an arrangement-only portable project,
+  // including per-track chords/tone/tempo that differ from global song settings.
+  const arrangeContext=await browser.newContext();
+  const arrangePage=await arrangeContext.newPage();
+  await arrangePage.goto(base,{waitUntil:'domcontentloaded'});
+  await arrangePage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const arrangementPortable=await arrangePage.evaluate(async()=>{
+    const project={
+      id:'portable',name:'Arrangement metadata CI 🎼',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'ci-song-chords',name:'CHORDS Aメロ',type:'chord-design',
+        gain:.55,pan:0,start:0,duration:2,fadeIn:0,fadeOut:0,
+        chords:[{root:9,suffix:'m7'}],tone:'piano',beats:4,bpm:96,
+        section:'Aメロ',style:'pop',power:.78
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await arrangePage.locator('[data-view="project"]').click();
+  await arrangePage.locator('#portableProjectFile').setInputFiles({
+    name:'arrangement.asahi-music',mimeType:'application/octet-stream',buffer:Buffer.from(arrangementPortable)
+  });
+  await arrangePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  assert.equal(await arrangePage.locator('#tracks article.track').count(),1);
+  await arrangePage.locator('#saveProject').click();
+  await arrangePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await arrangePage.reload({waitUntil:'domcontentloaded'});
+  await arrangePage.locator('[data-view="project"]').click();
+  await arrangePage.locator('#loadProject').click();
+  await arrangePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  const savedArrangement=await arrangePage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('piyoko-music-v45');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});
+    const entry=await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readonly'),q=tx.objectStore('projects').get('last');
+      q.onsuccess=()=>resolve(q.result?.tracks?.[0]);q.onerror=()=>reject(q.error);
+    });
+    db.close();return entry;
+  });
+  assert.deepEqual(savedArrangement.chords,[{root:9,suffix:'m7'}]);
+  assert.deepEqual([savedArrangement.tone,savedArrangement.beats,savedArrangement.bpm,savedArrangement.section,savedArrangement.style,savedArrangement.power],
+    ['piano',4,96,'Aメロ','pop',.78]);
+  await arrangeContext.close();
+  console.log('PASS per-track arrangement parameters survive portable import, save and browser reload');
+
   await portablePage.close();
   console.log('PASS offline portable song export, checksum refusal, import and local save restore');
   }
