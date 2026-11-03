@@ -486,6 +486,12 @@
             <button id="loadAutosave" class="btn">自動保存を復元</button>
             <button id="clearProject" class="btn danger">保存を削除</button>
           </div>
+          <div class="row wrap">
+            <button id="exportPortableProject" class="btn primary">📦 音源付き作品バックアップを保存</button>
+            <button id="importPortableProject" class="btn">📂 音源付きバックアップを読込</button>
+            <input id="portableProjectFile" type="file" accept=".asahi-music,application/octet-stream" hidden>
+          </div>
+          <p id="portableProjectStatus" class="note" aria-live="polite">歌声・伴奏の元音源と編集状態を1ファイルに保存。端末を替えても持ち運べます。ファイルには個人の録音が含まれます。外部送信は行いません。</p>
           <div class="project-info">
             <strong>自動保存</strong>
             <p id="autosaveStatus">編集中は端末内に自動チェックポイントを作ります。ブラウザ更新後も「自動保存を復元」から戻せます。</p>
@@ -561,7 +567,7 @@
     arrangeImport:$("arrangeImport"), quickVocal:$("quickVocal"), humMelody:$("humMelody"), recreateMode:$("recreateMode"), recipeShort:$("recipeShort"), recipeLive:$("recipeLive"), recipeKaraoke:$("recipeKaraoke"), recipeOriginal:$("recipeOriginal"), creativeMemo:$("creativeMemo"), logCreativeWork:$("logCreativeWork"), exportCreativeLog:$("exportCreativeLog"), creativeLogView:$("creativeLogView"),
     guideExpression: $("guideExpression"), guideExpressionVal: $("guideExpressionVal"), guideSpace: $("guideSpace"), guideSpaceVal: $("guideSpaceVal"), masterStrength: $("masterStrength"), masterStrengthVal: $("masterStrengthVal"), naturalizeGuide: $("naturalizeGuide"), safeMaster: $("safeMaster"),
     runStabilityCheck: $("runStabilityCheck"), releaseAudioMemory: $("releaseAudioMemory"), stabilityResult: $("stabilityResult"),
-    projectName: $("projectName"), saveProject: $("saveProject"), loadProject: $("loadProject"), loadAutosave: $("loadAutosave"), clearProject: $("clearProject"), autosaveStatus: $("autosaveStatus"),
+    projectName: $("projectName"), saveProject: $("saveProject"), loadProject: $("loadProject"), loadAutosave: $("loadAutosave"), clearProject: $("clearProject"), autosaveStatus: $("autosaveStatus"), exportPortableProject:$("exportPortableProject"),importPortableProject:$("importPortableProject"),portableProjectFile:$("portableProjectFile"),portableProjectStatus:$("portableProjectStatus"),
     runtimeBadge: $("runtimeBadge"),
   };
 
@@ -1935,10 +1941,16 @@
     return blobId;
   }
   async function makeProjectRecord(id){
+    return (await makeProjectRecordWithStorage(id,true)).project;
+  }
+  async function makePortableSnapshot(){
+    return makeProjectRecordWithStorage("portable",false);
+  }
+  async function makeProjectRecordWithStorage(id,saveAudio){
     // Capture ALL metadata in one synchronous pass, before any IndexedDB
     // awaits. Otherwise edits made while writing earlier audio blobs can mix
     // different versions of one song into the same saved record.
-    const sources=state.tracks.map(t=>({id:t.id,blob:t.blob,_blobId:t._blobId}));
+    const sources=state.tracks.map(t=>({id:t.id,blob:t.blob,_blobId:t._blobId,hasAudio:!!t.buffer}));
     const meta=state.tracks.map(t=>({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes?structuredClone(t.notes):null,blobId:null,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?structuredClone(t.asahiProject):null}));
     const manualEditor={
       guideNotes:structuredClone(Array.isArray(state.guideNotes)?state.guideNotes:[]),
@@ -1948,8 +1960,13 @@
     const record={id,name:els.projectName.value||"My emuzii Song",tracks:meta,manualEditor,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
     // Blob is immutable: hold references to the original audio bytes, not
     // memory-heavy copies. Any later user edits belong to the NEXT save.
-    for(let i=0;i<sources.length;i++)meta[i].blobId=await persistTrackBlob(sources[i]);
-    return record;
+    for(let i=0;i<sources.length;i++){
+      const source=sources[i];
+      meta[i].blobId=saveAudio
+        ? await persistTrackBlob(source)
+        : (source.blob?`asset:${source.id}`:(source._blobId||null));
+    }
+    return {project:record,sources};
   }
   async function persistProject(id,{announce=false}={}){
     if(id==="autosave"&&(autoSaveRunning||autoSaveSuspended))return;
@@ -2053,7 +2070,7 @@
     });
     return {guideNotes,chordProgression,songForm};
   }
-  async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト"){
+  async function restoreProjectRecord(p,sourceDb=DB_NAME,label="前回プロジェクト",portableBlobReader=null){
     if(!p){setStatus(`${label}がありません`);return false;}
     // Stage and validate every referenced audio blob BEFORE replacing the user's
     // current working tracks. A broken backup must never silently erase takes.
@@ -2069,7 +2086,7 @@
         throw Error("保存プロジェクトの音源参照が不正です。現在の編集は保持しています");
       let buffer=null,blob=null;
       if(m.blobId){
-        const row=await idbGet("blobs",m.blobId,sourceDb);
+        const row=portableBlobReader?{blob:portableBlobReader(m.blobId)}:await idbGet("blobs",m.blobId,sourceDb);
         if(!row?.blob)throw Error(`音源「${m.name||m.id||"不明"}」が見つかりません。編集中の作品は保持しています`);
         const decoded=await decodeBlob(row.blob);
         if(!decoded)throw Error(`音源「${m.name||m.id||"不明"}」を復号できません。編集中の作品は保持しています`);
@@ -2092,6 +2109,63 @@
     if(els.chordProgression)els.chordProgression.value=state.chordProgression.map(c=>NOTE_NAMES[c.root]+c.suffix).join(" | ");
     renderTouchPianoRoll();renderSongForm();
     setStatus(`✓ ${label}を復元しました`);return true;
+  }
+  // Explicit user-initiated export: construct a snapshot without mutating the
+  // device's saved project or starting any network request.
+  async function exportPortableProject(){
+    const button=els.exportPortableProject;
+    if(button)button.disabled=true;
+    try{
+      if(state.recording)throw Error("録音中は終了してから保存してください");
+      if(!window.ASAHIMusicBackup)throw Error("バックアップ形式のモジュールがありません");
+      const {project,sources}=await makePortableSnapshot(),audio=[];
+      for(let i=0;i<sources.length;i++){
+        const source=sources[i],blobId=project.tracks[i].blobId;
+        if(!blobId){
+          if(source.hasAudio)throw Error("音源「"+source.id+"」の保存元Blobがありません");
+          continue;
+        }
+        const blob=source.blob||(await idbGet("blobs",blobId))?.blob;
+        if(!(blob instanceof Blob)||!blob.size)throw Error("音源「"+source.id+"」が見つかりません");
+        audio.push({id:blobId,blob});
+      }
+      const backup=await window.ASAHIMusicBackup.create({project,audio});
+      const url=URL.createObjectURL(backup),link=document.createElement("a");
+      link.href=url;link.download="emuzii-music-backup-"+Date.now()+".asahi-music";
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),60000);
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="✓ 音源 "+audio.length+"件を含む作品バックアップを作成しました（"+(backup.size/1024).toFixed(1)+" KB）。個人の歌声が含まれるため共有範囲に注意してください。";
+      setStatus("✓ オフラインの作品バックアップを書き出しました");
+    }catch(error){
+      console.error("portable export",error);
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="バックアップ作成を中止しました: "+(error?.message||error);
+      setStatus("作品バックアップの作成に失敗しました");
+    }finally{if(button)button.disabled=false}
+  }
+  async function importPortableProjectFile(file){
+    if(!file)return;
+    const button=els.importPortableProject;
+    if(button)button.disabled=true;
+    try{
+      if(state.recording)throw Error("録音を停止してから読み込んでください");
+      if(!window.ASAHIMusicBackup)throw Error("バックアップ形式のモジュールがありません");
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="ファイルを検査中… 現在の作品は変更していません";
+      // Every manifest and audio CRC is validated before touching the editor.
+      const parsed=await window.ASAHIMusicBackup.read(file);
+      if(state.tracks.length&&!confirm("現在編集中の作品を、このバックアップで置き換えますか？ 今の作品は先にバックアップしてください。")){
+        if(els.portableProjectStatus)els.portableProjectStatus.textContent="取り込みをキャンセルしました。現在の作品はそのままです";
+        return;
+      }
+      await restoreProjectRecord(parsed.project,"portable","持ち運びバックアップ",id=>parsed.blobs.get(id));
+      // Imported Blobs are not silently written to site storage. A successful
+      // explicit local save will persist them under this device's own IDs.
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="✓ 音源 "+parsed.blobs.size+"件のバックアップを復元しました。端末にも残すには「編集状態を保存」を押してください";
+      setStatus("✓ 持ち運び作品を復元しました。端末内の保存はまだ行っていません");
+    }catch(error){
+      console.error("portable import",error);
+      if(els.portableProjectStatus)els.portableProjectStatus.textContent="読み込みを中止しました: "+(error?.message||error)+"。現在の作品は保持しています";
+      setStatus("作品バックアップの読み込みに失敗しました（今の編集は保持）");
+    }finally{if(button)button.disabled=false}
   }
   async function saveProject(){setStatus("プロジェクト保存中…");try{await persistProject("last",{announce:true});}catch(e){console.error(e);setStatus("保存に失敗しました。ブラウザのストレージ許可を確認してください");}}
   async function loadProject(){setStatus("前回プロジェクトを復元中…");try{let sourceDb=DB_NAME,p=await idbGet("projects","last",sourceDb);if(!p){for(const legacy of LEGACY_DB_NAMES){const candidate=await idbGet("projects","last",legacy);if(candidate){p=candidate;sourceDb=legacy;break;}}}if(!p){setStatus("保存済みプロジェクトがありません");return;}await restoreProjectRecord(p,sourceDb,sourceDb===DB_NAME?"前回プロジェクト":"旧バージョンのプロジェクト");}
@@ -3291,7 +3365,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   els.recipeShort?.addEventListener("click",()=>selectArrangeRecipe("short")); els.recipeLive?.addEventListener("click",()=>selectArrangeRecipe("live")); els.recipeKaraoke?.addEventListener("click",()=>selectArrangeRecipe("karaoke")); els.recipeOriginal?.addEventListener("click",()=>selectArrangeRecipe("original"));
   els.logCreativeWork?.addEventListener("click",manualCreativeLog); els.exportCreativeLog?.addEventListener("click",exportCreativeLog); renderCreativeLog();
   els.guideExpression?.addEventListener("input",updateHqLabels);els.guideSpace?.addEventListener("input",updateHqLabels);els.masterStrength?.addEventListener("input",updateHqLabels);els.naturalizeGuide?.addEventListener("click",naturalizeGuide);els.safeMaster?.addEventListener("click",safeMaster);updateHqLabels();
-  els.runStabilityCheck?.addEventListener("click",()=>runStabilityCheck().catch(e=>setStatus(`端末チェック失敗: ${e?.message||e}`)));els.releaseAudioMemory?.addEventListener("click",releaseAudioMemory);els.saveProject.addEventListener("click",saveProject);els.loadProject.addEventListener("click",loadProject);els.loadAutosave?.addEventListener("click",loadAutosave);els.clearProject.addEventListener("click",async()=>{
+  els.runStabilityCheck?.addEventListener("click",()=>runStabilityCheck().catch(e=>setStatus(`端末チェック失敗: ${e?.message||e}`)));els.releaseAudioMemory?.addEventListener("click",releaseAudioMemory);els.saveProject.addEventListener("click",saveProject);els.loadProject.addEventListener("click",loadProject);els.exportPortableProject?.addEventListener("click",exportPortableProject);els.importPortableProject?.addEventListener("click",()=>els.portableProjectFile?.click());els.portableProjectFile?.addEventListener("change",e=>{const f=e.target.files?.[0];e.target.value="";if(f)importPortableProjectFile(f)});els.loadAutosave?.addEventListener("click",loadAutosave);els.clearProject.addEventListener("click",async()=>{
     if(!confirm("保存済みのプロジェクトと音源を削除します。今開いている編集は残しますが、自動保存は停止します。続けますか？"))return;
     clearTimeout(autoSaveTimer);
     const priorSuspended=autoSaveSuspended;autoSaveSuspended=true;

@@ -417,6 +417,55 @@ try{
   await editorPage.close();
   console.log('PASS guide melody / chord progression / song form persist across local save and names render as text');
 
+
+  // Full portable backup is a single offline file with actual microphone
+  // bytes, not just settings JSON; corruption must preserve current work.
+  const portablePage=await browser.newPage({acceptDownloads:true});
+  const calls=[];portablePage.on('request',r=>{if(new URL(r.url()).pathname.startsWith('/api/ace'))calls.push(r.url())});
+  await portablePage.goto(base,{waitUntil:'domcontentloaded'});
+  await portablePage.waitForSelector('#mainFile',{state:'attached'});
+  await portablePage.locator('#mainFile').setInputFiles({name:'portable-backing.wav',mimeType:'audio/wav',buffer:backing});
+  await portablePage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('portable-backing'));
+  await portablePage.locator('#vocalFile').setInputFiles({name:'portable-voice.wav',mimeType:'audio/wav',buffer:vocal});
+  await portablePage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('portable-voice'));
+  const ids=await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id));
+  await portablePage.locator('[data-view="project"]').click();
+  await portablePage.locator('#projectName').fill('持ち運びの歌 🎤');
+  const saving=portablePage.waitForEvent('download',{timeout:30000});
+  await portablePage.locator('#exportPortableProject').click();
+  const d=await saving;
+  assert.match(d.suggestedFilename(),/\.asahi-music$/);
+  const parts=[];for await(const p of await d.createReadStream())parts.push(p);
+  const portableBytes=Buffer.concat(parts);
+  assert.ok(portableBytes.length>backing.length+vocal.length);
+  const inspected=await portablePage.evaluate(async raw=>{
+    const parsed=await window.ASAHIMusicBackup.read(new Blob([Uint8Array.from(raw)]));
+    return {name:parsed.project.name,ids:parsed.project.tracks.map(x=>x.id),
+      lengths:await Promise.all(parsed.project.tracks.map(async x=>parsed.blobs.get(x.blobId)?.size||0))};
+  },Array.from(portableBytes));
+  assert.equal(inspected.name,'持ち運びの歌 🎤');
+  assert.deepEqual(inspected.ids,ids);
+  assert.deepEqual(inspected.lengths,[backing.length,vocal.length]);
+  const damaged=Buffer.from(portableBytes);damaged[damaged.length-1]^=0x40;
+  await portablePage.locator('#portableProjectFile').setInputFiles({name:'damaged.asahi-music',mimeType:'application/octet-stream',buffer:damaged});
+  await portablePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('CRCが一致'));
+  assert.deepEqual(await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  await portablePage.locator('#tracks article.track').first().locator('[data-action="delete"]').click();
+  assert.equal(await portablePage.locator('#tracks article.track').count(),1);
+  portablePage.once('dialog',dialog=>dialog.accept());
+  await portablePage.locator('#portableProjectFile').setInputFiles({name:'valid.asahi-music',mimeType:'application/octet-stream',buffer:portableBytes});
+  await portablePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  assert.deepEqual(await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  await portablePage.locator('#saveProject').click();
+  await portablePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await portablePage.reload({waitUntil:'domcontentloaded'});
+  await portablePage.locator('[data-view="project"]').click();
+  await portablePage.locator('#loadProject').click();
+  await portablePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.deepEqual(await portablePage.locator('#tracks article.track').evaluateAll(nodes=>nodes.map(x=>x.dataset.id)),ids);
+  assert.equal(calls.length,0,'Portable backup must never contact ACE API');
+  await portablePage.close();
+  console.log('PASS offline portable song export, checksum refusal, import and local save restore');
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
