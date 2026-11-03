@@ -249,6 +249,55 @@
       ]
     },
     {
+      "id": "MUSIC-025",
+      "title": "Web歌入れのカウントイン補正を録音Blobと分離して保存・復元",
+      "track": "vocal",
+      "state": "done",
+      "priority": 89,
+      "dependsOn": [
+        "MUSIC-010",
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "新録音のカウントイン除去秒数を保存し再読込時に同じ再生位置を復元",
+        "生録音Blobを改変・切り捨てず保持",
+        "旧形式に根拠のないトリムを適用しない",
+        "実Chromiumの音源・WAV出力で検査"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41616106375",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41616106364",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_025_RECORD_PREROLL_RESTORE.md"
+      ]
+    },
+    {
+      "id": "MUSIC-026",
+      "title": "編集中のトラック削除を同一セッション中に取り消せるようにする",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 81,
+      "dependsOn": [
+        "MUSIC-010"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "元の音源/トラックID/順番で誤削除を取り消せる",
+        "別作品に削除履歴を持ち越さない",
+        "ページ更新後は取り消しできない制約をUI明記",
+        "合成2トラックのブラウザ操作検査が合格"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41616494350",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41616494421",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_026_TRACK_DELETE_UNDO.md"
+      ]
+    },
+    {
       "id": "MUSIC-020",
       "title": "手動編集の不足機能を優先順に修正・回帰",
       "track": "manual-editing",
