@@ -11,6 +11,8 @@ on:
       - 'tests/music-portable-bundle.test.mjs'
       - 'integration/music-portable-bundle.js'
       - 'tests/ace-draft-contract.test.mjs'
+      - 'integration/portable-music-backup.js'
+      - 'tests/portable-music-backup.test.mjs'
       - 'integration/ace-step-request.js'
       - 'v104-loader.js'
       - 'tests/asahi-project-reader-safety.test.mjs'
@@ -38,6 +40,8 @@ jobs:
         run: node --test tests/ace-generation-mock.test.mjs
       - name: Verify offline ACE-Step 1.5 draft and native task response parsing
         run: node --test tests/ace-draft-contract.test.mjs
+      - name: Verify portable song backup integrity without network
+        run: node --test tests/portable-music-backup.test.mjs
       - name: Verify offline portable project bundle integrity without any user audio
         run: node --test tests/music-portable-bundle.test.mjs
       - name: Verify project import safety without user recordings
