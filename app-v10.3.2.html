@@ -1479,9 +1479,13 @@
       recorder.onstop=async()=>{
         try{
           const blob=new Blob(state.chunks,{type:recorder.mimeType||"audio/webm"});let buffer=await decodeBlob(blob);
-          if(type==="vocal" && buffer.duration>state.vocalPreroll+.1) buffer=trimBuffer(buffer,state.vocalPreroll);
+          // Keep the raw recording for lossless recovery, but persist the
+          // count-in trim separately so reload uses the SAME audible timeline.
+          const preroll=Math.max(0,Number(state.vocalPreroll)||0);
+          const recordTrimStartSec=type==="vocal"&&buffer.duration>preroll+.1?preroll:0;
+          if(recordTrimStartSec>0)buffer=trimBuffer(buffer,recordTrimStartSec);
           const start=type==="vocal"?(Number(els.recordOffset.value)||0)/1000:0;
-          state.tracks.push({id:uid(),name:type==="vocal"?"録音ボーカル":"音声メッセージ",type,buffer,blob,gain:1,pan:0,start,fadeIn:0,fadeOut:0,mute:false,solo:false});
+          state.tracks.push({id:uid(),name:type==="vocal"?"録音ボーカル":"音声メッセージ",type,buffer,blob,recordTrimStartSec,gain:1,pan:0,start,fadeIn:0,fadeOut:0,mute:false,solo:false});
           renderTracks();scheduleAutoSave(300);setStatus(type==="vocal"?"✓ 歌入れを追加しました":"✓ 音声メッセージを追加しました");
         }catch(e){console.error(e);setStatus("録音の読み込みに失敗しました");}
         finally{state.stream?.getTracks().forEach(t=>t.stop());state.stream=null;state.recorder=null;state.recording=null;state.chunks=[];updateRecordButtons();await releaseAwake();}
@@ -1874,7 +1878,7 @@
     const meta=[];
     for(const t of state.tracks){
       const blobId=await persistTrackBlob(t);
-      meta.push({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes||null,blobId,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?{...t.asahiProject}:null});
+      meta.push({id:t.id,name:t.name,type:t.type,gain:t.gain,pan:t.pan,start:t.start,duration:Number.isFinite(Number(t.duration))?Number(t.duration):null,sourceDuration:Number.isFinite(Number(t.sourceDuration))?Number(t.sourceDuration):null,guideInstrument:t.guideInstrument||null,fadeIn:t.fadeIn,fadeOut:t.fadeOut,mute:t.mute,solo:!!t.solo,notes:t.notes||null,blobId,recordTrimStartSec:Number.isFinite(Number(t.recordTrimStartSec))?Math.max(0,Number(t.recordTrimStartSec)):0,synthKind:t.synthKind||null,wave:t.wave||null,generated:!!t.generated,asahiProject:t.asahiProject?{...t.asahiProject}:null});
     }
     return {id,name:els.projectName.value||"My emuzii Song",tracks:meta,create:{title:els.songTitle.value,design:els.songDesign.value,lyrics:els.lyrics.value,bpm:els.bpm.value,key:els.songKey.value,length:els.songLength.value,aiAmount:els.aiAmount.value,localStyle:els.localStyle.value,arrangement:els.arrangement.textContent},guideWave:state.guideWave,guideInstrument:state.guideInstrument,asahiSongId:cleanAsahiText(els.vocalBridgeSongId?.value||state.asahiSongId),asahiTakeName:cleanAsahiText(els.vocalBridgeTakeName?.value||state.asahiTakeName),recordOffsetMs:Number(els.recordOffset?.value)||0,savedAt:new Date().toISOString(),version:"10.9.16"};
   }
@@ -1913,7 +1917,12 @@
         if(!row?.blob)throw Error(`音源「${m.name||m.id||"不明"}」が見つかりません。編集中の作品は保持しています`);
         const decoded=await decodeBlob(row.blob);
         if(!decoded)throw Error(`音源「${m.name||m.id||"不明"}」を復号できません。編集中の作品は保持しています`);
-        blob=row.blob;buffer=decoded;
+        // Legacy records had no trim metadata: do not guess and cut audio.
+        // New vocal recordings store the exact count-in excluded at capture.
+        const trim=Number(m.recordTrimStartSec??0);
+        if(!Number.isFinite(trim)||trim<0||trim>30||trim>Math.max(0,decoded.duration-.05))
+          throw Error(`音源「${m.name||m.id||"不明"}」のトリム位置が不正です。編集中の作品は保持しています`);
+        blob=row.blob;buffer=trim>0?trimBuffer(decoded,trim):decoded;
       }
       loaded.push({...m,buffer,blob,_blobId:m.blobId||null});
     }

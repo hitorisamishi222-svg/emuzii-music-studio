@@ -79,6 +79,18 @@ test('autosave is suspended after explicit delete until manual save',()=>{
   assert.match(app,/audioStorageGeneration\+\+/);
   assert.match(app,/自動保存停止中/);
 });
+test('raw vocal count-in trim is persisted as metadata and restored safely',()=>{
+  const capture=section('recorder.onstop=async()=>{','recorder.start(200);');
+  assert.match(capture,/recordTrimStartSec=type==="vocal"/);
+  assert.match(capture,/buffer=trimBuffer\(buffer,recordTrimStartSec\)/);
+  assert.match(capture,/type,buffer,blob,recordTrimStartSec/);
+  const serialized=section('async function makeProjectRecord(id){','async function persistProject(id,');
+  assert.match(serialized,/recordTrimStartSec:Number\.isFinite/);
+  const restore=section('async function restoreProjectRecord(p,','async function saveProject(){');
+  assert.match(restore,/Number\(m\.recordTrimStartSec\?\?0\)/);
+  assert.match(restore,/trimBuffer\(decoded,trim\)/);
+  assert.match(restore,/トリム位置が不正です/);
+});
 test('settings JSON import does not overwrite the original audio tracks',()=>{
   const s=section('async function loadV8ProjectFromFile(file){','function ptMedian(');
   assert.doesNotMatch(s,/state\.tracks\s*=/);

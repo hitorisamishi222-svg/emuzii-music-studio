@@ -178,6 +178,79 @@ try{
   await legacy.close();
   console.log('PASS migration v44 audio copies into current v45 database and survives reload');
 
+  // Vocal preroll regression: original Blob still has count-in samples, while
+  // reloaded playback and exported WAV must use the metadata-trimmed timeline.
+  const prerollPage=await browser.newPage({acceptDownloads:true});
+  await prerollPage.goto(base,{waitUntil:'domcontentloaded'});
+  await prerollPage.waitForSelector('#loadProject',{state:'attached'});
+  await prerollPage.evaluate(async bytes=>{
+    const db=await new Promise((resolve,reject)=>{
+      const q=indexedDB.open('piyoko-music-v45',1);
+      q.onupgradeneeded=()=>{
+        if(!q.result.objectStoreNames.contains('projects'))q.result.createObjectStore('projects',{keyPath:'id'});
+        if(!q.result.objectStoreNames.contains('blobs'))q.result.createObjectStore('blobs',{keyPath:'id'});
+      };
+      q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);
+    });
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(['projects','blobs'],'readwrite');
+      tx.objectStore('blobs').put({id:'asset:preroll-ci',blob:new Blob([Uint8Array.from(bytes)],{type:'audio/wav'})});
+      tx.objectStore('projects').put({id:'last',name:'Count-in metadata CI',tracks:[{
+        id:'preroll-ci',name:'trimmed-vocal-ci',type:'vocal',blobId:'asset:preroll-ci',
+        recordTrimStartSec:.5,gain:1,pan:0,start:0,fadeIn:0,fadeOut:0,mute:false,solo:false
+      }]});
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  },Array.from(vocal));
+  await prerollPage.locator('[data-view="project"]').click();
+  await prerollPage.locator('#loadProject').click();
+  await prerollPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await prerollPage.locator('#durationLabel').textContent(),/0\.8s/,'1.3s original minus 0.5s count-in');
+  await prerollPage.locator('#saveProject').click();
+  await prerollPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('音源を含めて端末に保存しました'));
+  await prerollPage.reload({waitUntil:'domcontentloaded'});
+  await prerollPage.locator('[data-view="project"]').click();
+  await prerollPage.locator('#loadProject').click();
+  await prerollPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('前回プロジェクトを復元しました'));
+  assert.match(await prerollPage.locator('#durationLabel').textContent(),/0\.8s/);
+  const downloadTrim=prerollPage.waitForEvent('download',{timeout:30000});
+  await prerollPage.evaluate(()=>{
+    document.querySelector('#masterLimiter').checked=false;
+    document.querySelector('#structuralRenderEnabled').checked=false;
+    document.querySelector('#exportMasterWav').click();
+  });
+  const wavDownload=await downloadTrim,parts=[];
+  for await(const chunk of await wavDownload.createReadStream())parts.push(chunk);
+  const trimmedAudio=Buffer.concat(parts);
+  const early=rmsWav(trimmedAudio,.05,.12),audible=rmsWav(trimmedAudio,.38,.48);
+  assert.ok(early<.006,'Trimmed count-in should not introduce early vocals');
+  assert.ok(audible>.012,'Vocal must start at original .8s minus trim .5s = .3s');
+  const originalSize=await prerollPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('piyoko-music-v45');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});
+    const result=await new Promise((resolve,reject)=>{
+      const tx=db.transaction('blobs','readonly'),q=tx.objectStore('blobs').get('asset:preroll-ci');
+      q.onsuccess=()=>resolve(q.result?.blob?.size);q.onerror=()=>reject(q.error);
+    });db.close();return result;
+  });
+  assert.equal(originalSize,vocal.length,'Original microphone bytes stay untouched');
+
+  // Invalid metadata must not replace a valid currently edited take.
+  await prerollPage.evaluate(async()=>{
+    const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('piyoko-music-v45');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('projects','readwrite'),q=tx.objectStore('projects').get('last');
+      q.onsuccess=()=>{const record=q.result;record.tracks[0].recordTrimStartSec=100;tx.objectStore('projects').put(record)};
+      tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+    });db.close();
+  });
+  const validTracks=await prerollPage.locator('#tracks').textContent();
+  await prerollPage.locator('#loadProject').click();
+  await prerollPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('トリム位置が不正です'));
+  assert.equal(await prerollPage.locator('#tracks').textContent(),validTracks);
+  await prerollPage.close();
+  console.log('PASS raw vocal recording preserved, trim metadata survives reload and unsafe trim rejected');
+
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
