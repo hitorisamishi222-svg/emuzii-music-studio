@@ -1631,7 +1631,10 @@
     // Prefer the FIRST strong local peak, not the longest integer multiple.
     // High-confidence only: avoid turning ambiguous/noisy singing into octave jumps.
     if(bestCorr<.92)return bestLag;
-    const threshold=bestCorr-.02;
+    // Fractional-period fundamentals (e.g. 880Hz / 12kHz ~= 13.64
+    // samples) may correlate slightly worse than a 3x-period peak due to
+    // integer sample lag rounding, especially with vocal harmonics/vibrato.
+    const threshold=Math.max(.88,bestCorr-.08);
     for(let lag=minLag+1;lag<bestLag-1;lag++){
       if(correlations[lag]>=threshold&&correlations[lag]>=correlations[lag-1]&&correlations[lag]>correlations[lag+1])return lag;
     }
