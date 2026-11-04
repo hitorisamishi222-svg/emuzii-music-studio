@@ -260,3 +260,55 @@ test('MASTER structure cuts/repeats map guide notes to the same output timeline 
   assert.ok(h.scheduled.every(x=>x.track.start===0&&x.track.guideInstrument==='humming'));
   assert.deepEqual(track,original);
 });
+
+function chunkedPcmHarness(){
+  const code=source('  function pcmRange(buffer,from=0,to=buffer.length){','  function wavHeader(rate,frames){');
+  const calls=[];
+  const buffer=(left,right=left)=>({length:left.length,numberOfChannels:2,getChannelData(i){return i===0?left:right}});
+  const render=async(from,to,rate)=>{
+    calls.push({from,to,rate});
+    const count=Math.max(1,Math.round((to-from)*rate));
+    const chunkIndex=Math.floor((to-.0000001)/5);
+    const value=chunkIndex%2===0?.4:-.4;
+    return buffer(new Float32Array(count).fill(value));
+  };
+  const runner=new Function('buildChunk',code+';return {renderChunkedMixPcm,pcmCrossfadeSeam,pcmSeamTail,pcmRange};')(render);
+  return {...runner,calls};
+}
+function pcmSamples(parts){
+  const bytes=Buffer.concat(parts.map(p=>Buffer.from(p)));
+  assert.equal(bytes.length%4,0);
+  const data=[];
+  for(let i=0;i<bytes.length;i+=4)data.push(bytes.readInt16LE(i)/32768);
+  return data;
+}
+test('5-second Safari WAV chunk stitch has exact frames and smooth 100ms seam',async()=>{
+  const h=chunkedPcmHarness(),progress=[];
+  const {parts,frames}=await h.renderChunkedMixPcm(11.2,1000,5,async(done,total)=>progress.push([done,total]));
+  assert.equal(frames,11200);
+  assert.deepEqual(progress,[[1,3],[2,3],[3,3]]);
+  assert.deepEqual(h.calls.map(x=>[Math.round(x.from*1000),Math.round(x.to*1000)]),[[0,5000],[4900,10000],[9900,11200]]);
+  const data=pcmSamples(parts);
+  assert.equal(data.length,11200);
+  assert.ok(data[4940]>.1&&data[4960]<.1,'fade should transition through first seam');
+  assert.ok(Math.abs(data[4950])<.02,'mid-seam transition must be quiet instead of a hard jump');
+  assert.ok(data[4990]<-.25,'end of seam should match the new synth oscillator');
+  assert.ok(data[9950]>.25,'later seam must smoothly transition back to old polarity');
+});
+test('10-second desktop WAV chunk stitch preserves total duration across fractional end',async()=>{
+  const h=chunkedPcmHarness(),duration=20.017;
+  const result=await h.renderChunkedMixPcm(duration,1000,10);
+  assert.equal(result.frames,20017);
+  assert.equal(pcmSamples(result.parts).length,20017);
+  assert.equal(h.calls.length,3);
+  assert.equal(Math.round(h.calls[1].from*1000),9900);
+  assert.equal(Math.round(h.calls[2].from*1000),19900);
+});
+test('full-song 195s segmented synthesis preserves all samples and bounded overlap',async()=>{
+  const h=chunkedPcmHarness(),duration=195.22,rate=1000;
+  const r=await h.renderChunkedMixPcm(duration,rate,5);
+  assert.equal(r.frames,195220);
+  assert.equal(r.parts.reduce((n,p)=>n+p.byteLength,0),195220*4);
+  assert.equal(h.calls.length,40);
+  assert.ok(h.calls.every(c=>c.to-c.from<=5.101),'no full-song offline context should be allocated');
+});
