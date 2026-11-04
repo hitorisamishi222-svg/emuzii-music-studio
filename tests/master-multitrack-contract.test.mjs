@@ -108,3 +108,50 @@ test('no audible notes or unsafe pitches never become phantom MIDI events',async
   const fallback={type:'melody',notes:[{start:0,duration:.5,midi:72}]};
   assert.deepEqual((await midiNoteEvents(midiHarness([fallback])())).map(x=>x.pitch),[72,72]);
 });
+
+test('humming guide instrument has an auditable preview and no user audio requirement',()=>{
+  assert.match(app,/<option value="humming">ハミング風/);
+  assert.match(app,/id="previewGuideInstrument"/);
+  assert.match(app,/humming:"ハミング風"/);
+  const preview=source('  async function previewGuideInstrument(){','  function listenGroup(track){');
+  assert.match(preview,/ensureAudioContext\(\)/);
+  assert.match(preview,/ctx\.destination,track,note,base,0,Infinity,false/);
+  assert.doesNotMatch(preview,/state\.tracks\.(push|splice|pop|shift|unshift)|persistProject|fetch\(/);
+});
+function hummingHarness(){
+  const src=source('  function scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect){','  function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {');
+  const f=new Function('state','midiHz','stereoDestination','noiseBuffer','collectNode',src+';return scheduleTone;');
+  const events={oscs:[],filters:[],gainChanges:[]};
+  function parameter(){return {value:0,setValueAtTime(v,t){this.value=v;events.gainChanges.push({v,t})},linearRampToValueAtTime(v,t){events.gainChanges.push({v,t})},exponentialRampToValueAtTime(v,t){events.gainChanges.push({v,t})}}}
+  const ctx={
+    createGain(){return {gain:parameter(),connect(){return this}}},
+    createBiquadFilter(){const node={type:'',Q:parameter(),gain:parameter(),frequency:parameter(),connect(){return this}};events.filters.push(node);return node},
+    createOscillator(){const node={type:'sine',frequency:parameter(),detune:parameter(),connect(){return this},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t})},stop(){}};return node}
+  };
+  const run=f({guideInstrument:'humming'},(midi,cents=0)=>440*Math.pow(2,((midi-69)+(cents/100))/12),()=>{},()=>{throw Error('humming must not require a noise sample')},()=>{});
+  return {run,ctx,events};
+}
+test('humming synthesizer emits pitched harmonic voice-like partials without percussion transients',()=>{
+  const h=hummingHarness();
+  h.run(h.ctx,{}, {type:'guide',gain:.75,pan:0,guideInstrument:'humming'}, {start:.12,duration:.48,midi:60,velocity:.8}, 1,0,Infinity,false);
+  const harmonic=h.events.oscs.filter(x=>x.freq>100);
+  assert.equal(harmonic.length,5,'fundamental plus four integer harmonics');
+  const root=harmonic[0].freq;
+  assert.ok(root>260&&root<263);
+  for(let i=0;i<harmonic.length;i++)assert.ok(Math.abs(harmonic[i].freq/root-(i+1))<.001);
+  assert.ok(h.events.oscs.some(x=>Math.abs(x.freq-5.05)<.001),'soft 5 Hz vibrato');
+  assert.equal(h.events.filters[0].type,'lowpass');
+  assert.ok(h.events.filters[0].frequency.value<3300,'avoid excessive bright harmonics');
+  assert.equal(h.events.filters[1].type,'peaking');
+  assert.equal(h.events.filters[1].frequency.value,960);
+  assert.ok(h.events.gainChanges.every(x=>Number.isFinite(x.t)&&Number.isFinite(x.v)));
+});
+test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
+  const h=hummingHarness(),track={type:'guide',gain:.7,guideInstrument:'humming'};
+  h.run(h.ctx,{},track,{start:0,duration:.4,midi:69},.1,0,Infinity,false);
+  assert.equal(h.events.oscs.filter(x=>x.freq>100).length,5);
+  const prior=h.events.oscs.length;
+  h.run(h.ctx,{}, {...track,start:-2},{start:0,duration:.3,midi:69},.1,0,Infinity,false);
+  h.run(h.ctx,{},track,{start:0,duration:NaN,midi:69},.1,0,Infinity,false);
+  assert.equal(h.events.oscs.length,prior,'silent/invalid notes cannot produce new sources');
+});

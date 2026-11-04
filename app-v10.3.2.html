@@ -103,6 +103,7 @@
               <div class="row wrap">
                 <button id="makeGuide" class="btn primary">♪ ガイドにする</button>
                 <select id="guideInstrument" aria-label="ガイド楽器">
+                  <option value="humming">ハミング風（やわらかい声のガイド）</option>
                   <option value="electone">エレクトーン</option>
                   <option value="piano">グランドピアノ</option>
                   <option value="epiano">エレクトリックピアノ</option>
@@ -120,7 +121,8 @@
                   <option value="musicBox">オルゴール</option>
                   <option value="soft">やわらかガイド</option>
                 </select>
-                <small class="support">ガイドは元ファイル長を保持。16音色をHQ化し、楽器別の倍音・共鳴・アタック・減衰・空間感を端末内で合成します。</small>
+                <button id="previewGuideInstrument" class="mini" type="button">♪ 音色を試聴</button>
+                <small class="support">歌声がなくても音色を試聴できます。ハミング風は合成音で、実際の人声ではありません。17音色から選択でき、元の歌声は変更しません。</small>
               </div>
               <div class="progress"><span id="guideProgress"></span></div>
               <div class="progress-meta" id="guideEta">待機中 · 端末内で音程解析</div>
@@ -557,7 +559,7 @@
     status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"), undoTrackDelete:$("undoTrackDelete"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
     vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), testVocalBridge:$("testVocalBridge"), testVocalBridgeTabs:$("testVocalBridgeTabs"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
-    makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
+    makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), previewGuideInstrument: $("previewGuideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
     playMix: $("playMix"), stopMix: $("stopMix"), audioTest: $("audioTest"), nativeAudioTest: $("nativeAudioTest"), compatPlay: $("compatPlay"), compatBox: $("compatBox"), compatAudio: $("compatAudio"), compatMeta: $("compatMeta"), makeWav: $("makeWav"), wavProgress: $("wavProgress"), wavEta: $("wavEta"), saveActions: $("saveActions"), shareWav: $("shareWav"), downloadWav: $("downloadWav"),
     songTitle: $("songTitle"), songDesign: $("songDesign"), lyrics: $("lyrics"), bpm: $("bpm"), songKey: $("songKey"), songLength: $("songLength"), aiAmount: $("aiAmount"), aiAmountLabel: $("aiAmountLabel"), phoneArrange: $("phoneArrange"), copyArrange: $("copyArrange"), arrangement: $("arrangement"),
     localStyle: $("localStyle"), localCompose: $("localCompose"), composeProgress: $("composeProgress"), composeEta: $("composeEta"), composeResult: $("composeResult"), composeSummary: $("composeSummary"), goEdit: $("goEdit"),
@@ -635,7 +637,7 @@
     const names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
     return `${names[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
   }
-  const GUIDE_INSTRUMENT_LABELS={electone:"エレクトーン",piano:"グランドピアノ",epiano:"エレクトリックピアノ",acousticGuitar:"アコースティックギター",electricGuitar:"エレキギター",organ:"オルガン",strings:"ストリングス",synthLead:"シンセリード",flute:"フルート",bell:"ベル",marimba:"マリンバ",trumpet:"トランペット",sax:"サックス",harmonica:"ハーモニカ",musicBox:"オルゴール",soft:"やわらかガイド"};
+  const GUIDE_INSTRUMENT_LABELS={electone:"エレクトーン",piano:"グランドピアノ",epiano:"エレクトリックピアノ",acousticGuitar:"アコースティックギター",electricGuitar:"エレキギター",organ:"オルガン",strings:"ストリングス",synthLead:"シンセリード",flute:"フルート",bell:"ベル",marimba:"マリンバ",trumpet:"トランペット",sax:"サックス",harmonica:"ハーモニカ",musicBox:"オルゴール",soft:"やわらかガイド",humming:"ハミング風"};
   function guideInstrumentLabel(id){return GUIDE_INSTRUMENT_LABELS[id]||GUIDE_INSTRUMENT_LABELS.electone;}
 
   function maxDuration() {
@@ -1403,7 +1405,9 @@
 
   function scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect){
     if(!Number.isFinite(note.midi))return;
-    const gStart=track.start+note.start,gEnd=gStart+note.duration,overlapStart=Math.max(windowStart,gStart,0),overlapEnd=Math.min(windowEnd,gEnd);if(overlapEnd<=overlapStart)return;
+    const trackStart=Number(track.start??0),noteStart=Number(note.start??0),noteDuration=Number(note.duration);
+    if(!Number.isFinite(trackStart)||!Number.isFinite(noteStart)||!Number.isFinite(noteDuration)||noteDuration<=0)return;
+    const gStart=trackStart+noteStart,gEnd=gStart+noteDuration,overlapStart=Math.max(windowStart,gStart,0),overlapEnd=Math.min(windowEnd,gEnd);if(overlapEnd<=overlapStart)return;
     const start=base+(overlapStart-windowStart),stop=base+(overlapEnd-windowStart),kind=track.synthKind||track.type,vel=Math.max(.16,Math.min(1.2,note.velocity||.72)),guideInstrument=track.guideInstrument||state.guideInstrument||"electone";
     const bus=ctx.createGain(),tone=ctx.createBiquadFilter(),presence=ctx.createBiquadFilter();
     tone.type="lowpass";tone.Q.value=.55;presence.type="peaking";presence.Q.value=.8;presence.gain.value=0;presence.frequency.value=1800;
@@ -1414,11 +1418,12 @@
         electone:[.102,.008,.06,.82,.11,4700],piano:[.115,.0025,.22,.30,.22,6500],epiano:[.108,.004,.18,.43,.23,5600],
         acousticGuitar:[.112,.0025,.17,.25,.18,5600],electricGuitar:[.108,.004,.14,.40,.22,4300],organ:[.09,.012,.05,.88,.15,4400],
         strings:[.078,.085,.18,.80,.34,3800],synthLead:[.102,.005,.08,.65,.16,5000],flute:[.092,.02,.07,.79,.19,6000],
-        bell:[.108,.002,.26,.14,.34,7600],marimba:[.11,.002,.18,.13,.14,5000],trumpet:[.088,.016,.07,.75,.16,4700],sax:[.09,.02,.08,.72,.19,4100],harmonica:[.086,.014,.07,.77,.16,4300],musicBox:[.102,.002,.30,.08,.38,8200],soft:[.088,.014,.09,.72,.16,5200]
+        bell:[.108,.002,.26,.14,.34,7600],marimba:[.11,.002,.18,.13,.14,5000],trumpet:[.088,.016,.07,.75,.16,4700],sax:[.09,.02,.08,.72,.19,4100],harmonica:[.086,.014,.07,.77,.16,4300],musicBox:[.102,.002,.30,.08,.38,8200],soft:[.088,.014,.09,.72,.16,5200],humming:[.086,.028,.085,.90,.19,2600]
       };
       const p=profiles[guideInstrument]||profiles.electone;peak=p[0]*track.gain*vel;attack=p[1];decay=p[2];sustain=p[3];release=p[4];cutoff=p[5];
       const pitchBright=Math.max(-700,Math.min(900,(note.midi-64)*28));cutoff=Math.max(1500,cutoff+pitchBright+(vel-.72)*900);
-      if(guideInstrument==="piano"){tone.Q.value=.72;presence.frequency.value=2300;presence.gain.value=2.2;}
+      if(guideInstrument==="humming"){tone.Q.value=.45;presence.Q.value=1.35;presence.frequency.value=960;presence.gain.value=2.6;}
+      else if(guideInstrument==="piano"){tone.Q.value=.72;presence.frequency.value=2300;presence.gain.value=2.2;}
       else if(guideInstrument==="acousticGuitar"){tone.Q.value=.95;presence.frequency.value=2600;presence.gain.value=2.5;}
       else if(guideInstrument==="epiano"){tone.Q.value=.72;presence.frequency.value=1500;presence.gain.value=1.7;}
       else if(guideInstrument==="electricGuitar"){tone.Q.value=1.05;presence.frequency.value=1900;presence.gain.value=2.0;}
@@ -1449,7 +1454,16 @@
     else if(kind==="chords"){addOsc("triangle",1,-2,.43);addOsc("sine",2,0,.1);addOsc("sine",1,4,.18);}
     else if(kind==="melody"){addOsc(track.wave==="square"?"square":"triangle",1,-2,.44,4.5);addOsc("sine",1,3,.35,3.7);if(note.midi>72)addOsc("sine",2,0,.05);}
     else if(kind==="guide"){
-      if(guideInstrument==="electone"){addOsc("triangle",1,-4,.30,1.0);addOsc("sine",1,4,.21,.7);addOsc("sine",2,0,.15,0,.86);addOsc("sine",3,0,.055,0,.76);addOsc("sine",.5,0,.08);addBodyResonance(.5,.05,.24);addEarlyRoom(.032);}
+      // Rounded harmonics and gentle vibrato avoid the attack-heavy sound of piano/plucked guides.
+      // These are voice-like synthesized tones, not converted vocals or voice cloning.
+      if(guideInstrument==="humming"){
+        addOsc("sine",1,0,.50,2.4);
+        addOsc("sine",2,0,.24,1.2);
+        addOsc("sine",3,0,.12);
+        addOsc("sine",4,0,.065);
+        addOsc("sine",5,0,.026);
+      }
+      else if(guideInstrument==="electone"){addOsc("triangle",1,-4,.30,1.0);addOsc("sine",1,4,.21,.7);addOsc("sine",2,0,.15,0,.86);addOsc("sine",3,0,.055,0,.76);addOsc("sine",.5,0,.08);addBodyResonance(.5,.05,.24);addEarlyRoom(.032);}
       else if(guideInstrument==="piano"){addOsc("triangle",1,-1,.30,.1,.78);addOsc("sine",1,1,.30,.08,.82);addOsc("sine",2.01,-1,.17,0,.36);addOsc("sine",3.02,1,.08,0,.22);addOsc("sine",4.04,2,.035,0,.12);addNoiseTransient(.05,2900,.025,"bandpass");addNoiseTransient(.018,7000,.018,"highpass");addBodyResonance(.5,.09,.26);addEarlyRoom(.05);}
       else if(guideInstrument==="epiano"){addOsc("sine",1,-2,.40,.8,.92);addOsc("triangle",1,2,.20,.55,.88);addOsc("sine",2.01,1,.18,0,.48);addOsc("sine",3.03,3,.06,0,.30);addNoiseTransient(.015,3100,.032,"bandpass");addBodyResonance(.5,.045,.28);addEarlyRoom(.042);}
       else if(guideInstrument==="acousticGuitar"){addOsc("triangle",1,-3,.30,.18,.72);addOsc("sine",1,2,.25,.14,.76);addOsc("sine",2.01,0,.16,0,.38);addOsc("sine",3.02,-3,.07,0,.22);addOsc("sine",4.04,2,.025,0,.12);addNoiseTransient(.065,4100,.022,"bandpass");addNoiseTransient(.02,6800,.018,"highpass");addBodyResonance(.5,.075,.19);addEarlyRoom(.036);}
@@ -1472,6 +1486,31 @@
 
   function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {
     (track.notes||[]).forEach(note=>{if(note.drum)scheduleDrum(ctx,destination,track,note,base,windowStart,windowEnd,collect);else scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect);});
+  }
+
+  async function previewGuideInstrument(){
+    const button=els.previewGuideInstrument;
+    if(!button||button.disabled)return;
+    button.disabled=true;
+    try{
+      const ctx=await ensureAudioContext();
+      if(ctx.state!=="running")throw Error("音声を開始できませんでした。音声テストをお試しください");
+      // Local preview: does not read or modify any user's track, SONG ID, or saved project.
+      const track={type:"guide",start:0,gain:.72,pan:0,guideInstrument:els.guideInstrument.value};
+      const phrase=[
+        {start:0,duration:.32,midi:60,velocity:.78},
+        {start:.38,duration:.34,midi:62,velocity:.75},
+        {start:.78,duration:.36,midi:64,velocity:.80},
+        {start:1.20,duration:.40,midi:62,velocity:.72}
+      ];
+      const base=ctx.currentTime+.06;
+      for(const note of phrase)scheduleTone(ctx,ctx.destination,track,note,base,0,Infinity,false);
+      setStatus("♪ "+guideInstrumentLabel(track.guideInstrument)+"を試聴中（合成サンプル・原音は変更しません）");
+    }catch(e){
+      setStatus("音色試聴エラー: "+(e?.message||String(e)));
+    }finally{
+      setTimeout(()=>{button.disabled=false},1900);
+    }
   }
 
   function listenGroup(track){
@@ -3362,7 +3401,7 @@ function exportResolver93(){const r=state.resolver93.report;if(!r)return;const b
   els.runtimeTest?.addEventListener("click",runRuntimeSelfTest);
   els.recordVocal.addEventListener("click",()=>state.recording?stopRecording():startRecording("vocal"));
   els.recordMessage.addEventListener("click",()=>state.recording?stopRecording():startRecording("message"));
-  els.makeGuide.addEventListener("click",extractGuide);els.guideInstrument.addEventListener("change",()=>{state.guideInstrument=els.guideInstrument.value;state.tracks.forEach(t=>{if(t.type==="guide")t.guideInstrument=state.guideInstrument;});renderTracks();scheduleAutoSave(250);setStatus(`ガイド楽器: ${guideInstrumentLabel(state.guideInstrument)}`);});
+  els.makeGuide.addEventListener("click",extractGuide);els.previewGuideInstrument.addEventListener("click",previewGuideInstrument);els.guideInstrument.addEventListener("change",()=>{state.guideInstrument=els.guideInstrument.value;state.tracks.forEach(t=>{if(t.type==="guide")t.guideInstrument=state.guideInstrument;});renderTracks();scheduleAutoSave(250);setStatus(`ガイド楽器: ${guideInstrumentLabel(state.guideInstrument)}`);});
   document.querySelectorAll("[data-shift]").forEach(b=>b.addEventListener("click",()=>transposeGuide(Number(b.dataset.shift))));
   els.exportMidi.addEventListener("click",()=>{const blob=midiFile();if(!blob){setStatus("先に③でガイドメロディを作ってください");return;}downloadBlob(blob,"piyoko-guide.mid");setStatus("MIDIを書き出しました");});
   document.querySelectorAll("[data-listen]").forEach(b=>b.addEventListener("click",()=>setListenPreset(b.dataset.listen)));
