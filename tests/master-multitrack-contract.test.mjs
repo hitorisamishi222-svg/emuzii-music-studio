@@ -290,10 +290,10 @@ test('5-second Safari WAV chunk stitch has exact frames and smooth 100ms seam',a
   assert.deepEqual(h.calls.map(x=>[Math.round(x.from*1000),Math.round(x.to*1000)]),[[0,5000],[4900,10000],[9900,11200]]);
   const data=pcmSamples(parts);
   assert.equal(data.length,11200);
-  assert.ok(data[4940]>.1&&data[4960]<.1,'fade should transition through first seam');
+  assert.ok(data[4920]>.2&&data[4980]<-.2,'fade should transition through first seam');
   assert.ok(Math.abs(data[4950])<.02,'mid-seam transition must be quiet instead of a hard jump');
   assert.ok(data[4990]<-.25,'end of seam should match the new synth oscillator');
-  assert.ok(data[9950]>.25,'later seam must smoothly transition back to old polarity');
+  assert.ok(data[9990]>.25,'later seam must smoothly transition back to old polarity');
 });
 test('10-second desktop WAV chunk stitch preserves total duration across fractional end',async()=>{
   const h=chunkedPcmHarness(),duration=20.017;
