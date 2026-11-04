@@ -765,6 +765,34 @@
       ]
     },
     {
+      "id": "MUSIC-046",
+      "title": "フレーズの長い休符後に音程が前のオクターブへ固定される誤検出を防止",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 73,
+      "dependsOn": [
+        "MUSIC-045",
+        "MUSIC-042"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "約240ms以上の休符後は直前の音程によるオクターブ補正を使わず新しい声の音域を判定する",
+        "高信頼度の自己相関で最初の強い極大周期を選び、高音を低音の整数倍周期と誤認しにくくする",
+        "C4/C5、A4/A5など合成正解周波数でラグ選定の単体テストに合格する",
+        "実Chromiumで合成歌声→解析→ガイド音符を生成し、休符を挟む4音の音域変化を復元する",
+        "元音声、既存作品データ、MIDI、WAVと保存・復元への回帰試験がPASSする"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41930787054",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41930625248",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_046_PHRASE_OCTAVE_PITCH.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
