@@ -63,6 +63,26 @@ try{
   assert.match(draft,/音声は生成しません/);
   assert.equal(aceRequests,0,'Offline preview must make no ACE calls');
   await page.locator('[data-view="edit"]').click();
+  // The guide timbre can be auditioned without any user's audio or song.
+  await page.evaluate(()=>{
+    window.__hummingOscillators=[];
+    const start=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      window.__hummingOscillators.push({frequency:this.frequency.value,type:this.type});
+      return start.apply(this,args);
+    };
+  });
+  const tracksBeforePreview=await page.locator('#tracks article.track').count();
+  await page.locator('#guideInstrument').selectOption('humming');
+  await page.locator('#previewGuideInstrument').click();
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ハミング風を試聴中'));
+  const previewOscillators=await page.evaluate(()=>window.__hummingOscillators);
+  assert.ok(previewOscillators.length>=20,'audition must schedule actual WebAudio oscillators');
+  assert.ok(previewOscillators.some(x=>Math.abs(x.frequency-261.63)<1),'C4 fundamental must be present');
+  assert.equal(await page.locator('#tracks article.track').count(),tracksBeforePreview,'audition must not add song tracks');
+  assert.equal(aceRequests,0,'local audition must not call paid generation API');
+  await page.waitForFunction(()=>!document.querySelector('#previewGuideInstrument')?.disabled,{timeout:5000});
+  console.log('PASS humming guide auditions real browser WebAudio without user audio or network');
 
   const backing=syntheticWav({start:.05,end:.4,freq:440});
   const vocal=syntheticWav({start:.8,end:1.15,freq:659});
