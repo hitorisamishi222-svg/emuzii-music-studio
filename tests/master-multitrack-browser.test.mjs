@@ -846,6 +846,7 @@ try{
     const at=vibratoNotes.indexOf(note,searchFrom);
     if(at>=0){matched++;searchFrom=at+1;}
   }
+  console.log('QUASI_VOCAL_NOTES',JSON.stringify({matched,vibratoNotes}));
   assert.ok(matched>=10,
     'quasi-vocal harmonic vibrato extraction should preserve at least 10 of 12 notes in order; matched '+matched+' notes: '+JSON.stringify(vibratoNotes));
   assert.ok(vibratoNotes.includes('A5')&&vibratoNotes.includes('A3'),'large range changes must survive without octave-locking');
