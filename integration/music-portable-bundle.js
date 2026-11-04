@@ -42,14 +42,24 @@
   async function pack({project,assets}={}){
     const wanted=refs(project);
     if(!Array.isArray(assets)||assets.length!==wanted.size)fail('必要な音源が揃っていません');
-    const blobs=[],index=[],seen=new Set();
+    // Validate the complete export before hashing any audio Blob.
+    // Otherwise a package over MAX_TOTAL could hash hundreds of MB only to be rejected.
+    const prepared=[],seen=new Set();
+    let totalSize=0;
     for(const a of assets){
       if(!a||!validId(a.id)||seen.has(a.id)||!wanted.has(a.id)||!(a.blob instanceof Blob))fail('音源の内容が不正です');
       seen.add(a.id);
-      const blob=a.blob;
-      if(blob.size>MAX_SINGLE)fail('1音源の上限は200MBです');
-      index.push({id:a.id,size:blob.size,mime:blob.type||'',sha256:await sha256(blob)});
-      blobs.push(blob);
+      const blob=a.blob, size=blob.size, mime=blob.type||'';
+      if(!Number.isSafeInteger(size)||size<0||size>MAX_SINGLE)fail('1音源の上限は200MBです');
+      totalSize+=size;
+      if(totalSize>MAX_TOTAL)fail('合計音源容量が上限を超えています');
+      if(typeof mime!=='string'||mime.length>200)fail('音源形式が不正です');
+      prepared.push({id:a.id,blob,size,mime});
+    }
+    const blobs=[],index=[];
+    for(const a of prepared){
+      index.push({id:a.id,size:a.size,mime:a.mime,sha256:await sha256(a.blob)});
+      blobs.push(a.blob);
     }
     validateIndex(index,wanted);
     const manifest=encoder.encode(JSON.stringify({format:'asahi-music-bundle-v1',project,assets:index}));
