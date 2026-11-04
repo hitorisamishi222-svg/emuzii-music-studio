@@ -66,10 +66,16 @@ try{
   // The guide timbre can be auditioned without any user's audio or song.
   await page.evaluate(()=>{
     window.__hummingOscillators=[];
+    window.__hummingStops=[];
     const start=OscillatorNode.prototype.start;
+    const stop=OscillatorNode.prototype.stop;
     OscillatorNode.prototype.start=function(...args){
-      window.__hummingOscillators.push({frequency:this.frequency.value,type:this.type});
+      window.__hummingOscillators.push({frequency:this.frequency.value,type:this.type,time:args[0]});
       return start.apply(this,args);
+    };
+    OscillatorNode.prototype.stop=function(...args){
+      window.__hummingStops.push({frequency:this.frequency.value,time:args[0]});
+      return stop.apply(this,args);
     };
   });
   const tracksBeforePreview=await page.locator('#tracks article.track').count();
@@ -79,6 +85,11 @@ try{
   const previewOscillators=await page.evaluate(()=>window.__hummingOscillators);
   assert.ok(previewOscillators.length>=20,'audition must schedule actual WebAudio oscillators');
   assert.ok(previewOscillators.some(x=>Math.abs(x.frequency-261.63)<1),'C4 fundamental must be present');
+  const previewStops=await page.evaluate(()=>window.__hummingStops);
+  const c4End=previewStops.find(x=>Math.abs(x.frequency-261.63)<1)?.time;
+  const d4Start=previewOscillators.find(x=>Math.abs(x.frequency-293.66)<1)?.time;
+  assert.ok(Number.isFinite(c4End)&&Number.isFinite(d4Start));
+  assert.ok(c4End>d4Start&&c4End-d4Start<.055,'connected notes must overlap gently rather than restart with a gap');
   assert.equal(await page.locator('#tracks article.track').count(),tracksBeforePreview,'audition must not add song tracks');
   assert.equal(aceRequests,0,'local audition must not call paid generation API');
   await page.waitForFunction(()=>!document.querySelector('#previewGuideInstrument')?.disabled,{timeout:5000});
