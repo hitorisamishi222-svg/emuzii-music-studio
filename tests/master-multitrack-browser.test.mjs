@@ -19,6 +19,27 @@ function syntheticWav({duration=1.3,start=0,end=.4,freq=440}={}){
   }
   return out;
 }
+function syntheticPhraseWav(){
+  // Four source notes at known octaves with long breaths between each phrase.
+  const sr=16000,duration=5.1,n=Math.round(sr*duration),out=Buffer.alloc(44+n*2);
+  out.write('RIFF',0);out.writeUInt32LE(out.length-8,4);out.write('WAVE',8);
+  out.write('fmt ',12);out.writeUInt32LE(16,16);out.writeUInt16LE(1,20);
+  out.writeUInt16LE(1,22);out.writeUInt32LE(sr,24);out.writeUInt32LE(sr*2,28);
+  out.writeUInt16LE(2,32);out.writeUInt16LE(16,34);out.write('data',36);out.writeUInt32LE(n*2,40);
+  const phrases=[
+    {from:.15,to:.82,freq:261.6256},
+    {from:1.36,to:2.03,freq:523.2511},
+    {from:2.57,to:3.24,freq:440},
+    {from:3.78,to:4.45,freq:880}
+  ];
+  for(let i=0;i<n;i++){
+    const t=i/sr,phrase=phrases.find(p=>t>=p.from&&t<p.to);
+    const edge=phrase?Math.max(0,Math.min(1,(t-phrase.from)*35,(phrase.to-t)*35)):0;
+    const y=phrase?Math.sin(t*2*Math.PI*phrase.freq)*.34*edge:0;
+    out.writeInt16LE(Math.round(y*32767),44+i*2);
+  }
+  return out;
+}
 function rmsWav(bytes,start,end){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');
   assert.equal(bytes.toString('ascii',8,12),'WAVE');
@@ -746,6 +767,30 @@ try{
   await longGuideContext.close();
   console.log('PASS 13-second Safari WAV renders humming across 5s and 10s seams, with no lost frames or rests');
   
+  // MUSIC-046: actual guide extraction must recover deliberately changed
+  // octaves after silence, not lock to an earlier note in the song.
+  const pitchContext=await browser.newContext();
+  const pitchPage=await pitchContext.newPage();
+  const pitchErrors=[];pitchPage.on('pageerror',e=>pitchErrors.push(String(e)));
+  await pitchPage.goto(base,{waitUntil:'domcontentloaded'});
+  await pitchPage.waitForSelector('#vocalFile',{state:'attached'});
+  await pitchPage.locator('[data-view="edit"]').click();
+  await pitchPage.locator('#guideInstrument').selectOption('humming');
+  await pitchPage.locator('#vocalFile').setInputFiles({
+    name:'octave-phrase-ci.wav',mimeType:'audio/wav',buffer:syntheticPhraseWav()
+  });
+  await pitchPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('octave-phrase-ci'));
+  await pitchPage.locator('#makeGuide').click();
+  await pitchPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('✓ メロディ'),{timeout:30000});
+  const extracted=await pitchPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  for(const expected of ['C4','C5','A4','A5'])
+    assert.ok(extracted.includes(expected),'phrase-aware pitch analysis must recover '+expected+'; got '+JSON.stringify(extracted));
+  assert.ok(extracted.length>=4&&extracted.length<=12,'guide should contain natural distinct phrases, not hundreds of spurious notes');
+  assert.equal(await pitchPage.locator('#tracks article.track').count(),2,'keep the source vocal alongside the newly generated guide');
+  assert.deepEqual(pitchErrors,[]);
+  await pitchContext.close();
+  console.log('PASS browser extracts C4/C5/A4/A5 after long silent breaths without octave lock');
+
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
