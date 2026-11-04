@@ -1484,8 +1484,25 @@
     if((kind==="chords"||kind==="pad")&&ctx.createDelay){const d=ctx.createDelay(.06),wet=ctx.createGain();d.delayTime.value=kind==="pad"?.034:.018;wet.gain.value=kind==="pad"?.075:.055;bus.connect(d).connect(wet);stereoDestination(ctx,wet,destination,(track.pan||0)+(note.pan||0)+(kind==="pad"?.12:.08));}
   }
 
+  function hummingLegatoNotes(notes){
+    // Transient playback copies only: source note timing and MIDI remain exact.
+    return notes.map((note,i)=>{
+      const next=notes[i+1];
+      if(!note||!next||note.drum||next.drum||!Number.isFinite(note.midi)||!Number.isFinite(next.midi))return note;
+      const start=Number(note.start),duration=Number(note.duration),nextStart=Number(next.start);
+      if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0||!Number.isFinite(nextStart))return note;
+      const gap=nextStart-(start+duration);
+      // Bridge tiny silences only; genuine pauses remain untouched.
+      if(gap<0||gap>.08)return note;
+      return {...note,duration:duration+gap+.018};
+    });
+  }
+
   function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {
-    (track.notes||[]).forEach(note=>{if(note.drum)scheduleDrum(ctx,destination,track,note,base,windowStart,windowEnd,collect);else scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect);});
+    const notes=track.notes||[];
+    const humming=(track.synthKind||track.type)==="guide"&&(track.guideInstrument||state.guideInstrument||"electone")==="humming";
+    const scheduled=humming?hummingLegatoNotes(notes):notes;
+    scheduled.forEach(note=>{if(note.drum)scheduleDrum(ctx,destination,track,note,base,windowStart,windowEnd,collect);else scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect);});
   }
 
   async function previewGuideInstrument(){
@@ -1504,7 +1521,7 @@
         {start:1.20,duration:.40,midi:62,velocity:.72}
       ];
       const base=ctx.currentTime+.06;
-      for(const note of phrase)scheduleTone(ctx,ctx.destination,track,note,base,0,Infinity,false);
+      scheduleGuide(ctx,ctx.destination,{...track,notes:phrase},base,0,Infinity,false);
       setStatus("♪ "+guideInstrumentLabel(track.guideInstrument)+"を試聴中（合成サンプル・原音は変更しません）");
     }catch(e){
       setStatus("音色試聴エラー: "+(e?.message||String(e)));
