@@ -312,3 +312,44 @@ test('full-song 195s segmented synthesis preserves all samples and bounded overl
   assert.equal(h.calls.length,40);
   assert.ok(h.calls.every(c=>c.to-c.from<=5.101),'no full-song offline context should be allocated');
 });
+
+function pitchPeakHarness(){
+  const helper=source('  function chooseGuideFundamentalLag(correlations,minLag,bestLag,bestCorr){','  async function extractGuide(){');
+  return new Function(helper+';return chooseGuideFundamentalLag;')();
+}
+function syntheticPitchCorrelations(frequency){
+  const rate=12000,win=1024,minLag=Math.floor(rate/1000),maxLag=Math.ceil(rate/70);
+  const data=Float32Array.from({length:win},(_,i)=>Math.sin(2*Math.PI*frequency*i/rate));
+  let mean=0;
+  for(let i=0;i<win;i+=4)mean+=data[i];
+  mean/=Math.ceil(win/4);
+  const correlations=new Float32Array(maxLag+2);
+  let bestCorr=-1,bestLag=0;
+  for(let lag=minLag;lag<=maxLag;lag++){
+    let xy=0,xx=0,yy=0;
+    for(let j=0;j<win-lag;j+=4){const a=data[j]-mean,b=data[j+lag]-mean;xy+=a*b;xx+=a*a;yy+=b*b}
+    correlations[lag]=xy/Math.sqrt(Math.max(1e-12,xx*yy));
+    if(correlations[lag]>bestCorr){bestCorr=correlations[lag];bestLag=lag}
+  }
+  return {correlations,minLag,bestLag,bestCorr};
+}
+test('pitch analysis chooses first strong autocorrelation period rather than distant octave multiples',()=>{
+  const choose=pitchPeakHarness();
+  for(const [freq,targetMidi] of [[261.6256,60],[523.2511,72],[440,69],[880,81],[329.63,64],[659.25,76]]){
+    const x=syntheticPitchCorrelations(freq);
+    const chosen=choose(x.correlations,x.minLag,x.bestLag,x.bestCorr);
+    const measured=69+12*Math.log2(12000/chosen/440);
+    assert.ok(Math.abs(measured-targetMidi)<=.8,
+      `expected MIDI ${targetMidi} for ${freq}Hz, measured ${measured.toFixed(2)} from lag ${chosen}`);
+  }
+});
+test('octave peak preference is disabled for uncertain or flat correlation surfaces',()=>{
+  const choose=pitchPeakHarness(),c=new Float32Array(40);
+  c[12]=.62;c[13]=.60;c[25]=.75;c[24]=.7;c[26]=.70;
+  assert.equal(choose(c,11,25,.75),25,'low confidence remains untouched');
+  const extraction=source('  async function extractGuide(){','  function transposeGuide(');
+  assert.match(extraction,/lastConfidentTime=-Infinity/);
+  assert.match(extraction,/withinPhrase=t-lastConfidentTime<=\.24/);
+  assert.match(extraction,/if\(previousMidi&&withinPhrase\)/);
+  assert.doesNotMatch(extraction,/if\(previousMidi\)\{const candidates/,'unconditional prior-note octave locking cannot return');
+});
