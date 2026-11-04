@@ -688,6 +688,64 @@ try{
   await guideContext.close();
   console.log('PASS opt-in MASTER exports the real humming instrument and preserves guide-off default');
   
+
+  // MUSIC-045: the 5-second Safari/compat rendering path must preserve a
+  // sustained humming tone across BOTH of its 5s and 10s WAV chunk seams.
+  const longGuideContext=await browser.newContext();
+  const longGuidePage=await longGuideContext.newPage();
+  let longGuideAceCalls=0;
+  longGuidePage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))longGuideAceCalls++});
+  await longGuidePage.goto(base,{waitUntil:'domcontentloaded'});
+  await longGuidePage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const longGuideBytes=await longGuidePage.evaluate(async()=>{
+    const project={
+      id:'portable',name:'Long humming chunk seam CI',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'long-guide-ci',name:'Long humming guide',type:'guide',
+        gain:.85,pan:0,start:0,duration:13,guideInstrument:'humming',
+        mute:false,solo:false,
+        notes:[
+          {start:4.4,duration:1.2,midi:69,velocity:.9},
+          {start:9.4,duration:1.2,midi:69,velocity:.9},
+          {start:12.2,duration:.35,midi:72,velocity:.8}
+        ]
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await longGuidePage.locator('[data-view="project"]').click();
+  await longGuidePage.locator('#portableProjectFile').setInputFiles({
+    name:'long-humming.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(longGuideBytes)
+  });
+  await longGuidePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await longGuidePage.locator('[data-view="edit"]').click();
+  await longGuidePage.locator('#compatPlay').click();
+  await longGuidePage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('13.0秒'),{timeout:30000});
+  const longGuideStats=await longGuidePage.evaluate(async()=>{
+    const audio=document.querySelector('#compatAudio');
+    const bytes=await (await fetch(audio.src)).arrayBuffer();
+    const view=new DataView(bytes),rate=view.getUint32(24,true),channels=view.getUint16(22,true);
+    const dataBytes=view.getUint32(40,true),frames=dataBytes/(channels*2);
+    function rms(a,b){
+      const from=Math.round(a*rate),to=Math.min(frames,Math.round(b*rate));let sum=0;
+      for(let i=from;i<to;i++){const y=view.getInt16(44+i*channels*2,true)/32768;sum+=y*y;}
+      return Math.sqrt(sum/Math.max(1,to-from));
+    }
+    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),rest:rms(7,7.5),tail:rms(12.27,12.37)};
+  });
+  assert.equal(longGuideStats.rate,44100);
+  assert.equal(longGuideStats.frames,13*44100,'full WAV must have exact duration with no repeated/dropped overlap samples');
+  assert.ok(longGuideStats.seam5before>.003&&longGuideStats.seam5after>.003);
+  assert.ok(longGuideStats.seam10before>.003&&longGuideStats.seam10after>.003);
+  assert.ok(longGuideStats.tail>.003,'late melody should not disappear in the final chunk');
+  assert.ok(longGuideStats.rest<.0005,'a genuine breath/rest remains silent');
+  assert.equal(longGuideAceCalls,0,'local WAV rendering makes no generation requests');
+  await longGuideContext.close();
+  console.log('PASS 13-second Safari WAV renders humming across 5s and 10s seams, with no lost frames or rests');
+  
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
