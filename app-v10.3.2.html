@@ -1673,7 +1673,9 @@
             const hz=targetRate/selectedLag;let m=69+12*Math.log2(hz/440);
             // Do not pull a new phrase into the octave of a note before a breath.
             const t=i/targetRate,withinPhrase=t-lastConfidentTime<=.24;
-            if(previousMidi&&withinPhrase){
+            // A clear pitch-period peak can be a genuine melodic leap.
+            // Only ambiguous voiced frames may inherit the previous octave.
+            if(previousMidi&&withinPhrase&&confidence<.82){
               const candidates=[m-24,m-12,m,m+12,m+24].filter(x=>x>=36&&x<=96);
               m=candidates.sort((a,b)=>Math.abs(a-previousMidi)-Math.abs(b-previousMidi))[0];
               if(Math.abs(m-previousMidi)>10&&confidence<.72)m=previousMidi;
