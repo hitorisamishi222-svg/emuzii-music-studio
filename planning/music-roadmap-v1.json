@@ -682,6 +682,33 @@
       ]
     },
     {
+      "id": "MUSIC-043",
+      "title": "ハミング風ガイドの短い音符間をレガート接続して休符と原音を保護",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 76,
+      "dependsOn": [
+        "MUSIC-042",
+        "MUSIC-041"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "80ms以内の短いギャップを18msだけ重ねて再生し、長い休符と既存の重なりは変えない",
+        "原音・ガイド音符データ・MIDI・他16音色の結果を変更しない",
+        "実Chromiumで隣接する音符の発音停止時刻が次音の開始より後になることを検証",
+        "既存の歌入れ・破損復元・複数トラックWAV回帰試験をPASS"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41810954819",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41810880943",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_043_HUMMING_LEGATO.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
