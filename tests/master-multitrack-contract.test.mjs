@@ -73,7 +73,7 @@ async function midiNoteEvents(blob){
   const events=[];
   while(pos<bytes.length){
     tick+=vlq();const status=bytes[pos++];
-    if(status===0xff){pos++;pos+=vlq();continue}
+    if(status===0xff){pos++;const metaLength=vlq();pos+=metaLength;continue}
     assert.ok(status===0x80||status===0x90,'unexpected channel event');
     const pitch=bytes[pos++];pos++;
     events.push({tick,kind:status===0x90?'on':'off',pitch});
