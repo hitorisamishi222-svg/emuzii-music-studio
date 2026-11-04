@@ -46,3 +46,13 @@ test('audio references must be exact and unique',async()=>{
   const c=source();c.project.tracks[1].id='backing';
   await assert.rejects(()=>bundle.pack(c),/重複/);
 });
+
+test('rejects a bundle above total capacity before hashing any audio bytes',async()=>{
+  class MetadataOnlyBlob extends Blob{
+    get size(){return 200*1024*1024}
+    async arrayBuffer(){throw Error('SHA-256 ran before capacity preflight')}
+  }
+  const project={id:'oversize',tracks:Array.from({length:4},(_,i)=>({id:'track-'+i,blobId:'asset:'+i}))};
+  const assets=Array.from({length:4},(_,i)=>({id:'asset:'+i,blob:new MetadataOnlyBlob([Uint8Array.of(i)])}));
+  await assert.rejects(()=>bundle.pack({project,assets}),/合計音源容量が上限/);
+});
