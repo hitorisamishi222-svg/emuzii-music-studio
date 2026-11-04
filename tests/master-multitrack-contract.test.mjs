@@ -193,3 +193,70 @@ test('humming legato ignores broken note boundaries or transitions involving dru
   const result=h.hummingLegatoNotes(notes);
   assert.deepEqual(result,notes);
 });
+
+function masterGuideHarness({included=true,tracks=[]}={}){
+  const code=source('  function audibleMasterGuideTracks(){','  async function renderMasterMix(){');
+  const scheduled=[];
+  const state={tracks,guideNotes:[]};
+  const els={masterIncludeGuide:{checked:included}};
+  const methods=new Function('state','els','shouldPlayTrack','scheduleGuide',code+';return {audibleMasterGuideTracks,masterGuideSourceEnd,renderMasterGuideTrack};')(
+    state,els,t=>!t.mute&&(!state.tracks.some(x=>x.solo)||t.solo),
+    (_ctx,_dst,track,base,from,to,collect)=>scheduled.push({track:structuredClone(track),base,from,to,collect})
+  );
+  return {...methods,scheduled,state,els};
+}
+test('MASTER guide is explicitly opt-in; mute and solo remain authoritative',()=>{
+  const a={type:'guide',id:'humming-a',notes:[{start:.2,duration:.3,midi:69}],mute:false,solo:false};
+  const b={type:'guide',id:'humming-b',notes:[{start:.1,duration:.3,midi:71}],mute:true,solo:false};
+  const backing={type:'backing',buffer:{duration:1},mute:false,solo:false};
+  const h=masterGuideHarness({included:false,tracks:[a,b,backing]});
+  assert.deepEqual(h.audibleMasterGuideTracks(),[],'default export must never include guide');
+  h.els.masterIncludeGuide.checked=true;
+  assert.deepEqual(h.audibleMasterGuideTracks().map(t=>t.id),['humming-a']);
+  backing.solo=true;
+  assert.deepEqual(h.audibleMasterGuideTracks(),[],'soloing backing prevents guide leakage');
+  backing.solo=false;a.solo=true;
+  assert.deepEqual(h.audibleMasterGuideTracks().map(t=>t.id),['humming-a']);
+  assert.match(app,/<input id="masterIncludeGuide" type="checkbox"> ガイドメロディも入れる/);
+  const exportCode=source('  async function renderMasterMix(){','  async function exportMasterMixWav(){');
+  assert.match(exportCode,/const guideTracks=audibleMasterGuideTracks\(\)/);
+  assert.match(exportCode,/if\(guideTracks\.length\)for\(const guide of guideTracks\)renderMasterGuideTrack\(/);
+  assert.match(exportCode,/else if\(manualGuide\)/,'piano-roll legacy fallback must remain');
+});
+test('MASTER guide duration includes negative source start but no invented silence',()=>{
+  const h=masterGuideHarness();
+  const notes=[{start:0,duration:.2,midi:60},{start:1,duration:.4,midi:64},{start:2,duration:NaN,midi:65}];
+  const track={type:'guide',start:-.3,notes};
+  assert.ok(Math.abs(h.masterGuideSourceEnd(track)-1.1)<1e-9);
+  assert.equal(h.masterGuideSourceEnd({...track,start:-10}),0);
+});
+test('MASTER guide schedules live notes without mutation when no structure map exists',()=>{
+  const h=masterGuideHarness(),track={type:'guide',guideInstrument:'humming',start:.1,gain:.75,notes:[{start:0,duration:.3,midi:69},{start:.36,duration:.3,midi:71}]};
+  const original=structuredClone(track);
+  h.renderMasterGuideTrack({}, {},track,null,3);
+  assert.equal(h.scheduled.length,1);
+  assert.deepEqual(h.scheduled[0].track,track,'same note data passed to live scheduler');
+  assert.equal(h.scheduled[0].to,3);
+  assert.equal(h.scheduled[0].collect,false);
+  assert.deepEqual(track,original,'no saved notes modified');
+});
+test('MASTER structure cuts/repeats map guide notes to the same output timeline as audio',()=>{
+  const h=masterGuideHarness(),track={type:'guide',guideInstrument:'humming',start:.2,gain:.8,notes:[
+    {start:0,duration:.6,midi:60},{start:.9,duration:.5,midi:64}
+  ]};
+  const original=structuredClone(track);
+  const map={segments:[
+    {srcStart:0,srcEnd:.6,dstStart:0},
+    {srcStart:1,srcEnd:1.6,dstStart:.6},
+    {srcStart:0,srcEnd:.6,dstStart:1.2}
+  ]};
+  h.renderMasterGuideTrack({}, {},track,map,2);
+  assert.equal(h.scheduled.length,3);
+  assert.deepEqual(h.scheduled.map(x=>x.track.notes.map(n=>({start:Number(n.start.toFixed(3)),duration:Number(n.duration.toFixed(3)),midi:n.midi}))),[
+    [{start:.2,duration:.4,midi:60}],
+    [{start:.7,duration:.5,midi:64}],
+    [{start:1.4,duration:.4,midi:60}]
+  ]);
+  assert.ok(h.scheduled.every(x=>x.track.start===0&&x.track.guideInstrument==='humming'));
+  assert.deepEqual(track,original);
+});
