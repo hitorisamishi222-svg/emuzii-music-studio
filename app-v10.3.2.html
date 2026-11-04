@@ -2489,18 +2489,58 @@
     ["triangle","sine"].forEach((type,k)=>{const o=ctx.createOscillator(),lp=ctx.createBiquadFilter(),g=ctx.createGain();o.type=type;o.frequency.value=440*Math.pow(2,(midi-69)/12)*(k?2:1);lp.type="lowpass";lp.frequency.value=type==="triangle"?3200:2200;g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(gain*(k?.16:1),t+.035);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(lp).connect(g).connect(dest);o.start(t);o.stop(t+dur+.03)})
   }
 
+  function audibleMasterGuideTracks(){
+    if(!els.masterIncludeGuide?.checked)return [];
+    return state.tracks.filter(t=>t.type==="guide"&&Array.isArray(t.notes)&&t.notes.length&&shouldPlayTrack(t));
+  }
+
+  function masterGuideSourceEnd(track){
+    const origin=Number(track.start??0);
+    if(!Number.isFinite(origin))return 0;
+    return Math.max(0,...(track.notes||[]).map(n=>{
+      const start=Number(n?.start),duration=Number(n?.duration);
+      return Number.isFinite(start)&&Number.isFinite(duration)&&duration>0?Math.max(0,origin+start+duration):0;
+    }));
+  }
+
+  function renderMasterGuideTrack(ctx,destination,track,map,end){
+    // Reuse the exact live guide scheduler, including humming legato.
+    // Source notes never change; any cut/copy remapping is a transient view.
+    if(!map){scheduleGuide(ctx,destination,track,0,0,end,false);return;}
+    const origin=Number(track.start??0);
+    if(!Number.isFinite(origin))return;
+    for(const seg of map.segments||[]){
+      const notes=[];
+      for(const note of track.notes||[]){
+        const start=Number(note?.start),duration=Number(note?.duration);
+        if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0)continue;
+        const from=origin+start,to=from+duration;
+        const a=Math.max(from,seg.srcStart,0),b=Math.min(to,seg.srcEnd);
+        if(b<=a)continue;
+        notes.push({...note,start:seg.dstStart+(a-seg.srcStart),duration:b-a});
+      }
+      if(notes.length)scheduleGuide(ctx,destination,{...track,start:0,notes},0,0,end,false);
+    }
+  }
+
   async function renderMasterMix(){
     // MASTER must contain every audible audio track, not merely the first
     // vocal/pitch-analysis reference. Read-only selection protects source data.
     const audibleAudioTracks=state.tracks.filter(t=>t.buffer&&shouldPlayTrack(t));
+    // Explicit opt-in only: guide track audio must never leak into the default MASTER.
+    const guideTracks=audibleMasterGuideTracks();
+    const hasGuideTrack=state.tracks.some(t=>t.type==="guide"&&t.notes?.length);
+    const manualGuide=!!els.masterIncludeGuide?.checked&&!hasGuideTrack&&!!state.guideNotes?.length;
     const beat=60/bpmValue(),arrDur=(state.chordProgression||[]).length*beat*4;
     const audioSourceDur=Math.max(0,...audibleAudioTracks.map(t=>Math.max(0,(Number(t.start)||0)+t.buffer.duration)));
-    const structureMap=els.structuralRenderEnabled?.checked&&audioSourceDur>0?buildStructureMap84(audioSourceDur):null;
-    const sourceDur=structureMap?structureMap.duration:audioSourceDur;
+    const guideSourceDur=Math.max(0,...guideTracks.map(masterGuideSourceEnd));
+    const timelineSourceDur=Math.max(audioSourceDur,guideSourceDur);
+    const structureMap=els.structuralRenderEnabled?.checked&&timelineSourceDur>0?buildStructureMap84(timelineSourceDur):null;
+    const sourceDur=structureMap?structureMap.duration:timelineSourceDur;
     const baseDuration=Math.max(arrDur,sourceDur,pianoSongDuration?.()||0);
     const duration=masterRenderDuration86(Math.max(.1,baseDuration)),sr=44100,OAC=window.OfflineAudioContext||window.webkitOfflineAudioContext;
     if(!OAC){setStatus("OfflineAudioContextに対応していません");return null}
-    if(!audibleAudioTracks.length&&!state.chordProgression?.length&&!(els.masterIncludeGuide?.checked&&state.guideNotes?.length)){setStatus("ミックスする音声または伴奏がありません");return null}
+    if(!audibleAudioTracks.length&&!state.chordProgression?.length&&!guideTracks.length&&!manualGuide){setStatus("ミックスする音声または伴奏がありません");return null}
     const ctx=new OAC(2,Math.ceil((duration+.5)*sr),sr),master=ctx.createGain(),comp=ctx.createDynamicsCompressor();master.gain.value=.9;
     if(els.masterLimiter?.checked){comp.threshold.value=-3;comp.knee.value=3;comp.ratio.value=18;comp.attack.value=.003;comp.release.value=.12;master.connect(comp).connect(ctx.destination)}else master.connect(ctx.destination);
     const toneInput=createMasterToneChain(ctx,master);
@@ -2513,7 +2553,10 @@
       if(els.renderBass?.checked&&dyn.bass>.55)for(let b=0;b<4;b+=2){const v=p*dyn.bass*humanVelocityFactor(i*2+b,4);renderBassHQ(ctx,arrangeGain,Math.max(0,t+b*beat+humanTimingOffset(i*2+b,5)),beat*.78,root,.075*v)}
       if(els.renderChords?.checked)chordMidiNotes(c).forEach((m,j)=>renderChordHQ(ctx,arrangeGain,Math.max(0,t+humanTimingOffset(i*4+j,6)),beat*3.85,m,.038*p*dyn.chords*humanVelocityFactor(i+j,8)/(1+j*.12)))
     });
-    if(els.masterIncludeGuide?.checked)(state.guideNotes||[]).forEach(n=>renderOsc(ctx,arrangeGain,mtStart(n),mtDur(n),440*Math.pow(2,(mtMidi(n)-69)/12),els.syncGuideTone?.value||"sine",.035));
+    // Generated guide tracks use the same instrument, timing and legato as live playback.
+    // Legacy piano-roll-only melodies retain their historical syncGuideTone path.
+    if(guideTracks.length)for(const guide of guideTracks)renderMasterGuideTrack(ctx,arrangeGain,guide,structureMap,duration);
+    else if(manualGuide)(state.guideNotes||[]).forEach(n=>renderOsc(ctx,arrangeGain,mtStart(n),mtDur(n),440*Math.pow(2,(mtMidi(n)-69)/12),els.syncGuideTone?.value||"sine",.035));
     return await ctx.startRendering()
   }
   async function exportMasterMixWav(){
