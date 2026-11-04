@@ -1645,13 +1645,36 @@
 
   function vlq(value){const out=[value&0x7f];while(value>>=7)out.unshift((value&0x7f)|0x80);return out;}
   function midiFile(){
-    const guide=state.tracks.find(t=>t.type==="guide"&&t.notes?.length)||state.tracks.find(t=>t.type==="melody"&&t.notes?.length);if(!guide)return null;const bpm=Math.max(40,Math.min(220,Number(els.bpm.value)||96)),ppq=480;
-    const events=[];guide.notes.forEach(n=>{const s=Math.max(0,guide.start+n.start),e=Math.max(s+.03,s+n.duration);events.push({tick:Math.round(s*bpm/60*ppq),data:[0x90,n.midi,90]},{tick:Math.round(e*bpm/60*ppq),data:[0x80,n.midi,0]});});
-    events.sort((a,b)=>a.tick-b.tick||(a.data[0]===0x80?-1:1));const tempo=Math.round(60000000/bpm);const track=[0x00,0xff,0x51,0x03,(tempo>>16)&255,(tempo>>8)&255,tempo&255];let prev=0;
-    events.forEach(ev=>{track.push(...vlq(ev.tick-prev),...ev.data);prev=ev.tick;});
-    const finalTick=Math.max(prev,Math.round((Math.max(0,guide.start)+Math.max(0,Number(guide.duration)||0))*bpm/60*ppq));track.push(...vlq(finalTick-prev),0xff,0x2f,0x00);
-    const bytes=[];const str=s=>[...s].map(c=>c.charCodeAt(0));const u32=n=>[(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];
-    bytes.push(...str("MThd"),0,0,0,6,0,0,0,1,(ppq>>8)&255,ppq&255,...str("MTrk"),...u32(track.length),...track);return new Blob([new Uint8Array(bytes)],{type:"audio/midi"});
+    const guide=state.tracks.find(t=>t.type==="guide"&&t.notes?.length)||state.tracks.find(t=>t.type==="melody"&&t.notes?.length);
+    if(!guide)return null;
+    const bpm=Math.max(40,Math.min(220,Number(els.bpm.value)||96)),ppq=480;
+    // A saved guide may omit start (meaning zero); a negative start trims the
+    // beginning of the audio, and MUST NOT create phantom MIDI notes at 0 s.
+    const origin=Number(guide.start??0);
+    if(!Number.isFinite(origin))return null;
+    const events=[];
+    for(const n of guide.notes){
+      const start=Number(n?.start??0),duration=Number(n?.duration),pitch=Number(n?.midi);
+      if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0||!Number.isInteger(pitch)||pitch<0||pitch>127)continue;
+      const audibleStart=origin+start,audibleEnd=audibleStart+duration;
+      if(!Number.isFinite(audibleEnd)||audibleEnd<=0)continue;
+      const on=Math.max(0,Math.round(Math.max(0,audibleStart)*bpm/60*ppq));
+      const off=Math.max(on+1,Math.round(audibleEnd*bpm/60*ppq));
+      events.push({tick:on,data:[0x90,pitch,90]},{tick:off,data:[0x80,pitch,0]});
+    }
+    if(!events.length)return null;
+    events.sort((a,b)=>a.tick-b.tick||(a.data[0]===0x80?-1:1));
+    const tempo=Math.round(60000000/bpm);
+    const track=[0x00,0xff,0x51,0x03,(tempo>>16)&255,(tempo>>8)&255,tempo&255];
+    let prev=0;
+    for(const ev of events){track.push(...vlq(ev.tick-prev),...ev.data);prev=ev.tick;}
+    const duration=Number(guide.duration)||0;
+    const tail=Number.isFinite(duration)?Math.max(0,origin+Math.max(0,duration)):0;
+    const finalTick=Math.max(prev,Math.round(tail*bpm/60*ppq));
+    track.push(...vlq(finalTick-prev),0xff,0x2f,0x00);
+    const bytes=[],str=s=>[...s].map(c=>c.charCodeAt(0)),u32=n=>[(n>>>24)&255,(n>>>16)&255,(n>>>8)&255,n&255];
+    bytes.push(...str("MThd"),0,0,0,6,0,0,0,1,(ppq>>8)&255,ppq&255,...str("MTrk"),...u32(track.length),...track);
+    return new Blob([new Uint8Array(bytes)],{type:"audio/midi"});
   }
 
   function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}

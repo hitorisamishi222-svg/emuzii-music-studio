@@ -57,3 +57,54 @@ test('master source volume zero is retained and mute/solo filtering happens befo
   assert.match(s,/filter\(t=>t\.buffer&&shouldPlayTrack\(t\)\)/);
   assert.match(source('function timelineDuration86(){','function validateMasterTimeline86(){'),/shouldPlayTrack\(t\)/);
 });
+
+function midiHarness(tracks,bpm='96'){
+  const slice=source('  function vlq(value){','  function downloadBlob(blob,name){');
+  return new Function('state','els',slice+';return midiFile;')({tracks},{bpm:{value:bpm}});
+}
+async function midiNoteEvents(blob){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  assert.equal(new TextDecoder().decode(bytes.slice(0,4)),'MThd');
+  assert.equal(new TextDecoder().decode(bytes.slice(14,18)),'MTrk');
+  const trackSize=new DataView(bytes.buffer).getUint32(18,false);
+  assert.equal(bytes.length,22+trackSize);
+  let pos=22,tick=0;
+  const vlq=()=>{let n=0,part;do{assert.ok(pos<bytes.length);part=bytes[pos++];n=(n<<7)|(part&127)}while(part&128);return n};
+  const events=[];
+  while(pos<bytes.length){
+    tick+=vlq();const status=bytes[pos++];
+    if(status===0xff){pos++;pos+=vlq();continue}
+    assert.ok(status===0x80||status===0x90,'unexpected channel event');
+    const pitch=bytes[pos++];pos++;
+    events.push({tick,kind:status===0x90?'on':'off',pitch});
+  }
+  assert.equal(pos,bytes.length);
+  return events;
+}
+test('midi export preserves timing when a saved guide omits track.start',async()=>{
+  const guide={type:'guide',duration:1.5,notes:[{start:0,duration:.25,midi:60},{start:1,duration:.25,midi:64}]};
+  const snapshot=structuredClone(guide);
+  const events=await midiNoteEvents(midiHarness([guide])());
+  assert.deepEqual(events,[{tick:0,kind:'on',pitch:60},{tick:192,kind:'off',pitch:60},{tick:768,kind:'on',pitch:64},{tick:960,kind:'off',pitch:64}]);
+  assert.deepEqual(guide,snapshot,'MIDI export must not mutate the original guide');
+});
+test('negative guide start clips its onset and discards fully inaudible notes',async()=>{
+  const guide={type:'guide',start:-.3,duration:1,notes:[
+    {start:0,duration:.1,midi:50},
+    {start:.2,duration:.3,midi:62},
+    {start:.6,duration:.2,midi:65}
+  ]};
+  const events=await midiNoteEvents(midiHarness([guide])());
+  assert.deepEqual(events,[
+    {tick:0,kind:'on',pitch:62},{tick:154,kind:'off',pitch:62},
+    {tick:230,kind:'on',pitch:65},{tick:384,kind:'off',pitch:65}
+  ]);
+});
+test('no audible notes or unsafe pitches never become phantom MIDI events',async()=>{
+  const invisible={type:'guide',start:-1,notes:[{start:0,duration:.5,midi:60}]};
+  assert.equal(midiHarness([invisible])(),null);
+  const invalid={type:'guide',notes:[{start:0,duration:.2,midi:200},{start:0,duration:NaN,midi:61}]};
+  assert.equal(midiHarness([invalid])(),null);
+  const fallback={type:'melody',notes:[{start:0,duration:.5,midi:72}]};
+  assert.deepEqual((await midiNoteEvents(midiHarness([fallback])())).map(x=>x.pitch),[72,72]);
+});
