@@ -115,7 +115,7 @@ test('humming guide instrument has an auditable preview and no user audio requir
   assert.match(app,/humming:"ハミング風"/);
   const preview=source('  async function previewGuideInstrument(){','  function listenGroup(track){');
   assert.match(preview,/ensureAudioContext\(\)/);
-  assert.match(preview,/ctx\.destination,track,note,base,0,Infinity,false/);
+  assert.match(preview,/scheduleGuide\(ctx,ctx\.destination,\{\.\.\.track,notes:phrase\},base,0,Infinity,false\)/);
   assert.doesNotMatch(preview,/state\.tracks\.(push|splice|pop|shift|unshift)|persistProject|fetch\(/);
 });
 function hummingHarness(){
@@ -154,4 +154,42 @@ test('humming guide tolerates omitted start and never schedules clipped or inval
   h.run(h.ctx,{}, {...track,start:-2},{start:0,duration:.3,midi:69},.1,0,Infinity,false);
   h.run(h.ctx,{},track,{start:0,duration:NaN,midi:69},.1,0,Infinity,false);
   assert.equal(h.events.oscs.length,prior,'silent/invalid notes cannot produce new sources');
+});
+
+function legatoHarness(){
+  const code=source('  function hummingLegatoNotes(notes){','  async function previewGuideInstrument(){');
+  const scheduled=[];
+  const factory=new Function('state','scheduleDrum','scheduleTone',code+';return {hummingLegatoNotes,scheduleGuide};');
+  const methods=factory({guideInstrument:'electone'},()=>{throw Error('fixture contains no drums')},(_ctx,_dst,_track,note)=>scheduled.push({...note}));
+  return {...methods,scheduled};
+}
+test('humming guide links micro-gaps while preserving breaths and original note data',()=>{
+  const h=legatoHarness();
+  const notes=[{start:0,duration:.32,midi:60},{start:.38,duration:.34,midi:62},{start:.78,duration:.36,midi:64},{start:1.30,duration:.4,midi:65}];
+  const original=structuredClone(notes);
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  assert.equal(h.scheduled.length,4);
+  assert.ok(Math.abs(h.scheduled[0].duration-.398)<1e-9);
+  assert.ok(Math.abs(h.scheduled[1].duration-.418)<1e-9);
+  assert.equal(h.scheduled[2].duration,.36,'actual phrase rest must remain');
+  assert.equal(h.scheduled[3].duration,.4);
+  assert.deepEqual(notes,original,'no persistent notes changed');
+});
+test('humming-only legato never changes previous guide instruments or overlapping note positions',()=>{
+  const h=legatoHarness();
+  const notes=[{start:0,duration:.3,midi:60},{start:.31,duration:.2,midi:62},{start:.45,duration:.2,midi:64},{start:.7,duration:.3,midi:65}];
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'piano',notes},0,0,Infinity,false);
+  assert.deepEqual(h.scheduled.map(n=>n.duration),[.3,.2,.2,.3]);
+  h.scheduled.length=0;
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  assert.ok(Math.abs(h.scheduled[0].duration-.328)<1e-9);
+  assert.equal(h.scheduled[1].duration,.2,'overlap should not be extended again');
+  assert.ok(Math.abs(h.scheduled[2].duration-.268)<1e-9);
+  assert.deepEqual(notes[0],{start:0,duration:.3,midi:60});
+});
+test('humming legato ignores broken note boundaries or transitions involving drums',()=>{
+  const h=legatoHarness();
+  const notes=[{start:0,duration:.2,midi:60},{start:.23,duration:.04,drum:'kick'},{start:.30,duration:NaN,midi:62},{start:.35,duration:.24,midi:65}];
+  const result=h.hummingLegatoNotes(notes);
+  assert.deepEqual(result,notes);
 });
