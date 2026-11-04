@@ -350,6 +350,7 @@ test('octave peak preference is disabled for uncertain or flat correlation surfa
   const extraction=source('  async function extractGuide(){','  function transposeGuide(');
   assert.match(extraction,/lastConfidentTime=-Infinity/);
   assert.match(extraction,/withinPhrase=t-lastConfidentTime<=\.24/);
-  assert.match(extraction,/if\(previousMidi&&withinPhrase\)/);
+  assert.match(extraction,/if\(previousMidi&&withinPhrase&&confidence<\.82\)/,
+    'confident interval leaps must not be octave-locked to the prior note');
   assert.doesNotMatch(extraction,/if\(previousMidi\)\{const candidates/,'unconditional prior-note octave locking cannot return');
 });
