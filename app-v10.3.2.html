@@ -1736,12 +1736,67 @@
   function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 
   async function buildChunk(start,end,sampleRate){
-    const frames=Math.max(1,Math.ceil((end-start)*sampleRate)),offline=makeOfflineAudioContext(2,frames,sampleRate),master=createSafeMasterChain(offline,offline.destination);
+    const frames=Math.max(1,Math.round((end-start)*sampleRate)),offline=makeOfflineAudioContext(2,frames,sampleRate),master=createSafeMasterChain(offline,offline.destination);
     state.tracks.forEach(track=>{if(!shouldPlayTrack(track))return;if(track.buffer){const trackEnd=track.start+track.buffer.duration,overlapStart=Math.max(start,track.start,0),overlapEnd=Math.min(end,trackEnd);if(overlapEnd>overlapStart){const src=offline.createBufferSource(),gain=offline.createGain();src.buffer=track.buffer;connectWithPan(offline,src,gain,master,track.pan);envelope(gain.gain,track,0,overlapStart,overlapEnd,start);src.start(overlapStart-start,overlapStart-track.start,overlapEnd-overlapStart);}}
       if(track.notes)scheduleGuide(offline,master,track,0,start,end,false);});return offline.startRendering();
   }
 
   function pcm(buffer){const left=buffer.getChannelData(0),right=buffer.numberOfChannels>1?buffer.getChannelData(1):left,out=new ArrayBuffer(left.length*4),view=new DataView(out);let o=0;for(let i=0;i<left.length;i++){const l=Math.max(-1,Math.min(1,left[i])),r=Math.max(-1,Math.min(1,right[i]));view.setInt16(o,l<0?l*32768:l*32767,true);o+=2;view.setInt16(o,r<0?r*32768:r*32767,true);o+=2;}return out;}
+  function pcmRange(buffer,from=0,to=buffer.length){
+    const lo=Math.max(0,Math.floor(from)),hi=Math.min(buffer.length,Math.floor(to)),left=buffer.getChannelData(0),right=buffer.numberOfChannels>1?buffer.getChannelData(1):left;
+    const out=new ArrayBuffer(Math.max(0,hi-lo)*4),view=new DataView(out);
+    for(let i=lo;i<hi;i++){
+      const l=Math.max(-1,Math.min(1,left[i])),r=Math.max(-1,Math.min(1,right[i])),off=(i-lo)*4;
+      view.setInt16(off,l<0?l*32768:l*32767,true);view.setInt16(off+2,r<0?r*32768:r*32767,true);
+    }
+    return out;
+  }
+
+  function pcmSeamTail(buffer,frames){
+    const n=Math.min(Math.max(0,Math.floor(frames)),buffer.length);
+    const left=buffer.getChannelData(0),right=buffer.numberOfChannels>1?buffer.getChannelData(1):left;
+    return {left:left.slice(buffer.length-n),right:right.slice(buffer.length-n),length:n};
+  }
+
+  function pcmCrossfadeSeam(previous,current){
+    const frames=previous.length;
+    if(!frames)return new ArrayBuffer(0);
+    if(current.length<frames)throw Error("WAV seam shorter than overlap");
+    const left=current.getChannelData(0),right=current.numberOfChannels>1?current.getChannelData(1):left;
+    const out=new ArrayBuffer(frames*4),view=new DataView(out);
+    for(let i=0;i<frames;i++){
+      const w=(i+.5)/frames;
+      const l=Math.max(-1,Math.min(1,previous.left[i]*(1-w)+left[i]*w));
+      const r=Math.max(-1,Math.min(1,previous.right[i]*(1-w)+right[i]*w));
+      view.setInt16(i*4,l<0?l*32768:l*32767,true);
+      view.setInt16(i*4+2,r<0?r*32768:r*32767,true);
+    }
+    return out;
+  }
+
+  async function renderChunkedMixPcm(duration,rate,chunk,onProgress){
+    // The iPhone-compatible and standard WAV paths share exact sample-frame
+    // alignment. The 100ms overlap blends separate oscillator phases at 5/10s
+    // boundaries without saving or modifying any of the source tracks.
+    const totalFrames=Math.ceil(duration*rate),chunkFrames=Math.max(1,Math.round(chunk*rate));
+    const crossfadeFrames=Math.max(1,Math.round(rate*.1));
+    const count=Math.ceil(totalFrames/chunkFrames),parts=[];
+    let written=0,pending=null;
+    for(let i=0;i<count;i++){
+      const from=i*chunkFrames,to=Math.min(totalFrames,from+chunkFrames);
+      const incoming=pending?.length||0;
+      const buffer=await buildChunk((from-incoming)/rate,to/rate,rate);
+      if(incoming){parts.push(pcmCrossfadeSeam(pending,buffer));written+=incoming;}
+      const outgoing=i===count-1?0:Math.min(crossfadeFrames,Math.floor((to-from)/2));
+      const a=incoming,b=buffer.length-outgoing;
+      if(b>a){parts.push(pcmRange(buffer,a,b));written+=b-a;}
+      pending=outgoing?pcmSeamTail(buffer,outgoing):null;
+      if(onProgress)await onProgress(i+1,count);
+    }
+    if(written!==totalFrames)throw Error("WAV sample count mismatch: "+written+" vs "+totalFrames);
+    return {parts,frames:written};
+  }
+
   function wavHeader(rate,frames){const data=frames*4,b=new ArrayBuffer(44),v=new DataView(b),w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};w(0,"RIFF");v.setUint32(4,36+data,true);w(8,"WAVE");w(12,"fmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,rate,true);v.setUint32(28,rate*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,data,true);return b;}
 
   function isIOSLike(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&navigator.maxTouchPoints>1);}
@@ -1772,11 +1827,10 @@
     const startedAt=performance.now();await keepAwake();
     els.compatPlay.disabled=true;els.wavProgress.style.width="1%";if(els.wavEta)els.wavEta.textContent="1% · iPhone互換音源を準備中…";setStatus("📱 iPhone互換音源を作成中…");
     try{
-      const rate=44100,chunk=5,count=Math.ceil(duration/chunk),parts=[];let frames=0;
-      for(let i=0;i<count;i++){
-        const start=i*chunk,end=Math.min(duration,start+chunk),rendered=await buildChunk(start,end,rate);frames+=rendered.length;parts.push(pcm(rendered));
-        const done=i+1,p=Math.round(done/count*100);els.wavProgress.style.width=`${p}%`;progressEta(els.wavEta,p,startedAt,done,count);await sleep(0);
-      }
+      const rate=44100,chunk=5;
+      const {parts,frames}=await renderChunkedMixPcm(duration,rate,chunk,async(done,count)=>{
+        const p=Math.round(done/count*100);els.wavProgress.style.width=`${p}%`;progressEta(els.wavEta,p,startedAt,done,count);await sleep(0);
+      });
       const blob=new Blob([wavHeader(rate,frames),...parts],{type:"audio/wav"});setCompatBlob(blob,`現在の再生対象 ${duration.toFixed(1)}秒`);
       els.wavProgress.style.width="100%";if(els.wavEta)els.wavEta.textContent="100% · 互換再生の準備完了";setStatus("📱 互換音源を準備しました。下の標準プレイヤーの▶︎をタップしてください");return blob;
     }catch(e){console.error("compat mix",e);setStatus(`iPhone互換再生の準備に失敗: ${e?.message||e}`);els.wavProgress.style.width="0%";return null;}
@@ -1799,11 +1853,10 @@
     await keepAwake();
     els.makeWav.disabled=true;els.saveActions.classList.add("hidden");els.wavProgress.style.width="1%";if(els.wavEta)els.wavEta.textContent="1% · 残り時間を計算中…";setStatus("WAVを作成中… 1%");
     try{
-      const rate=44100,isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent),lowMemory=(navigator.deviceMemory&&navigator.deviceMemory<=4),chunk=(isIOS||lowMemory)?5:10,count=Math.ceil(duration/chunk),parts=[];let frames=0;
-      for(let i=0;i<count;i++){
-        const start=i*chunk,end=Math.min(duration,start+chunk),rendered=await buildChunk(start,end,rate);frames+=rendered.length;parts.push(pcm(rendered));
-        const done=i+1,p=Math.round(done/count*100);els.wavProgress.style.width=`${p}%`;progressEta(els.wavEta,p,startedAt,done,count);setStatus(`WAVを作成中… ${p}% · ${fmtRemaining(((performance.now()-startedAt)/1000/done)*(count-done))}`);await sleep(0);
-      }
+      const rate=44100,isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent),lowMemory=(navigator.deviceMemory&&navigator.deviceMemory<=4),chunk=(isIOS||lowMemory)?5:10;
+      const {parts,frames}=await renderChunkedMixPcm(duration,rate,chunk,async(done,count)=>{
+        const p=Math.round(done/count*100);els.wavProgress.style.width=`${p}%`;progressEta(els.wavEta,p,startedAt,done,count);setStatus(`WAVを作成中… ${p}% · ${fmtRemaining(((performance.now()-startedAt)/1000/done)*(count-done))}`);await sleep(0);
+      });
       state.wavBlob=new Blob([wavHeader(rate,frames),...parts],{type:"audio/wav"});const url=URL.createObjectURL(state.wavBlob);els.downloadWav.href=url;els.saveActions.classList.remove("hidden");if(els.wavEta)els.wavEta.textContent=`100% · 完了 (${(performance.now()-startedAt<60000?((performance.now()-startedAt)/1000).toFixed(1)+"秒":Math.round((performance.now()-startedAt)/60000)+"分")})`;setStatus("✓ WAV完成。『共有 / 保存』を押してください");
     }catch(e){console.error(e);setStatus("WAV作成に失敗しました");els.wavProgress.style.width="0%";if(els.wavEta)els.wavEta.textContent="失敗 · もう一度試してください";}finally{els.makeWav.disabled=false;await releaseAwake();}
   }
