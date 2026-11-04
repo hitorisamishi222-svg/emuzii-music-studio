@@ -343,6 +343,29 @@ test('pitch analysis chooses first strong autocorrelation period rather than dis
       `expected MIDI ${targetMidi} for ${freq}Hz, measured ${measured.toFixed(2)} from lag ${chosen}`);
   }
 });
+test('integer-lag octave errors in a vibrato harmonic singer resolve to the earliest strong 880 Hz period',()=>{
+  const choose=pitchPeakHarness(),rate=12000,window=1024,freq=880;
+  for(const offset of [.07,.18,.30,.50]){
+    const data=new Float32Array(window),start=offset;
+    for(let i=0;i<window;i++){
+      const t=start+i/rate;
+      const phase=2*Math.PI*freq*(t+(15/1200)*Math.sin(2*Math.PI*4.8*t)/(2*Math.PI*4.8));
+      data[i]=.37*Math.sin(phase)+.29*Math.sin(2*phase+.15)+.18*Math.sin(3*phase+.6)+.1*Math.sin(4*phase+.3);
+    }
+    const minLag=12,maxLag=172,mean=data.filter((_,i)=>i%4===0).reduce((a,b)=>a+b,0)/256;
+    const corr=new Float32Array(maxLag+2);
+    let best=-1,bestLag=0;
+    for(let lag=minLag;lag<=maxLag;lag++){
+      let xy=0,xx=0,yy=0;
+      for(let j=0;j<window-lag;j+=4){const a=data[j]-mean,b=data[j+lag]-mean;xy+=a*b;xx+=a*a;yy+=b*b}
+      const c=xy/Math.sqrt(Math.max(1e-12,xx*yy));corr[lag]=c;
+      if(c>best){best=c;bestLag=lag}
+    }
+    const resolved=choose(corr,minLag,bestLag,best);
+    const midi=69+12*Math.log2(rate/resolved/440);
+    assert.ok(Math.abs(midi-81)<.8,`880Hz harmonic singer at ${offset}s must remain A5; lag=${resolved}, bestLag=${bestLag}, bestCorr=${best}`);
+  }
+});
 test('octave peak preference is disabled for uncertain or flat correlation surfaces',()=>{
   const choose=pitchPeakHarness(),c=new Float32Array(40);
   c[12]=.62;c[13]=.60;c[25]=.75;c[24]=.7;c[26]=.70;
