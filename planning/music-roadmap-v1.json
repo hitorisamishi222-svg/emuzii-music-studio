@@ -628,6 +628,32 @@
       ]
     },
     {
+      "id": "MUSIC-041",
+      "title": "ガイドMIDI書き出しの負開始位置・休符・未設定開始時刻を正確にする",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 78,
+      "dependsOn": [
+        "MUSIC-020",
+        "MUSIC-012"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ガイド開始位置がない旧形式でも0秒を使い音符間の時刻を保持",
+        "負開始で完全に聞こえない音符は出力せず、0秒をまたぐ音符は可聴部分のみ出力",
+        "不正な音符や音程は出力せず、原音と既存作品状態は変更しない",
+        "MIDIバイト列検査と既存ブラウザ往復・MASTER出力を通過"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41804572531",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41804287077",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "docs/MUSIC_041_GUIDE_MIDI_TIMING.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
