@@ -793,6 +793,35 @@
       ]
     },
     {
+      "id": "MUSIC-047",
+      "title": "22秒の倍音・ビブラート歌声近似でガイド12音と高音跳躍を正しく抽出",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 72,
+      "dependsOn": [
+        "MUSIC-046",
+        "MUSIC-045"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "22秒の倍音、15cent/4.8Hzビブラート、呼吸休止、フレーズ内A4→A5を含む合成歌声近似で音符抽出を検証",
+        "正解音名12個を順番どおり復元し、A3とA5の高低差も維持",
+        "十分な自動相関信頼度では直前音程のオクターブ補正を使わず、明確な跳躍を保持",
+        "整数サンプル周期誤差で高音の3倍周期が最大相関となる場合、最初の強い基本周期を優先",
+        "低音・高音を分けた周期検査および録音・長尺WAV・MASTER・保存/復元の実Chromium回帰がすべてPASS",
+        "元音源、ガイド保存、既存main/本番URLは変更せず、有料生成APIも不使用"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41932565613",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41932278002",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_047_HARMONIC_VIBRATO_VOCAL_PITCH.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
