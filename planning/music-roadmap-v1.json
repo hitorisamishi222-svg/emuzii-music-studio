@@ -654,6 +654,34 @@
       ]
     },
     {
+      "id": "MUSIC-042",
+      "title": "ハミング風ガイド音色と録音不要のブラウザ音色試聴",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 77,
+      "dependsOn": [
+        "MUSIC-041",
+        "MUSIC-020"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "既存16音色とデフォルト値を維持したまま、ハミング風合成ガイドを追加",
+        "ブラウザのWeb Audio音色試聴で音声ファイルや既存トラックを要求しない",
+        "オシレーターの基本周波数/倍音/フィルター検査とChromium実動作試験をPASS",
+        "原音・SONG ID・保存中の作品・既存本番URL・外部GPUを変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41805581385",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41805581328",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41805750642",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_042_HUMMING_GUIDE_PREVIEW.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
