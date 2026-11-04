@@ -40,6 +40,40 @@ function syntheticPhraseWav(){
   }
   return out;
 }
+function syntheticVibratoVocalWav(){
+  // A reproducible quasi-vocal challenge: harmonic formants, vibrato,
+  // connected melodic leaps, and long breath pauses, without user recordings.
+  const sampleRate=16000,duration=22,n=Math.round(duration*sampleRate),out=Buffer.alloc(44+n*2);
+  out.write('RIFF',0);out.writeUInt32LE(out.length-8,4);out.write('WAVE',8);
+  out.write('fmt ',12);out.writeUInt32LE(16,16);out.writeUInt16LE(1,20);
+  out.writeUInt16LE(1,22);out.writeUInt32LE(sampleRate,24);out.writeUInt32LE(sampleRate*2,28);
+  out.writeUInt16LE(2,32);out.writeUInt16LE(16,34);out.write('data',36);out.writeUInt32LE(n*2,40);
+  const notes=[
+    {from:.4,to:1.15,midi:60}, {from:1.28,to:2.05,midi:62},
+    {from:2.18,to:2.92,midi:64},
+    {from:4,to:4.78,midi:67}, {from:4.91,to:5.66,midi:72},
+    {from:7.2,to:7.98,midi:69}, {from:8.10,to:8.9,midi:81},
+    {from:10.4,to:11.18,midi:76}, {from:11.31,to:12.06,midi:72},
+    {from:14.2,to:15.01,midi:57}, {from:15.14,to:15.92,midi:60},
+    {from:20,to:20.84,midi:69}
+  ];
+  let current=null,phase=0;
+  for(let i=0;i<n;i++){
+    const time=i/sampleRate,note=notes.find(p=>time>=p.from&&time<p.to);
+    if(note!==current){current=note;phase=0;}
+    if(!note){out.writeInt16LE(0,44+i*2);continue;}
+    const t=time-note.from,end=note.to-time;
+    const env=Math.max(0,Math.min(1,t/.045,end/.06));
+    const cents=15*Math.sin(2*Math.PI*4.8*t);
+    const hz=440*Math.pow(2,(note.midi-69+cents/100)/12);
+    phase+=2*Math.PI*hz/sampleRate;
+    const voiced=.37*Math.sin(phase)+.29*Math.sin(2*phase+.15)+.18*Math.sin(3*phase+.6)+.10*Math.sin(4*phase+.3);
+    const breath=.012*Math.sin(2*Math.PI*3979*time)*Math.sin(2*Math.PI*1371*time);
+    const sample=Math.max(-.95,Math.min(.95,(voiced+breath)*.42*env));
+    out.writeInt16LE(Math.round(sample*32767),44+i*2);
+  }
+  return {wav:out,notes,duration};
+}
 function rmsWav(bytes,start,end){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');
   assert.equal(bytes.toString('ascii',8,12),'WAVE');
@@ -791,6 +825,35 @@ try{
   await pitchContext.close();
   console.log('PASS browser extracts C4/C5/A4/A5 after long silent breaths without octave lock');
 
+  // MUSIC-047: harmonic/vibrato voice-like fixture with melodic octave leaps.
+  const vibratoContext=await browser.newContext();
+  const vibratoPage=await vibratoContext.newPage();
+  const fixture=syntheticVibratoVocalWav();
+  await vibratoPage.goto(base,{waitUntil:'domcontentloaded'});
+  await vibratoPage.waitForSelector('#vocalFile',{state:'attached'});
+  await vibratoPage.locator('[data-view="edit"]').click();
+  await vibratoPage.locator('#guideInstrument').selectOption('humming');
+  await vibratoPage.locator('#vocalFile').setInputFiles({
+    name:'vibrato-harmonic-vocal.wav',mimeType:'audio/wav',buffer:fixture.wav
+  });
+  await vibratoPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('vibrato-harmonic-vocal'));
+  await vibratoPage.locator('#makeGuide').click();
+  await vibratoPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('✓ メロディ'),{timeout:45000});
+  const vibratoNotes=await vibratoPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  const expected=['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'];
+  let matched=0,searchFrom=0;
+  for(const note of expected){
+    const at=vibratoNotes.indexOf(note,searchFrom);
+    if(at>=0){matched++;searchFrom=at+1;}
+  }
+  assert.ok(matched>=10,
+    'quasi-vocal harmonic vibrato extraction should preserve at least 10 of 12 notes in order; matched '+matched+' notes: '+JSON.stringify(vibratoNotes));
+  assert.ok(vibratoNotes.includes('A5')&&vibratoNotes.includes('A3'),'large range changes must survive without octave-locking');
+  assert.ok(vibratoNotes.length<=22,'rests must not become hundreds of false note events');
+  assert.equal(await vibratoPage.locator('#tracks article.track').count(),2);
+  await vibratoContext.close();
+  console.log('PASS quasi-vocal harmonic vibrato fixture extracted 12-note long-form melodic phrases');
+  
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
