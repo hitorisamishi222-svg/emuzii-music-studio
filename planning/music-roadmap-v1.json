@@ -1,6 +1,6 @@
 {
   "schema": "asahi-music-roadmap/v1",
-  "asOf": "2026-11-04",
+  "asOf": "2026-11-05",
   "repository": "hitorisamishi222-svg/emuzii-music-studio",
   "developmentBranch": "feature/vocal-recorder-v1",
   "productionBaseline": "ec5b91b70829a085784a80fc9f4172daba0913e3",
@@ -734,6 +734,34 @@
         "tests/master-multitrack-contract.test.mjs",
         "tests/master-multitrack-browser.test.mjs",
         "docs/MUSIC_044_MASTER_GUIDE_TIMBRE.md"
+      ]
+    },
+    {
+      "id": "MUSIC-045",
+      "title": "長尺ガイドの分割WAVとiPhone互換再生の継ぎ目を滑らかにつなぐ",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 74,
+      "dependsOn": [
+        "MUSIC-043",
+        "MUSIC-044"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "iPhone互換音源の5秒分割と通常WAVの5/10秒分割で100ms重複合成を導入",
+        "元音源・元トラック・ガイド音符・MIDIの時間軸を変更しない",
+        "出力に二重挿入・欠落サンプルを作らず、既存の48kHz等でなく44.1kHz WAVを維持",
+        "13秒の実Chromiumで2か所の分割境界、終盤の音、無音の休符、外部API不使用を確認",
+        "195秒相当の模擬分割テストで全サンプル数が完全一致し、オフライン処理区間が最長約5.1秒に抑えられる"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41904968011",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41904855858",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_045_LONG_FORM_WAV_SEAMS.md"
       ]
     },
     {
