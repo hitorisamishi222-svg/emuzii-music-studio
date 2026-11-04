@@ -709,6 +709,34 @@
       ]
     },
     {
+      "id": "MUSIC-044",
+      "title": "MASTER WAVと通常再生でガイドトラック音色・ハミングレガートを統一",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 75,
+      "dependsOn": [
+        "MUSIC-043",
+        "MUSIC-020"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ガイドのMASTER取り込みは従来どおりOFFを初期値として明示ON時だけ適用",
+        "生成済みガイドトラックをMASTERで同じWeb Audio音色/レガート処理によりレンダリング",
+        "ミュート・ソロ・先頭オフセット・構成カット/繰返しを守りガイド原本は不変",
+        "既存ピアノロールだけのガイドは従来の書出し経路を維持",
+        "ガイドだけの合成作品を実Chromiumで書き出し、倍音・音符・休符・ガイド無効時の無出力を検査してPASS"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41814354345",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41814172505",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_044_MASTER_GUIDE_TIMBRE.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
