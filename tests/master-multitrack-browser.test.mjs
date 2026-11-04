@@ -625,6 +625,69 @@ try{
   await duplicateContext.close();
   console.log('PASS duplicated audio tracks persist separately without repeated Blob writes');
 
+
+  // MUSIC-044: A synthetic saved humming guide must be omitted from MASTER by
+  // default and rendered using the live synthesizer only after explicit opt-in.
+  const guideContext=await browser.newContext({acceptDownloads:true});
+  const guidePage=await guideContext.newPage();
+  let guideAceRequests=0;
+  guidePage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))guideAceRequests++});
+  await guidePage.goto(base,{waitUntil:'domcontentloaded'});
+  await guidePage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const guideBytes=await guidePage.evaluate(async()=>{
+    const project={
+      id:'portable',name:'Synthetic humming guide only',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'guide-ci',name:'Humming Guide CI',type:'guide',
+        gain:.85,pan:0,start:0,guideInstrument:'humming',mute:false,solo:false,
+        notes:[
+          {start:.12,duration:.30,midi:69,velocity:.95},
+          {start:.48,duration:.30,midi:71,velocity:.95}
+        ]
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await guidePage.locator('[data-view="project"]').click();
+  await guidePage.locator('#portableProjectFile').setInputFiles({
+    name:'humming-guide-ci.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(guideBytes)
+  });
+  await guidePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  assert.equal(await guidePage.locator('#tracks article.track').count(),1);
+  await guidePage.locator('[data-view="edit"]').click();
+  assert.equal(await guidePage.locator('#masterIncludeGuide').isChecked(),false,'default MASTER excludes guides');
+  await guidePage.locator('#exportMasterWav').click();
+  await guidePage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('ミックスする音声または伴奏がありません'));
+  await guidePage.evaluate(()=>{
+    window.__offlineGuideOscillators=[];
+    const start=OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start=function(...args){
+      if(this.context instanceof OfflineAudioContext)
+        window.__offlineGuideOscillators.push({frequency:this.frequency.value,start:args[0]});
+      return start.apply(this,args);
+    };
+  });
+  await guidePage.locator('#masterIncludeGuide').check();
+  const hummingDownload=guidePage.waitForEvent('download',{timeout:30000});
+  await guidePage.locator('#exportMasterWav').click();
+  const guideFile=await hummingDownload;
+  assert.match(guideFile.suggestedFilename(),/emuzii-master-.*\.wav/);
+  const guideParts=[];
+  for await(const piece of await guideFile.createReadStream())guideParts.push(piece);
+  const guideWav=Buffer.concat(guideParts);
+  const guideRmsA=rmsWav(guideWav,.2,.33),guideRmsB=rmsWav(guideWav,.57,.67),guideRest=rmsWav(guideWav,1.2,1.4);
+  assert.ok(guideRmsA>.003&&guideRmsB>.003,'both humming notes must sound in MASTER');
+  assert.ok(guideRest<.0005,'the exported guide must respect silence after the phrase');
+  const offlineOscs=await guidePage.evaluate(()=>window.__offlineGuideOscillators);
+  assert.ok(offlineOscs.some(x=>Math.abs(x.frequency-440)<4),'A4 fundamental must be exported');
+  assert.ok(offlineOscs.some(x=>Math.abs(x.frequency-880)<8),'humming harmonics prove live timbre was used, not the legacy single oscillator');
+  assert.equal(guideAceRequests,0,'offline MASTER export must make no external GPU calls');
+  await guideContext.close();
+  console.log('PASS opt-in MASTER exports the real humming instrument and preserves guide-off default');
+  
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
 }finally{
