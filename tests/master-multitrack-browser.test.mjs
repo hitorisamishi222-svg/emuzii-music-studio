@@ -122,7 +122,7 @@ function syntheticFullLengthTailWav(){
   }
   return {wav:out,notes,duration};
 }
-function syntheticBackingBleedWavs(){
+function syntheticBackingBleedWavs({variableDelay=false}={}){
   const original=syntheticBreathyConsonantWav(),sampleRate=16000;
   const backing=Buffer.from(original.wav),vocal=Buffer.from(original.wav);
   const frames=Math.round(original.duration*sampleRate),delay=Math.round(.025*sampleRate);
@@ -136,7 +136,8 @@ function syntheticBackingBleedWavs(){
   }
   for(let i=0;i<frames;i++){
     const clean=original.wav.readInt16LE(44+i*2)/32768;
-    const leaked=i>=delay?.37*reference[i-delay]:0;
+    const shifted=variableDelay?Math.round((i<frames/2?.018:.043)*sampleRate):delay;
+    const leaked=i>=shifted?.37*reference[i-shifted]:0;
     vocal.writeInt16LE(Math.round(Math.max(-.99,Math.min(.99,clean+leaked))*32767),44+i*2);
   }
   return {backing,vocal,notes:original.notes};
@@ -1010,6 +1011,31 @@ try{
   assert.equal(bleedAceCalls,0,'reference cancellation must remain completely offline');
   await bleedContext.close();
   console.log('PASS real Chromium reference cancels 25ms-delayed backing bleed without changing default');
+
+  // MUSIC-052: the same singing changes monitor latency at 11s; the
+  // calibration must work in BOTH halves rather than locking to one delay.
+  const driftContext=await browser.newContext();
+  const driftPage=await driftContext.newPage();
+  const driftFixture=syntheticBackingBleedWavs({variableDelay:true});
+  await driftPage.goto(base,{waitUntil:'domcontentloaded'});
+  await driftPage.waitForSelector('#mainFile',{state:'attached'});
+  await driftPage.locator('[data-view="edit"]').click();
+  assert.equal(await driftPage.locator('#guideBackingReference').isChecked(),false,'delay compensation must be opt-in');
+  await driftPage.locator('#mainFile').setInputFiles({name:'drift-backing-ci.wav',mimeType:'audio/wav',buffer:driftFixture.backing});
+  await driftPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('drift-backing-ci'));
+  await driftPage.locator('#vocalFile').setInputFiles({name:'drift-voice-ci.wav',mimeType:'audio/wav',buffer:driftFixture.vocal});
+  await driftPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('drift-voice-ci'));
+  await driftPage.locator('#guideBackingReference').check();
+  await driftPage.locator('#guideInstrument').selectOption('humming');
+  await driftPage.locator('#makeGuide').click();
+  await driftPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('伴奏漏れ補正あり'),{timeout:45000});
+  const driftNotes=await driftPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  const expectedDrift=['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'];
+  console.log('DRIFT_VOCAL_NOTES',JSON.stringify({driftNotes,expectedDrift}));
+  assert.deepEqual(driftNotes,expectedDrift,'18ms first half and 43ms second half must retain all 12 singing notes');
+  assert.equal(await driftPage.locator('#tracks article.track').count(),3,'retain original reference and voice');
+  await driftContext.close();
+  console.log('PASS opt-in browser guide extraction tolerates changed backing latency mid-song');
   
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
