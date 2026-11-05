@@ -822,6 +822,35 @@
       ]
     },
     {
+      "id": "MUSIC-048",
+      "title": "息・子音・環境ノイズ入りの12音を正しく抽出し、歌い出しの早まりを補正",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 71,
+      "dependsOn": [
+        "MUSIC-047",
+        "MUSIC-046"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "22秒の12音に無声音の子音、吐息、定常背景ノイズを重畳した合成歌声近似を使い、実Chromiumで12音を過不足なく順番通り認識",
+        "強いフレーズ内A5跳躍、低音A3、長い休符を保ち、子音・息継ぎだけの区間から余計な音符を作らない",
+        "約85msの解析窓の先頭時刻による歌い出しの早まりを、新規抽出ノートの開始のみ約25ms補正し終了位置は不変",
+        "開始時刻の平均絶対誤差を同じテストで約23msから13.3msへ改善",
+        "短いノート・先頭ノート・ドラム・不正データは補正せず、元録音と保存済みノートも非破壊",
+        "ガイドWAV、MASTER、録音、音声保存/復元、構成編集などの回帰試験をPASSし、本番URL・main・有料生成APIを変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41941054801",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41941768201",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_048_BREATH_CONSONANTS_ONSET_ALIGNMENT.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
