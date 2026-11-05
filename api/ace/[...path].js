@@ -1,4 +1,6 @@
 const ALLOWED = new Set(['health','v1/models','v1/stats','format_input','release_task','query_result','v1/audio']);
+const POST_ONLY = new Set(['format_input','release_task','query_result']);
+const MAX_JSON_BYTES = 1024 * 1024;
 
 function targetPath(req) {
   const parts = Array.isArray(req.query.path) ? req.query.path : [req.query.path].filter(Boolean);
@@ -20,6 +22,8 @@ export default async function handler(req, res) {
 
   const path = targetPath(req);
   if (!ALLOWED.has(path)) return res.status(404).json({ error: 'ACE route not allowed' });
+  const expectedMethod = POST_ONLY.has(path) ? 'POST' : 'GET';
+  if (req.method !== expectedMethod) return res.status(405).json({ error: 'Method not allowed' });
 
   // Fail closed: without a configured access token, an otherwise working GPU
   // URL must never become a publicly callable generation proxy.
@@ -33,6 +37,17 @@ export default async function handler(req, res) {
 
   const base = (process.env.ACESTEP_API_URL || '').replace(/\/+$/, '');
   if (!base) return res.status(503).json({ error: 'ACESTEP_API_URL is not configured' });
+  const apiKey = process.env.ACESTEP_API_KEY || '';
+  if (!apiKey) return res.status(503).json({ error: 'ACESTEP_API_KEY is not configured' });
+  try {
+    const configured = new URL(base);
+    if (configured.protocol !== 'https:' || configured.username || configured.password
+        || configured.search || configured.hash || configured.pathname !== '/') {
+      return res.status(503).json({ error: 'ACESTEP_API_URL must be an HTTPS origin' });
+    }
+  } catch {
+    return res.status(503).json({ error: 'ACESTEP_API_URL is invalid' });
+  }
 
   // Vercel's [...path] uses req.query.path for the route itself. ACE-Step's
   // GET /v1/audio uses a *different* query parameter named path. Expose it as
@@ -53,13 +68,15 @@ export default async function handler(req, res) {
   }
 
   const headers = {};
-  const apiKey = process.env.ACESTEP_API_KEY || '';
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  headers.Authorization = `Bearer ${apiKey}`;
   if (req.method !== 'GET' && req.method !== 'HEAD') headers['Content-Type'] = 'application/json';
 
   let body;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+    if (Buffer.byteLength(body, 'utf8') > MAX_JSON_BYTES) {
+      return res.status(413).json({ error: 'JSON payload is too large' });
+    }
   }
 
   try {
@@ -78,6 +95,6 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', type.includes('json') ? 'application/json; charset=utf-8' : type);
     return res.status(upstream.status).send(text);
   } catch (e) {
-    return res.status(502).json({ error: `ACE-Step upstream unavailable: ${e.message}` });
+    return res.status(502).json({ error: 'ACE-Step upstream unavailable' });
   }
 }
