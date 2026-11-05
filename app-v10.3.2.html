@@ -1669,37 +1669,61 @@
     // A strong positive correlation is required before subtracting anything:
     // a dry microphone take or unrelated backing must stay bit-for-bit intact.
     if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate)||sampleRate<=0)return {samples:vocalData,gain:0,lag:0,correlation:0};
-    // A whole-song model fails when latency drifts during a recording.
-    // Estimate independently in 3-second spans, with a short taper to avoid
-    // audible discontinuities where the cancellation model changes. This
-    // applies ONLY to temporary guide-extraction PCM and opt-in mode.
+    // Preserve the previously verified whole-song model whenever latency is
+    // stationary. Only a strong two-section disagreement may opt into a
+    // changed-latency correction, with a measured change point.
     if(windowed&&vocalData.length>=sampleRate*6){
-      const length=Math.max(1,Math.round(sampleRate)),base=Math.round(relativeStartFrames);
-      let topGain=0,topCorrelation=0,dominantLag=0;
-      const segments=[];
-      for(let from=0;from<vocalData.length;from+=length){
-        const to=Math.min(vocalData.length,from+length);
-        const result=reduceGuideBackingLeak(vocalData.subarray(from,to),backingData,relativeStartFrames+from,sampleRate,false);
-        segments.push({from:from/sampleRate,to:to/sampleRate,lag:result.lag,gain:result.gain,correlation:result.correlation});
-        if(result.correlation>topCorrelation)topCorrelation=result.correlation;
-        if(result.gain>topGain){topGain=result.gain;dominantLag=result.lag;}
+      const global=reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate,false);
+      const mid=Math.floor(vocalData.length/2),base=Math.round(relativeStartFrames);
+      const first=reduceGuideBackingLeak(vocalData.subarray(0,mid),backingData,base,sampleRate,false);
+      const second=reduceGuideBackingLeak(vocalData.subarray(mid),backingData,base+mid,sampleRate,false);
+      // Reject stationary backing and ambiguous, weakly correlated models.
+      if(first.gain>.025&&second.gain>.025&&
+        first.correlation>.42&&second.correlation>.42&&
+        Math.abs(first.lag-second.lag)>=Math.round(sampleRate*.008)){
+        const step=Math.max(8,Math.ceil(vocalData.length/30000)),fade=Math.max(1,Math.round(sampleRate*.02));
+        let cumulative=0,wholeSecond=0,wholeGlobal=0,bestDifference=Infinity,cut=mid;
+        let earlyAdvantage=0,lateAdvantage=0;
+        const residual=(i,model)=>{
+          const j=base+i+model.lag;
+          const reference=j>=0&&j<backingData.length?backingData[j]:0;
+          return vocalData[i]-model.gain*reference;
+        };
+        for(let i=0;i<vocalData.length;i+=step){
+          const a=residual(i,first),b=residual(i,second),g=residual(i,global);
+          const a2=a*a,b2=b*b;
+          const difference=a2-b2;
+          cumulative+=difference;
+          wholeSecond+=b2;
+          wholeGlobal+=g*g;
+          if(i<mid/2)earlyAdvantage+=b2-a2;
+          if(i>mid+mid/2)lateAdvantage+=a2-b2;
+          if(i>=vocalData.length*.15&&i<=vocalData.length*.85&&cumulative<bestDifference){
+            bestDifference=cumulative;cut=i;
+          }
+        }
+        // The first model must really beat the second on the early half,
+        // and vice versa at the end. Otherwise retain the safe global model.
+        if(earlyAdvantage>0&&lateAdvantage>0&&wholeSecond+bestDifference<wholeGlobal*.96){
+          const samples=new Float32Array(vocalData);
+          for(let i=0;i<samples.length;i++){
+            const fraction=i<cut?0:Math.min(1,(i-cut+1)/fade);
+            const j1=base+i+first.lag,j2=base+i+second.lag;
+            const x=j1>=0&&j1<backingData.length?first.gain*backingData[j1]:0;
+            const y=j2>=0&&j2<backingData.length?second.gain*backingData[j2]:0;
+            samples[i]-=x*(1-fraction)+y*fraction;
+          }
+          return {
+            samples,gain:Math.max(first.gain,second.gain),lag:first.lag,
+            correlation:Math.max(first.correlation,second.correlation),
+            segments:[
+              {from:0,to:cut/sampleRate,lag:first.lag,gain:first.gain,correlation:first.correlation},
+              {from:cut/sampleRate,to:vocalData.length/sampleRate,lag:second.lag,gain:second.gain,correlation:second.correlation}
+            ]
+          };
+        }
       }
-      if(topGain<=0)return {samples:vocalData,gain:0,lag:0,correlation:topCorrelation,segments};
-      // Sample-local correction: a latency change can happen within a verse.
-      // Apply each one-second estimate in its own region and only crossfade
-      // correction models over the first 25ms after a boundary. In particular,
-      // DO NOT fade to the original leaked vocal between sections.
-      const samples=new Float32Array(vocalData),blend=Math.max(1,Math.round(sampleRate*.025));
-      for(let i=0;i<samples.length;i++){
-        const section=Math.min(segments.length-1,Math.floor(i/length));
-        const previous=segments[Math.max(0,section-1)],current=segments[section];
-        const fraction=section===0?1:Math.min(1,(i-section*length+1)/blend);
-        const indexA=base+i+previous.lag,indexB=base+i+current.lag;
-        const x=indexA>=0&&indexA<backingData.length?previous.gain*backingData[indexA]:0;
-        const y=indexB>=0&&indexB<backingData.length?current.gain*backingData[indexB]:0;
-        samples[i]-=x*(1-fraction)+y*fraction;
-      }
-      return {samples,gain:topGain,lag:dominantLag,correlation:topCorrelation,segments};
+      return global;
     }
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
     // Scan densely enough to resolve narrow percussion/harmonic peaks,
