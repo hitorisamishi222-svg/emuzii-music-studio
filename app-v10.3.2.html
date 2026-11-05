@@ -1664,11 +1664,34 @@
     return scratch;
   }
 
-  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate){
+  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate,windowed=true){
     // Optional reference-guided cancellation, entirely on temporary PCM.
     // A strong positive correlation is required before subtracting anything:
     // a dry microphone take or unrelated backing must stay bit-for-bit intact.
-    if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate))return {samples:vocalData,gain:0,lag:0,correlation:0};
+    if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate)||sampleRate<=0)return {samples:vocalData,gain:0,lag:0,correlation:0};
+    // A whole-song model fails when latency drifts during a recording.
+    // Estimate independently in 3-second spans, with a short taper to avoid
+    // audible discontinuities where the cancellation model changes. This
+    // applies ONLY to temporary guide-extraction PCM and opt-in mode.
+    if(windowed&&vocalData.length>=sampleRate*6){
+      const length=Math.max(1,Math.round(sampleRate*3)),fade=Math.max(1,Math.round(sampleRate*.025));
+      let samples=null,topGain=0,topCorrelation=0,dominantLag=0;
+      const segments=[];
+      for(let from=0;from<vocalData.length;from+=length){
+        const to=Math.min(vocalData.length,from+length);
+        const result=reduceGuideBackingLeak(vocalData.subarray(from,to),backingData,relativeStartFrames+from,sampleRate,false);
+        segments.push({from:from/sampleRate,to:to/sampleRate,lag:result.lag,gain:result.gain,correlation:result.correlation});
+        if(result.correlation>topCorrelation)topCorrelation=result.correlation;
+        if(result.gain<=0)continue;
+        if(result.gain>topGain){topGain=result.gain;dominantLag=result.lag;}
+        if(!samples)samples=new Float32Array(vocalData);
+        for(let i=0;i<to-from;i++){
+          const weight=Math.min(1,(i+1)/fade,(to-from-i)/fade);
+          samples[from+i]=vocalData[from+i]+weight*(result.samples[i]-vocalData[from+i]);
+        }
+      }
+      return {samples:samples||vocalData,gain:topGain,lag:dominantLag,correlation:topCorrelation,segments};
+    }
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
     // Scan densely enough to resolve narrow percussion/harmonic peaks,
     // but cap work for three-minute recordings.
