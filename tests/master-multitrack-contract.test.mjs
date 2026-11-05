@@ -121,10 +121,10 @@ test('humming guide instrument has an auditable preview and no user audio requir
 function hummingHarness(){
   const src=source('  function scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect){','  function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {');
   const f=new Function('state','midiHz','stereoDestination','noiseBuffer','collectNode',src+';return scheduleTone;');
-  const events={oscs:[],filters:[],gainChanges:[]};
+  const events={oscs:[],filters:[],gainChanges:[],gains:[]};
   function parameter(){return {value:0,history:[],setValueAtTime(v,t){this.value=v;this.history.push({kind:'set',v,t});events.gainChanges.push({v,t})},linearRampToValueAtTime(v,t){this.history.push({kind:'linear',v,t});events.gainChanges.push({v,t})},exponentialRampToValueAtTime(v,t){this.history.push({kind:'exp',v,t});events.gainChanges.push({v,t})}}}
   const ctx={
-    createGain(){return {gain:parameter(),connect(){return this}}},
+    createGain(){const gain=parameter();events.gains.push(gain);return {gain,connect(){return this}}},
     createBiquadFilter(){const node={type:'',Q:parameter(),gain:parameter(),frequency:parameter(),connect(){return this}};events.filters.push(node);return node},
     createOscillator(){const node={type:'sine',frequency:parameter(),detune:parameter(),connect(){return this},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t})},stop(){}};return node}
   };
@@ -205,6 +205,53 @@ test('MUSIC-056 short humming and unrelated piano notes keep existing fixed form
     assert.equal(h.events.filters[1].frequency.value,c.hz);
     assert.deepEqual(h.events.filters[1].frequency.history,[],
       'short sounds and other instrument profiles must retain their original formant behavior');
+  }
+});
+test('MUSIC-057 long humming keeps source-relative sustain through both 5 and 10 second WAV seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,start:0,guideInstrument:'humming'};
+  const note={start:4.4,duration:7,midi:69,velocity:.8},original=structuredClone(note);
+  const render=(from,to)=>{
+    const h=hummingHarness();
+    h.run(h.ctx,{},track,note,0,from,to,false);
+    return h.events.gains[0].history;
+  };
+  const first=render(0,5),middle=render(4.9,10),last=render(9.9,13),whole=render(0,13);
+  const peak=.086*track.gain*note.velocity,held=peak*.90;
+  // The earlier code incorrectly ramped to silence at every clipped stop.
+  assert.equal(first.at(-1).kind,'exp');
+  assert.ok(Math.abs(first.at(-1).v-held)<1e-8,'first chunk must end in sustain, not release');
+  assert.deepEqual(middle,[{kind:'set',v:held,t:0}],
+    'the middle chunk must inherit the note sustain without re-attack/release');
+  assert.equal(last[0].kind,'set');
+  assert.ok(Math.abs(last[0].v-held)<1e-8,'second seam also starts at sustain level');
+  assert.ok(last.some(x=>x.kind==='set'&&x.t>2&&Math.abs(x.v-held)<1e-8),
+    'the true release may begin only near the original note end');
+  assert.equal(last.at(-1).v,.0001,'real note end must still release to silence');
+  assert.deepEqual(first.slice(0,3),whole.slice(0,3),
+    'the full-note envelope and first split window must share the same attack and decay');
+  assert.deepEqual(note,original,'source notes are not modified');
+});
+test('MUSIC-057 seek inside humming release follows original envelope rather than restarting attack',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const note={start:0,duration:1.2,midi:67,velocity:.8};
+  const h=hummingHarness();
+  h.run(h.ctx,{},track,note,0,1.1,1.2,false);
+  const history=h.events.gains[0].history;
+  assert.equal(history[0].kind,'set');
+  assert.ok(history[0].v>.0001&&history[0].v<.086*.75*.8*.9,
+    'a clipped tail should already be releasing at its first sample');
+  assert.equal(history.at(-1).v,.0001);
+  assert.equal(history.at(-1).kind,'exp');
+});
+test('MUSIC-057 leaves short humming and sustained piano envelope schedules unchanged',()=>{
+  for(const c of [
+    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.4,midi:64}},
+    {track:{type:'guide',gain:.7,guideInstrument:'piano'},note:{start:0,duration:7,midi:64}}
+  ]){
+    const h=hummingHarness();h.run(h.ctx,{},c.track,c.note,0,0,2,false);
+    const times=h.events.gains[0].history;
+    assert.equal(times[0].v,.0001);
+    assert.equal(times.at(-1).v,.0001,'unchanged instruments keep previous clipped release behavior');
   }
 });
 test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
