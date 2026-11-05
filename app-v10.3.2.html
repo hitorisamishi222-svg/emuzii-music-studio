@@ -1648,7 +1648,7 @@
     // Do not edit original audio or any previously saved guide/MIDI notes.
     const compensation=Math.min(.03,Math.max(0,windowSize/sampleRate)*.3);
     return notes.map(note=>{
-      if(!note||!Number.isFinite(note.start)||!Number.isFinite(note.duration)||note.start<.04||note.duration<.12)return note;
+      if(!note||note.drum||!Number.isFinite(note.start)||!Number.isFinite(note.duration)||note.start<.04||note.duration<.12)return note;
       const shift=Math.min(compensation,note.duration-.075);
       return shift>0?{...note,start:note.start+shift,duration:note.duration-shift}:note;
     });
