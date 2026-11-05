@@ -992,6 +992,31 @@
       ]
     },
     {
+      "id": "MUSIC-055",
+      "title": "ハミング風ガイドの短音を安定させ長音の遅延ビブラートで表現幅を改善",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 65,
+      "dependsOn": [
+        "MUSIC-042",
+        "MUSIC-044"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "0.28秒未満の短音はハミング風LFOを起動せず倍音を維持",
+        "0.28秒以上では0.14〜0.26秒後に最大12セントのビブラートを立ち上げる",
+        "音符ごとに4.7〜5.4Hzの決定論的な揺れを適用し他楽器の音色変更なし",
+        "Studio/Vocal/MASTERの自動回帰試験合格",
+        "原音、保存データ、実GPU、本番mainへの変更なし"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42028333514",
+        "docs/MUSIC_055_HUMMING_EXPRESSION_TIMING.md",
+        "tests/master-multitrack-contract.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
