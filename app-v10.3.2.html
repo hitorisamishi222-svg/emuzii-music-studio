@@ -1641,6 +1641,19 @@
     return bestLag;
   }
 
+  function calibrateExtractedGuideOnsets(notes,windowSize,sampleRate){
+    // Correlation windows begin before the stable voiced portion of a sung
+    // note. Browser synthetic-vocal timing tests show a consistent 20-50ms
+    // early note-on bias. Shift only the onset (~25ms), never the note end.
+    // Do not edit original audio or any previously saved guide/MIDI notes.
+    const compensation=Math.min(.03,Math.max(0,windowSize/sampleRate)*.3);
+    return notes.map(note=>{
+      if(!note||!Number.isFinite(note.start)||!Number.isFinite(note.duration)||note.start<.04||note.duration<.12)return note;
+      const shift=Math.min(compensation,note.duration-.075);
+      return shift>0?{...note,start:note.start+shift,duration:note.duration-shift}:note;
+    });
+  }
+
   async function extractGuide(){
     const vocal=[...state.tracks].reverse().find(t=>t.type==="vocal"&&t.buffer);if(!vocal){setStatus("先に②でボーカルを追加してください");return;}
     const guideStartedAt=performance.now();
@@ -1717,6 +1730,7 @@
       // Phrase-aware duration cleanup: do not let a note spill into a detected breath/rest.
       for(let i=0;i<notes.length-1;i++){const gap=notes[i+1].start-(notes[i].start+notes[i].duration);if(gap<0)notes[i].duration=Math.max(.045,notes[i+1].start-notes[i].start-.012);}
       notes=notes.filter(n=>Number.isFinite(n.midi)&&Number.isFinite(n.start)&&Number.isFinite(n.duration)&&n.duration>=.06);
+      notes=calibrateExtractedGuideOnsets(notes,win,targetRate);
       const guideDuration=Math.max(duration,Math.max(0,projectEndBefore-Math.max(0,Number(vocal.start)||0)));
       state.tracks.push({id:uid(),name:`${vocal.name} MELODY GUIDE`,type:"guide",notes,gain:.75,pan:0,start:vocal.start,duration:guideDuration,sourceDuration:duration,guideInstrument:state.guideInstrument,fadeIn:0,fadeOut:0,mute:false,solo:false});
       els.guideProgress.style.width="100%";if(els.guideEta)els.guideEta.textContent=`100% · 完了 (${((performance.now()-guideStartedAt)/1000).toFixed(1)}秒)`;renderTracks();scheduleAutoSave(300);setStatus(`✓ メロディ ${notes.length}音 · ${guideInstrumentLabel(state.guideInstrument)} · ${guideDuration.toFixed(1)}秒`);
