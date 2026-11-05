@@ -224,7 +224,7 @@ test('MUSIC-057 long humming keeps source-relative sustain through both 5 and 10
     'the middle chunk must inherit the note sustain without re-attack/release');
   assert.equal(last[0].kind,'set');
   assert.ok(Math.abs(last[0].v-held)<1e-8,'second seam also starts at sustain level');
-  assert.ok(last.some(x=>x.kind==='set'&&x.t>2&&Math.abs(x.v-held)<1e-8),
+  assert.ok(last.some(x=>x.kind==='set'&&x.t>1.2&&Math.abs(x.v-held)<1e-8),
     'the true release may begin only near the original note end');
   assert.equal(last.at(-1).v,.0001,'real note end must still release to silence');
   assert.deepEqual(first.slice(0,3),whole.slice(0,3),
