@@ -139,12 +139,38 @@ test('humming synthesizer emits pitched harmonic voice-like partials without per
   const root=harmonic[0].freq;
   assert.ok(root>260&&root<263);
   for(let i=0;i<harmonic.length;i++)assert.ok(Math.abs(harmonic[i].freq/root-(i+1))<.001);
-  assert.ok(h.events.oscs.some(x=>Math.abs(x.freq-5.05)<.001),'soft 5 Hz vibrato');
+  assert.ok(h.events.oscs.some(x=>x.freq>=4.7&&x.freq<=5.4),'gentle sustained ~5 Hz vibrato');
   assert.equal(h.events.filters[0].type,'lowpass');
   assert.ok(h.events.filters[0].frequency.value<3300,'avoid excessive bright harmonics');
   assert.equal(h.events.filters[1].type,'peaking');
   assert.equal(h.events.filters[1].frequency.value,960);
   assert.ok(h.events.gainChanges.every(x=>Number.isFinite(x.t)&&Number.isFinite(x.v)));
+});
+test('MUSIC-055 humming short syllables avoid synthetic pitch wobble',()=>{
+  const h=hummingHarness(),track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  h.run(h.ctx,{},track,{start:.12,duration:.18,midi:67,velocity:.8},1,0,Infinity,false);
+  const harmonics=h.events.oscs.filter(x=>x.freq>100);
+  assert.equal(harmonics.length,5,'short notes still play all five voice-like harmonics');
+  assert.equal(h.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4).length,0,
+    'short syllables should not wobble at the onset');
+});
+test('MUSIC-055 sustained humming blooms into bounded, varied late vibrato',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const note={start:.12,duration:.60,midi:64,velocity:.8},base=1;
+  const h=hummingHarness();
+  h.run(h.ctx,{},track,note,base,0,Infinity,false);
+  const lfos=h.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4);
+  assert.equal(lfos.length,2,'only two fundamental harmonics receive subtle vibrato');
+  const first=h.events.gainChanges.find(x=>Math.abs(x.v-9.6)<1e-6);
+  assert.ok(first,'fundamental vibrato depth is bounded to under twelve cents');
+  const onset=base+note.start;
+  assert.ok(first.t>=onset+.14&&first.t<=onset+.26+1e-9,
+    'vibrato fades in after the start of the sustained vowel');
+  const other=hummingHarness();
+  other.run(other.ctx,{},track,{...note,start:.87,midi:69},base,0,Infinity,false);
+  const otherLfo=other.events.oscs.find(x=>x.freq>=4.7&&x.freq<=5.4);
+  assert.ok(otherLfo&&otherLfo.freq!==lfos[0].freq,
+    'vibrato speed varies reproducibly across sung notes');
 });
 test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
   const h=hummingHarness(),track={type:'guide',gain:.7,guideInstrument:'humming'};
