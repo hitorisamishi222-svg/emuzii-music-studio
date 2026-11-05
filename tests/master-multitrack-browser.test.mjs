@@ -122,7 +122,7 @@ function syntheticFullLengthTailWav(){
   }
   return {wav:out,notes,duration};
 }
-function syntheticBackingBleedWavs({variableDelay=false}={}){
+function syntheticBackingBleedWavs({variableDelay=false,shortEcho=false}={}){
   const original=syntheticBreathyConsonantWav(),sampleRate=16000;
   const backing=Buffer.from(original.wav),vocal=Buffer.from(original.wav);
   const frames=Math.round(original.duration*sampleRate),delay=Math.round(.025*sampleRate);
@@ -137,7 +137,9 @@ function syntheticBackingBleedWavs({variableDelay=false}={}){
   for(let i=0;i<frames;i++){
     const clean=original.wav.readInt16LE(44+i*2)/32768;
     const shifted=variableDelay?Math.round((i<frames/2?.018:.043)*sampleRate):delay;
-    const leaked=i>=shifted?.37*reference[i-shifted]:0;
+    const echoDelay=shifted+Math.round(.057*sampleRate);
+    const leaked=(i>=shifted?.37*reference[i-shifted]:0)
+      +(shortEcho&&i>=echoDelay?.16*reference[i-echoDelay]:0);
     vocal.writeInt16LE(Math.round(Math.max(-.99,Math.min(.99,clean+leaked))*32767),44+i*2);
   }
   return {backing,vocal,notes:original.notes};
@@ -1036,6 +1038,31 @@ try{
   assert.equal(await driftPage.locator('#tracks article.track').count(),3,'retain original reference and voice');
   await driftContext.close();
   console.log('PASS opt-in browser guide extraction tolerates changed backing latency mid-song');
+  
+  // MUSIC-053: a direct 25ms monitor leak has a distinct echo at 82ms.
+  // A single reference offset leaves the echo in the recorded vocal.
+  const reflectedContext=await browser.newContext();
+  const reflectedPage=await reflectedContext.newPage();
+  const reflected=syntheticBackingBleedWavs({shortEcho:true});
+  await reflectedPage.goto(base,{waitUntil:'domcontentloaded'});
+  await reflectedPage.waitForSelector('#mainFile',{state:'attached'});
+  await reflectedPage.locator('[data-view="edit"]').click();
+  assert.equal(await reflectedPage.locator('#guideBackingReference').isChecked(),false);
+  await reflectedPage.locator('#mainFile').setInputFiles({name:'echo-backing-ci.wav',mimeType:'audio/wav',buffer:reflected.backing});
+  await reflectedPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('echo-backing-ci'));
+  await reflectedPage.locator('#vocalFile').setInputFiles({name:'echo-vocal-ci.wav',mimeType:'audio/wav',buffer:reflected.vocal});
+  await reflectedPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('echo-vocal-ci'));
+  await reflectedPage.locator('#guideBackingReference').check();
+  await reflectedPage.locator('#guideInstrument').selectOption('humming');
+  await reflectedPage.locator('#makeGuide').click();
+  await reflectedPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('伴奏漏れ補正あり'),{timeout:45000});
+  const reflectedNotes=await reflectedPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  console.log('REFLECTED_BLEED_NOTES',JSON.stringify(reflectedNotes));
+  assert.deepEqual(reflectedNotes,['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'],
+    'direct+reflected monitor accompaniment must leave the clean 12-note vocal guide');
+  assert.equal(await reflectedPage.locator('#tracks article.track').count(),3,'the input voice and backing must both be preserved');
+  await reflectedContext.close();
+  console.log('PASS browser reflected 82ms monitor echo remains out of twelve-note singing guide');
   
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
