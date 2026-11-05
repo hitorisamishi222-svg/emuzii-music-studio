@@ -1654,6 +1654,15 @@
     });
   }
 
+  function guidePitchWindow(data,start,size,scratch){
+    // The final <85ms are just as important as the song middle. Zero-fill
+    // only the read-only analysis view; the decoded vocal is never modified.
+    if(start+size<=data.length)return data.subarray(start,start+size);
+    scratch.fill(0);
+    scratch.set(data.subarray(start,Math.min(data.length,start+size)));
+    return scratch;
+  }
+
   async function extractGuide(){
     const vocal=[...state.tracks].reverse().find(t=>t.type==="vocal"&&t.buffer);if(!vocal){setStatus("先に②でボーカルを追加してください");return;}
     const guideStartedAt=performance.now();
@@ -1667,18 +1676,20 @@
       const win=1024,hop=Math.max(1,Math.floor(targetRate*.045)),minHz=70,maxHz=1000;
       const minLag=Math.floor(targetRate/maxHz),maxLag=Math.min(win-3,Math.ceil(targetRate/minHz));
       const raw=[];let previousMidi=0,lastConfidentTime=-Infinity;
-      const total=Math.max(1,Math.floor((data.length-win)/hop));
+      const scratch=new Float32Array(win);
+      const total=Math.max(1,Math.ceil(data.length/hop));
       const median=a=>{const b=a.filter(Boolean).slice().sort((x,y)=>x-y);return b.length?b[Math.floor(b.length/2)]:0;};
-      for(let i=0,frame=0;i+win<data.length;i+=hop,frame++){
-        let mean=0;for(let j=0;j<win;j+=4)mean+=data[i+j];mean/=Math.ceil(win/4);
-        let energy=0,zc=0,last=data[i]-mean;for(let j=0;j<win;j+=2){const v=data[i+j]-mean;energy+=v*v;if((v>=0)!=(last>=0))zc++;last=v;}
+      for(let i=0,frame=0;i<data.length;i+=hop,frame++){
+        const slice=guidePitchWindow(data,i,win,scratch);
+        let mean=0;for(let j=0;j<win;j+=4)mean+=slice[j];mean/=Math.ceil(win/4);
+        let energy=0,zc=0,last=slice[0]-mean;for(let j=0;j<win;j+=2){const v=slice[j]-mean;energy+=v*v;if((v>=0)!=(last>=0))zc++;last=v;}
         const rms=Math.sqrt(energy/Math.ceil(win/2));let midi=0,confidence=0;
         if(rms>.006 && zc<win*.32){
           let bestLag=0,bestCorr=-1;
           const correlations=new Float32Array(maxLag+2);
           for(let lag=minLag;lag<=maxLag;lag++){
             let xy=0,xx=0,yy=0;const lim=win-lag;
-            for(let j=0;j<lim;j+=4){const a=data[i+j]-mean,b=data[i+j+lag]-mean;xy+=a*b;xx+=a*a;yy+=b*b;}
+            for(let j=0;j<lim;j+=4){const a=slice[j]-mean,b=slice[j+lag]-mean;xy+=a*b;xx+=a*a;yy+=b*b;}
             const corr=xy/Math.sqrt(Math.max(1e-12,xx*yy));
             correlations[lag]=corr;
             if(corr>bestCorr){bestCorr=corr;bestLag=lag;}
@@ -1710,7 +1721,7 @@
       // Convert pitch frames to musical notes, requiring stable runs and merging near-identical neighbors.
       const runs=[];let run=null;
       for(const p of smooth){if(!p.midi){if(run){runs.push(run);run=null;}continue;}if(!run)run={start:p.t,end:p.t+hop/targetRate,vals:[p.midi]};else{const rm=median(run.vals);if(Math.abs(p.midi-rm)<=1){run.vals.push(p.midi);run.end=p.t+hop/targetRate;}else{runs.push(run);run={start:p.t,end:p.t+hop/targetRate,vals:[p.midi]};}}}if(run)runs.push(run);
-      let notes=runs.map(r=>({start:r.start,duration:Math.max(.045,r.end-r.start),midi:median(r.vals),velocity:.82})).filter(n=>n.duration>=.075);
+      let notes=runs.map(r=>({start:r.start,duration:Math.max(.045,Math.min(duration,r.end)-r.start),midi:median(r.vals),velocity:.82})).filter(n=>n.duration>=.075);
       // Remove isolated tiny jumps and bridge them into the surrounding melody.
       for(let i=1;i<notes.length-1;i++){const n=notes[i],a=notes[i-1],b=notes[i+1];if(n.duration<.14&&Math.abs(a.midi-b.midi)<=2&&Math.abs(n.midi-a.midi)>=4&&n.start-(a.start+a.duration)<.08&&b.start-(n.start+n.duration)<.08){a.duration=Math.max(a.duration,b.start+b.duration-a.start);notes.splice(i,2);i--;}}
       // Merge adjacent equal/near-equal notes so the guide sounds like phrases rather than beeps.
