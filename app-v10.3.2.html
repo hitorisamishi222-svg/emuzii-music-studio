@@ -122,6 +122,7 @@
                   <option value="soft">やわらかガイド</option>
                 </select>
                 <button id="previewGuideInstrument" class="mini" type="button">♪ 音色を試聴</button>
+                <label class="support"><input id="guideBackingReference" type="checkbox"> 伴奏漏れ補正（伴奏トラックを参照・任意）</label>
                 <small class="support">歌声がなくても音色を試聴できます。ハミング風は合成音で、実際の人声ではありません。17音色から選択でき、元の歌声は変更しません。</small>
               </div>
               <div class="progress"><span id="guideProgress"></span></div>
@@ -559,7 +560,7 @@
     status: $("status"), tracks: $("tracks"), empty: $("emptyTracks"), duration: $("durationLabel"), undoTrackDelete:$("undoTrackDelete"),
     mainFile: $("mainFile"), vocalFile: $("vocalFile"), recordVocal: $("recordVocal"), recordMessage: $("recordMessage"), recordOffset: $("recordOffset"), runtimeTest: $("runtimeTest"), runtimeReport: $("runtimeReport"),
     vocalBridgeSongId:$("vocalBridgeSongId"), vocalBridgeTakeName:$("vocalBridgeTakeName"), openVocalSupport:$("openVocalSupport"), importAsahiProject:$("importAsahiProject"), testVocalBridge:$("testVocalBridge"), testVocalBridgeTabs:$("testVocalBridgeTabs"), asahiProjectFile:$("asahiProjectFile"), vocalBridgeStatus:$("vocalBridgeStatus"),
-    makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), previewGuideInstrument: $("previewGuideInstrument"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
+    makeGuide: $("makeGuide"), guideInstrument: $("guideInstrument"), previewGuideInstrument: $("previewGuideInstrument"), guideBackingReference: $("guideBackingReference"), guideProgress: $("guideProgress"), guideEta: $("guideEta"), exportMidi: $("exportMidi"),
     playMix: $("playMix"), stopMix: $("stopMix"), audioTest: $("audioTest"), nativeAudioTest: $("nativeAudioTest"), compatPlay: $("compatPlay"), compatBox: $("compatBox"), compatAudio: $("compatAudio"), compatMeta: $("compatMeta"), makeWav: $("makeWav"), wavProgress: $("wavProgress"), wavEta: $("wavEta"), saveActions: $("saveActions"), shareWav: $("shareWav"), downloadWav: $("downloadWav"),
     songTitle: $("songTitle"), songDesign: $("songDesign"), lyrics: $("lyrics"), bpm: $("bpm"), songKey: $("songKey"), songLength: $("songLength"), aiAmount: $("aiAmount"), aiAmountLabel: $("aiAmountLabel"), phoneArrange: $("phoneArrange"), copyArrange: $("copyArrange"), arrangement: $("arrangement"),
     localStyle: $("localStyle"), localCompose: $("localCompose"), composeProgress: $("composeProgress"), composeEta: $("composeEta"), composeResult: $("composeResult"), composeSummary: $("composeSummary"), goEdit: $("goEdit"),
@@ -1663,6 +1664,49 @@
     return scratch;
   }
 
+  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate){
+    // Optional reference-guided cancellation, entirely on temporary PCM.
+    // A strong positive correlation is required before subtracting anything:
+    // a dry microphone take or unrelated backing must stay bit-for-bit intact.
+    if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate))return {samples:vocalData,gain:0,lag:0,correlation:0};
+    const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
+    const stride=32;
+    function measure(lag){
+      let xy=0,xx=0,yy=0,count=0;
+      for(let i=0;i<vocalData.length;i+=stride){
+        const j=base+lag+i;
+        if(j<0||j>=backingData.length)continue;
+        const x=vocalData[i],y=backingData[j];
+        xy+=x*y;xx+=x*x;yy+=y*y;count++;
+      }
+      const correlation=xy/Math.sqrt(Math.max(1e-15,xx*yy));
+      return {lag,correlation,gain:yy>1e-12?xy/yy:0,count};
+    }
+    let best=measure(0);
+    // Look for normal mic/monitor latency around the known project offset.
+    // A coarse scan plus sample-near refinement avoids a full O(N*latency) scan.
+    const step=24;
+    for(let lag=-search;lag<=search;lag+=step){
+      const candidate=measure(lag);
+      if(candidate.correlation>best.correlation)best=candidate;
+    }
+    const coarseLag=best.lag;
+    for(let lag=coarseLag-step;lag<=coarseLag+step;lag+=3){
+      if(lag< -search||lag>search)continue;
+      const candidate=measure(lag);
+      if(candidate.correlation>best.correlation)best=candidate;
+    }
+    const overlap=Math.min(vocalData.length,backingData.length);
+    if(best.correlation<.3||best.gain<.025||best.gain>.9||best.count<Math.min(256,Math.ceil(overlap/stride)*.5))return {samples:vocalData,gain:0,lag:0,correlation:best.correlation};
+    const gain=Math.min(.85,best.gain),samples=new Float32Array(vocalData.length);
+    samples.set(vocalData);
+    for(let i=0;i<samples.length;i++){
+      const j=base+best.lag+i;
+      if(j>=0&&j<backingData.length)samples[i]-=gain*backingData[j];
+    }
+    return {samples,gain,lag:best.lag,correlation:best.correlation};
+  }
+
   async function extractGuide(){
     const vocal=[...state.tracks].reverse().find(t=>t.type==="vocal"&&t.buffer);if(!vocal){setStatus("先に②でボーカルを追加してください");return;}
     const guideStartedAt=performance.now();
@@ -1672,7 +1716,20 @@
       const projectEndBefore=maxDuration();
       const targetRate=12000,duration=vocal.buffer.duration,frames=Math.max(1,Math.floor(duration*targetRate));
       const offline=makeOfflineAudioContext(1,frames,targetRate),src=offline.createBufferSource();src.buffer=vocal.buffer;src.connect(offline.destination);src.start(0);
-      const rendered=await offline.startRendering(),data=rendered.getChannelData(0);
+      const rendered=await offline.startRendering();
+      let data=rendered.getChannelData(0);
+      let backingReduction=null;
+      if(els.guideBackingReference?.checked){
+        const backing=[...state.tracks].reverse().find(t=>t.type==="backing"&&t.buffer);
+        if(backing){
+          const refFrames=Math.max(1,Math.floor(backing.buffer.duration*targetRate));
+          const refContext=makeOfflineAudioContext(1,refFrames,targetRate),refSource=refContext.createBufferSource();
+          refSource.buffer=backing.buffer;refSource.connect(refContext.destination);refSource.start(0);
+          const refRendered=await refContext.startRendering();
+          backingReduction=reduceGuideBackingLeak(data,refRendered.getChannelData(0),(Number(vocal.start||0)-Number(backing.start||0))*targetRate,targetRate);
+          data=backingReduction.samples;
+        }
+      }
       const win=1024,hop=Math.max(1,Math.floor(targetRate*.045)),minHz=70,maxHz=1000;
       const minLag=Math.floor(targetRate/maxHz),maxLag=Math.min(win-3,Math.ceil(targetRate/minHz));
       const raw=[];let previousMidi=0,lastConfidentTime=-Infinity;
@@ -1744,7 +1801,7 @@
       notes=calibrateExtractedGuideOnsets(notes,win,targetRate);
       const guideDuration=Math.max(duration,Math.max(0,projectEndBefore-Math.max(0,Number(vocal.start)||0)));
       state.tracks.push({id:uid(),name:`${vocal.name} MELODY GUIDE`,type:"guide",notes,gain:.75,pan:0,start:vocal.start,duration:guideDuration,sourceDuration:duration,guideInstrument:state.guideInstrument,fadeIn:0,fadeOut:0,mute:false,solo:false});
-      els.guideProgress.style.width="100%";if(els.guideEta)els.guideEta.textContent=`100% · 完了 (${((performance.now()-guideStartedAt)/1000).toFixed(1)}秒)`;renderTracks();scheduleAutoSave(300);setStatus(`✓ メロディ ${notes.length}音 · ${guideInstrumentLabel(state.guideInstrument)} · ${guideDuration.toFixed(1)}秒`);
+      els.guideProgress.style.width="100%";if(els.guideEta)els.guideEta.textContent=`100% · 完了 (${((performance.now()-guideStartedAt)/1000).toFixed(1)}秒)`;renderTracks();scheduleAutoSave(300);setStatus(`✓ メロディ ${notes.length}音 · ${guideInstrumentLabel(state.guideInstrument)} · ${guideDuration.toFixed(1)}秒${els.guideBackingReference?.checked?(backingReduction?.gain>0?" · 伴奏漏れ補正あり":" · 伴奏補正なし"):""}`);
     }catch(e){console.error(e);els.guideProgress.style.width="0%";if(els.guideEta)els.guideEta.textContent="失敗 · もう一度試してください";setStatus("ガイドメロディ解析に失敗しました");}
     finally{els.makeGuide.disabled=false;await releaseAwake();}
   }
