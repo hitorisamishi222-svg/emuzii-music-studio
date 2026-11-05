@@ -480,3 +480,32 @@ test('unrelated backing and absent backing cannot modify a dry vocal',()=>{
   assert.match(extraction,/if\(els\.guideBackingReference\?\.checked\)/,'reference mode must be explicitly enabled');
   assert.match(extraction,/const backing=\[\.\.\.state\.tracks\]\.reverse\(\)\.find/,'actual backing track must be used');
 });
+
+test('time-varying 18ms to 43ms delay is cancelled per phrase without changing source',()=>{
+  const reduce=bleedReductionHarness(),rate=12000,len=rate*12,split=rate*6;
+  const backing=Float32Array.from({length:len},(_,i)=>{
+    const t=i/rate;
+    return .3*Math.sin(2*Math.PI*110*t)+.19*Math.sin(2*Math.PI*196*t)+.11*Math.sin(2*Math.PI*137*t)
+      +.07*Math.sin(2*Math.PI*1901*t)+.07*Math.sin(2*Math.PI*(181*t+8*t*t));
+  });
+  const voice=Float32Array.from({length:len},(_,i)=>{
+    const t=i/rate,active=(t>2&&t<3.6)||(t>8&&t<9.6);
+    return active?.2*Math.sin(2*Math.PI*440*t)+.07*Math.sin(2*Math.PI*880*t):0;
+  });
+  const d1=Math.round(.018*rate),d2=Math.round(.043*rate);
+  const mixture=Float32Array.from(voice,(v,i)=>v+.35*(i>=(i<split?d1:d2)?backing[i-(i<split?d1:d2)]:0));
+  const before=mixture.slice(),backingBefore=backing.slice(),result=reduce(mixture,backing,0,rate);
+  let earlyBefore=0,earlyAfter=0,lateBefore=0,lateAfter=0;
+  for(let i=0;i<len;i++){
+    const originalError=mixture[i]-voice[i],correctedError=result.samples[i]-voice[i];
+    if(i<split){earlyBefore+=originalError**2;earlyAfter+=correctedError**2}
+    else{lateBefore+=originalError**2;lateAfter+=correctedError**2}
+  }
+  assert.ok(earlyAfter<earlyBefore*.17,'first phrase must remove >83% of early backing leak');
+  assert.ok(lateAfter<lateBefore*.17,'later phrase must remove >83% of changed-delay leak');
+  assert.deepEqual(mixture,before,'source vocal samples must remain untouched');
+  assert.deepEqual(backing,backingBefore,'reference samples must remain untouched');
+  assert.ok(result.segments?.length>=3,'per-phrase models should be reported for diagnostics');
+  assert.ok(result.segments.some(x=>Math.abs(x.lag+d1)<=8),'must identify first delay');
+  assert.ok(result.segments.some(x=>Math.abs(x.lag+d2)<=8),'must identify changed delay');
+});
