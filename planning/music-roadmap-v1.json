@@ -879,6 +879,37 @@
       ]
     },
     {
+      "id": "MUSIC-051",
+      "title": "伴奏漏れを選択式の参照音源減算で抑え、歌唱メロディを非破壊で抽出",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 69,
+      "dependsOn": [
+        "MUSIC-049",
+        "MUSIC-048",
+        "MUSIC-047"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ガイド音程解析に任意の「伴奏漏れ補正」チェックを追加し、初期値はオフで旧解析を保持",
+        "歌声と伴奏の元音源を変更せず、別トラックの参照伴奏PCMを12kHzに変換して一時的に比較",
+        "±100msの時間差探索により伴奏漏れの25ms遅延を検出し、相関・正の混入ゲイン・十分な重なりがなければ補正しない",
+        "相関ピークを細かく走査して、周期的な伴奏を間違った時間へ合わせる問題を防止",
+        "純粋なボーカル・参照伴奏なしの場合は元PCMを一切変更しない",
+        "実Chromiumで22秒、12音の歌声・子音・息と伴奏漏れの複合音源から12音を完全復元",
+        "録音、WAV、MASTER、長尺195秒、プロジェクト保存・復元の既存回帰テストがPASS",
+        "本番/main・原音・SONG ID・有料APIに変更を加えない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41947403017",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_051_OPT_IN_BACKING_BLEED_REFERENCE.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
