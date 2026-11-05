@@ -831,8 +831,7 @@ try{
         gain:.85,pan:0,start:0,duration:13,guideInstrument:'humming',
         mute:false,solo:false,
         notes:[
-          {start:4.4,duration:1.2,midi:69,velocity:.9},
-          {start:9.4,duration:1.2,midi:69,velocity:.9},
+          {start:4.4,duration:7.0,midi:69,velocity:.9},
           {start:12.2,duration:.35,midi:72,velocity:.8}
         ]
       }]
@@ -859,17 +858,22 @@ try{
       for(let i=from;i<to;i++){const y=view.getInt16(44+i*channels*2,true)/32768;sum+=y*y;}
       return Math.sqrt(sum/Math.max(1,to-from));
     }
-    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),rest:rms(7,7.5),tail:rms(12.27,12.37)};
+    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),body5:rms(4.7,4.8),body10:rms(9.5,9.6),rest:rms(11.7,12.0),tail:rms(12.27,12.37)};
   });
   assert.equal(longGuideStats.rate,44100);
   assert.equal(longGuideStats.frames,13*44100,'full WAV must have exact duration with no repeated/dropped overlap samples');
   assert.ok(longGuideStats.seam5before>.003&&longGuideStats.seam5after>.003);
   assert.ok(longGuideStats.seam10before>.003&&longGuideStats.seam10after>.003);
+  assert.ok(longGuideStats.body5>.003&&longGuideStats.body10>.003,'the same sustained note must remain audible for over 5 seconds');
+  assert.ok(longGuideStats.seam5before>longGuideStats.body5*.38&&longGuideStats.seam5after>longGuideStats.body5*.38,
+    '5s WAV seam must not create a false release or retrigger dip inside the sustained vowel');
+  assert.ok(longGuideStats.seam10before>longGuideStats.body10*.38&&longGuideStats.seam10after>longGuideStats.body10*.38,
+    '10s WAV seam must not create a false release or retrigger dip inside the sustained vowel');
   assert.ok(longGuideStats.tail>.003,'late melody should not disappear in the final chunk');
   assert.ok(longGuideStats.rest<.0005,'a genuine breath/rest remains silent');
   assert.equal(longGuideAceCalls,0,'local WAV rendering makes no generation requests');
   await longGuideContext.close();
-  console.log('PASS 13-second Safari WAV renders humming across 5s and 10s seams, with no lost frames or rests');
+  console.log('PASS 13-second Safari WAV keeps a 7s sustained humming vowel across 5s and 10s seams without false envelope drops');
   
   // MUSIC-046: actual guide extraction must recover deliberately changed
   // octaves after silence, not lock to an earlier note in the song.
