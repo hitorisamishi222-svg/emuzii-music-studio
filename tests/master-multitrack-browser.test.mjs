@@ -895,6 +895,8 @@ try{
   await consonantPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('✓ メロディ'),{timeout:45000});
   const consonantNotes=await consonantPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
   const consonantExpected=['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'];
+  const consonantTiming=await consonantPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.pr-note').evaluateAll(nodes=>nodes.map(n=>({midi:n.textContent,title:n.title})));
+  console.log('BREATHY_VOCAL_TIMING',JSON.stringify(consonantTiming));
   console.log('BREATHY_VOCAL_NOTES',JSON.stringify({consonantNotes,expected:consonantExpected}));
   assert.deepEqual(consonantNotes,consonantExpected,'consonant hiss, breath and noise must not create phantom pitches');
   assert.equal(await consonantPage.locator('#tracks article.track').count(),2,'raw synthetic source must remain alongside guide');
