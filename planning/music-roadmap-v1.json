@@ -851,6 +851,34 @@
       ]
     },
     {
+      "id": "MUSIC-049",
+      "title": "195秒の歌声解析で曲の最後100msの音符欠落を防止",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 70,
+      "dependsOn": [
+        "MUSIC-048",
+        "MUSIC-047"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "12kHz/1024サンプルの解析窓によって曲末尾約85msが未走査となる問題を防止する",
+        "元音声を変更せず最後の部分窓を一時配列に無音パディングして音高を解析する",
+        "生成音符の終点が物理的な元音声長を超えないよう制限する",
+        "195.22秒の合成歌声を実Chromiumで読み込み曲頭/64秒/129秒/195秒の4音をすべて検出する",
+        "最後の100ms C5が保持され、途中の長い無音に余計な音符が発生しない",
+        "ガイド、WAV、MASTER、保存/復元の既存回帰テストに合格し本番/原音/SONG IDに触れない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41943492789",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_049_LONG_SONG_TERMINAL_NOTE.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
