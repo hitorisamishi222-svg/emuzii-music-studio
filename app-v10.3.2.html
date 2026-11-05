@@ -1750,6 +1750,7 @@
     // changed-latency correction, with a measured change point.
     if(windowed&&vocalData.length>=sampleRate*6){
       const global=reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate,false);
+      const reflectedGlobal=removeShortReflection(global);
       const mid=Math.floor(vocalData.length/2),base=Math.round(relativeStartFrames);
       const first=reduceGuideBackingLeak(vocalData.subarray(0,mid),backingData,base,sampleRate,false);
       const second=reduceGuideBackingLeak(vocalData.subarray(mid),backingData,base+mid,sampleRate,false);
@@ -1766,7 +1767,7 @@
           return vocalData[i]-model.gain*reference;
         };
         for(let i=0;i<vocalData.length;i+=step){
-          const a=residual(i,first),b=residual(i,second),g=residual(i,global);
+          const a=residual(i,first),b=residual(i,second),g=reflectedGlobal.samples[i];
           const a2=a*a,b2=b*b;
           const difference=a2-b2;
           cumulative+=difference;
@@ -1799,7 +1800,7 @@
           };
         }
       }
-      return removeShortReflection(global);
+      return reflectedGlobal;
     }
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
     // Scan densely enough to resolve narrow percussion/harmonic peaks,
