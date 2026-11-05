@@ -1442,6 +1442,17 @@
     tone.frequency.setValueAtTime(kind==="bass"?Math.max(220,cutoff*.58):cutoff,start);
     if(kind==="bass")tone.frequency.exponentialRampToValueAtTime(Math.max(260,cutoff),start+.035);
     const usable=Math.max(.03,stop-start),a=Math.min(attack,usable*.25),d=Math.min(decay,usable*.25),r=Math.min(release,usable*.35),sustainTime=Math.max(start+a+d,stop-r);
+    if(kind==="guide"&&guideInstrument==="humming"&&noteDuration>=.65){
+      // MUSIC-056: a slow, deterministic vowel resonance drift for sustained
+      // humming. Calculate against the source note's GLOBAL progress, not the
+      // render window, so split WAV chunks share the same formant at their seam.
+      const color=Math.sin(noteStart*.73+note.midi*.21)*60;
+      const vowelHz=progress=>960+color+(progress-.5)*80;
+      const sourceProgressStart=Math.max(0,Math.min(1,(overlapStart-gStart)/noteDuration));
+      const sourceProgressEnd=Math.max(0,Math.min(1,(overlapEnd-gStart)/noteDuration));
+      presence.frequency.setValueAtTime(vowelHz(sourceProgressStart),start);
+      presence.frequency.linearRampToValueAtTime(vowelHz(sourceProgressEnd),stop);
+    }
     bus.gain.setValueAtTime(.0001,start);bus.gain.linearRampToValueAtTime(Math.max(.0002,peak),start+a);bus.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*sustain),Math.min(stop-r,start+a+d));
     if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
