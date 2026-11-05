@@ -412,3 +412,35 @@ test('onset calibration bounds short-note compensation so pitch events remain va
   assert.equal(out[2],short[2]);
   assert.ok(out[0].start>=short[0].start);
 });
+
+function guideTailWindowHarness(){
+  const segment=source('  function guidePitchWindow(data,start,size,scratch){','  async function extractGuide(){');
+  return new Function(segment+';return guidePitchWindow;')();
+}
+test('guide analysis keeps trailing partial windows without writing into original decoded vocal',()=>{
+  const windowFn=guideTailWindowHarness();
+  const vocal=Float32Array.from({length:1200},(_,i)=>i/1200);
+  const frozen=Float32Array.from(vocal);
+  const scratch=new Float32Array(1024);
+  const full=windowFn(vocal,0,1024,scratch);
+  assert.equal(full.length,1024);
+  assert.equal(full[0],vocal[0]);
+  assert.equal(full[1023],vocal[1023]);
+  const partial=windowFn(vocal,1000,1024,scratch);
+  assert.equal(partial.length,1024);
+  assert.equal(partial[0],vocal[1000]);
+  assert.equal(partial[199],vocal[1199]);
+  assert.ok(partial.subarray(200).every(v=>v===0),'no repeated audio past the real end');
+  const nearFinal=windowFn(vocal,1170,1024,scratch);
+  assert.equal(nearFinal[29],vocal[1199]);
+  assert.ok(nearFinal.subarray(30).every(v=>v===0),'scratch is cleared before each trailing frame');
+  assert.deepEqual(vocal,frozen,'source sample array is unchanged');
+});
+test('guide extraction scans through final sample frame and clips generated note ends to source duration',()=>{
+  const extraction=source('  async function extractGuide(){','  function transposeGuide(');
+  assert.match(extraction,/const total=Math\.max\(1,Math\.ceil\(data\.length\/hop\)\)/);
+  assert.match(extraction,/for\(let i=0,frame=0;i<data\.length;i\+=hop,frame\+\+\)/);
+  assert.match(extraction,/const slice=guidePitchWindow\(data,i,win,scratch\)/);
+  assert.match(extraction,/Math\.min\(duration,r\.end\)-r\.start/);
+  assert.doesNotMatch(extraction,/i\+win<data\.length/,'song tail can no longer be omitted');
+});
