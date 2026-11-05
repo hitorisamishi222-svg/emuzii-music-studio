@@ -509,3 +509,27 @@ test('time-varying 18ms to 43ms delay is cancelled per phrase without changing s
   assert.ok(result.segments.some(x=>Math.abs(x.lag+d1)<=8),'must identify first delay');
   assert.ok(result.segments.some(x=>Math.abs(x.lag+d2)<=8),'must identify changed delay');
 });
+
+test('secondary reflected backing tap is removed from guide PCM without changing original audio',()=>{
+  const reduce=bleedReductionHarness(),sampleRate=12000,n=sampleRate*4,direct=Math.round(.025*sampleRate),echo=Math.round(.082*sampleRate);
+  const backing=Float32Array.from({length:n},(_,i)=>{
+    const t=i/sampleRate;
+    return .32*Math.sin(2*Math.PI*113*t)+.18*Math.sin(2*Math.PI*197*t)
+      +.09*Math.sin(2*Math.PI*(141*t+6*t*t))+.04*Math.sin(2*Math.PI*1781*t);
+  });
+  const vocal=Float32Array.from({length:n},(_,i)=>{
+    const t=i/sampleRate;
+    return t>.8&&t<3.2?.21*Math.sin(2*Math.PI*440*t)+.08*Math.sin(2*Math.PI*880*t):0;
+  });
+  const mixture=Float32Array.from(vocal,(v,i)=>v+(i>=direct?.35*backing[i-direct]:0)+(i>=echo?.16*backing[i-echo]:0));
+  const source=mixture.slice(),reference=backing.slice();
+  const result=reduce(mixture,backing,0,sampleRate);
+  let before=0,after=0;
+  for(let i=0;i<n;i++){before+=(mixture[i]-vocal[i])**2;after+=(result.samples[i]-vocal[i])**2}
+  console.log('ECHO_TAP_DIAGNOSTIC',JSON.stringify({ratio:after/before,lag:result.lag,gain:result.gain,echoGain:result.echoGain,echoLag:result.echoLag}));
+  assert.ok(after<before*.12,'short reverberation must leave under 12% residual accompaniment power');
+  assert.ok(result.echoGain>.06&&result.echoGain<.25,'secondary echo gain should be identified');
+  assert.ok(Math.abs(result.echoLag+echo)<=12,'secondary echo must align to the reflected 82ms offset');
+  assert.deepEqual(mixture,source,'raw voice must remain unchanged');
+  assert.deepEqual(backing,reference,'original backing must remain unchanged');
+});
