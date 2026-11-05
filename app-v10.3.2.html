@@ -1445,7 +1445,20 @@
     bus.gain.setValueAtTime(.0001,start);bus.gain.linearRampToValueAtTime(Math.max(.0002,peak),start+a);bus.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*sustain),Math.min(stop-r,start+a+d));
     if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
-    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();lfo.frequency.value=5.05;lfoGain.gain.setValueAtTime(0,start);const vibIn=Math.min(stop,start+.11);lfoGain.gain.linearRampToValueAtTime(vibrato,vibIn);lfo.connect(lfoGain).connect(osc.detune);lfo.start(start);lfo.stop(stop+.02);collectNode(lfo,collect);}osc.start(start);osc.stop(stop+.02);collectNode(osc,collect);};
+    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){
+      const isHumming=kind==="guide"&&guideInstrument==="humming",voicedSeconds=stop-start;
+      // Short syllables should remain steady. Sustained notes gain a gentle
+      // delayed vibrato instead of starting every synthetic note with a wobble.
+      if(!isHumming||voicedSeconds>=.28){
+        const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
+        const variation=(Math.sin(noteStart*2.31+note.midi*.87)+1)*.5;
+        lfo.frequency.value=isHumming?4.7+variation*.7:5.05;
+        lfoGain.gain.setValueAtTime(0,start);
+        const vibIn=isHumming?start+Math.min(.26,Math.max(.14,voicedSeconds*.48)):Math.min(stop,start+.11);
+        lfoGain.gain.linearRampToValueAtTime(isHumming?Math.min(12,vibrato*4):vibrato,vibIn);
+        lfo.connect(lfoGain).connect(osc.detune);lfo.start(start);lfo.stop(stop+.02);collectNode(lfo,collect);
+      }
+    }osc.start(start);osc.stop(stop+.02);collectNode(osc,collect);};
     const addNoiseTransient=(amount=.05,freq=4200,duration=.04,mode="highpass")=>{if(kind!=="guide"||amount<=0)return;try{const src=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();src.buffer=noiseBuffer(ctx,Math.max(.02,duration));f.type=mode;f.frequency.value=freq;if(mode==="bandpass")f.Q.value=1.1;g.gain.setValueAtTime(Math.max(.0001,amount*track.gain*vel),start);g.gain.exponentialRampToValueAtTime(.0001,Math.min(stop,start+duration));src.connect(f).connect(g).connect(bus);src.start(start);src.stop(Math.min(stop+.01,start+duration+.02));collectNode(src,collect);}catch(_){} };
     const addBodyResonance=(ratio=1,amount=.07,fall=.16)=>{if(kind!=="guide")return;try{const o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=midiHz(note.midi)*ratio;g.gain.setValueAtTime(amount*track.gain*vel,start);g.gain.exponentialRampToValueAtTime(.0001,Math.min(stop,start+fall));o.connect(g).connect(bus);o.start(start);o.stop(Math.min(stop+.02,start+fall+.03));collectNode(o,collect);}catch(_){} };
     const addEarlyRoom=(wet=.045)=>{if(kind!=="guide"||usable<.16||!ctx.createDelay)return;try{const d1=ctx.createDelay(.06),d2=ctx.createDelay(.08),g1=ctx.createGain(),g2=ctx.createGain();d1.delayTime.value=.017;d2.delayTime.value=.031;g1.gain.value=wet;g2.gain.value=wet*.55;bus.connect(d1).connect(g1);bus.connect(d2).connect(g2);stereoDestination(ctx,g1,destination,(track.pan||0)-.11);stereoDestination(ctx,g2,destination,(track.pan||0)+.13);}catch(_){} };
