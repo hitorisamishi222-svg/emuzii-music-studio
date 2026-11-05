@@ -533,3 +533,22 @@ test('secondary reflected backing tap is removed from guide PCM without changing
   assert.deepEqual(mixture,source,'raw voice must remain unchanged');
   assert.deepEqual(backing,reference,'original backing must remain unchanged');
 });
+
+test('no phantom secondary echo on a single clean leak or a dry microphone take',()=>{
+  const reduce=bleedReductionHarness(),sampleRate=12000,n=sampleRate*4,direct=Math.round(.025*sampleRate);
+  const backing=Float32Array.from({length:n},(_,i)=>{
+    const t=i/sampleRate;
+    return .3*Math.sin(2*Math.PI*113*t)+.2*Math.sin(2*Math.PI*197*t)
+      +.08*Math.sin(2*Math.PI*(141*t+6*t*t))+.04*Math.sin(2*Math.PI*1781*t);
+  });
+  const voice=Float32Array.from({length:n},(_,i)=>{
+    const t=i/sampleRate;return t>.8&&t<3.2?.2*Math.sin(2*Math.PI*440*t):0;
+  });
+  const directOnly=Float32Array.from(voice,(v,i)=>v+(i>=direct?.35*backing[i-direct]:0));
+  const result=reduce(directOnly,backing,0,sampleRate);
+  assert.equal(result.echoGain??0,0,'echo model must not invent a reflected tap in a single-delay microphone recording');
+  assert.ok(result.gain>.25,'reference model still identifies the single direct leak');
+  const dry=reduce(voice,backing,0,sampleRate);
+  assert.equal(dry.samples,voice,'dry vocal with unrelated backing remains identical');
+  assert.equal(dry.echoGain??0,0,'dry voice never acquires echo correction');
+});
