@@ -1043,6 +1043,9 @@ try{
   // A single reference offset leaves the echo in the recorded vocal.
   const reflectedContext=await browser.newContext();
   const reflectedPage=await reflectedContext.newPage();
+  reflectedPage.on('console',message=>{
+    if(message.text().includes('GUIDE_REFERENCE_DIAGNOSTIC'))console.log('REFLECTED_MODEL',message.text());
+  });
   const reflected=syntheticBackingBleedWavs({shortEcho:true});
   await reflectedPage.goto(base,{waitUntil:'domcontentloaded'});
   await reflectedPage.waitForSelector('#mainFile',{state:'attached'});
