@@ -1862,6 +1862,11 @@
           refSource.buffer=backing.buffer;refSource.connect(refContext.destination);refSource.start(0);
           const refRendered=await refContext.startRendering();
           backingReduction=reduceGuideBackingLeak(data,refRendered.getChannelData(0),(Number(vocal.start||0)-Number(backing.start||0))*targetRate,targetRate);
+          console.info("GUIDE_REFERENCE_DIAGNOSTIC",JSON.stringify({
+            lag:backingReduction.lag,gain:backingReduction.gain,
+            echoLag:backingReduction.echoLag||0,echoGain:backingReduction.echoGain||0,
+            segments:backingReduction.segments?.length||0
+          }));
           data=backingReduction.samples;
         }
       }
