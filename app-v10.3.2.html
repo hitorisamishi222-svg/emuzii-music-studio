@@ -1707,7 +1707,7 @@
       }
       const minExtra=Math.round(sampleRate*.012),maxExtra=Math.round(sampleRate*.11);
       let best=null;
-      for(let lag1=primary.lag-18;lag1<=primary.lag+18;lag1+=3){
+      for(let lag1=primary.lag-18;lag1<=Math.min(0,primary.lag+18);lag1+=3){
         for(let extra=minExtra;extra<=maxExtra;extra+=6){
           const candidate=fit(lag1,lag1-extra);
           if(candidate&&(!best||candidate.error<best.error))best=candidate;
@@ -1718,7 +1718,7 @@
       for(let lag1=coarse.lag1-3;lag1<=coarse.lag1+3;lag1++){
         for(let lag2=coarse.lag2-3;lag2<=coarse.lag2+3;lag2++){
           const delta=lag1-lag2;
-          if(delta<minExtra||delta>maxExtra)continue;
+          if(lag1>0||delta<minExtra||delta>maxExtra)continue;
           const candidate=fit(lag1,lag2);
           if(candidate&&candidate.error<best.error)best=candidate;
         }
@@ -1821,13 +1821,15 @@
     // Look for normal mic/monitor latency around the known project offset.
     // A coarse scan plus sample-near refinement avoids a full O(N*latency) scan.
     const step=6;
-    for(let lag=-search;lag<=search;lag+=step){
+    // Acoustic monitor leakage cannot precede the reference playback.
+    // Positive lags sample future accompaniment and cause false tonal peaks.
+    for(let lag=-search;lag<=0;lag+=step){
       const candidate=measure(lag);
       if(candidate.correlation>best.correlation)best=candidate;
     }
     const coarseLag=best.lag;
     for(let lag=coarseLag-step;lag<=coarseLag+step;lag++){
-      if(lag< -search||lag>search)continue;
+      if(lag< -search||lag>0)continue;
       const candidate=measure(lag);
       if(candidate.correlation>best.correlation)best=candidate;
     }
