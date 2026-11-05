@@ -1453,8 +1453,38 @@
       presence.frequency.setValueAtTime(vowelHz(sourceProgressStart),start);
       presence.frequency.linearRampToValueAtTime(vowelHz(sourceProgressEnd),stop);
     }
-    bus.gain.setValueAtTime(.0001,start);bus.gain.linearRampToValueAtTime(Math.max(.0002,peak),start+a);bus.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*sustain),Math.min(stop-r,start+a+d));
-    if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
+    if(kind==="guide"&&guideInstrument==="humming"&&noteDuration>=.65){
+      // MUSIC-057: render the amplitude envelope against the original note,
+      // never the clipped 5/10s WAV window. Do not retrigger the attack or
+      // release a sustained vowel just because a chunk boundary was reached.
+      const floor=.0001,high=Math.max(.0002,peak),held=Math.max(.0002,peak*sustain);
+      const fullAttack=Math.min(attack,noteDuration*.25),fullDecay=Math.min(decay,noteDuration*.25),fullRelease=Math.min(release,noteDuration*.35);
+      const attackEnd=gStart+fullAttack,decayEnd=attackEnd+fullDecay,releaseStart=Math.max(decayEnd,gEnd-fullRelease);
+      const amplitudeAt=t=>{
+        if(t<=gStart)return floor;
+        if(t<attackEnd)return floor+(high-floor)*(t-gStart)/fullAttack;
+        if(t<decayEnd)return high*Math.pow(held/high,(t-attackEnd)/fullDecay);
+        if(t<releaseStart)return held;
+        if(t<gEnd)return held*Math.pow(floor/held,(t-releaseStart)/(gEnd-releaseStart));
+        return floor;
+      };
+      bus.gain.setValueAtTime(amplitudeAt(overlapStart),start);
+      for(const point of [
+        {time:attackEnd,value:high,curve:"linear"},
+        {time:decayEnd,value:held,curve:"exponential"},
+        {time:releaseStart,value:held,curve:"set"},
+        {time:gEnd,value:floor,curve:"exponential"}
+      ]){
+        if(point.time<=overlapStart||point.time>overlapEnd)continue;
+        const t=base+(point.time-windowStart);
+        if(point.curve==="linear")bus.gain.linearRampToValueAtTime(point.value,t);
+        else if(point.curve==="exponential")bus.gain.exponentialRampToValueAtTime(point.value,t);
+        else bus.gain.setValueAtTime(point.value,t);
+      }
+    }else{
+      bus.gain.setValueAtTime(.0001,start);bus.gain.linearRampToValueAtTime(Math.max(.0002,peak),start+a);bus.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*sustain),Math.min(stop-r,start+a+d));
+      if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
+    }
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
     const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){
       const isHumming=kind==="guide"&&guideInstrument==="humming",voicedSeconds=stop-start;
