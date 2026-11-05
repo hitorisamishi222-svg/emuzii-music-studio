@@ -122,6 +122,25 @@ function syntheticFullLengthTailWav(){
   }
   return {wav:out,notes,duration};
 }
+function syntheticBackingBleedWavs(){
+  const original=syntheticBreathyConsonantWav(),sampleRate=16000;
+  const backing=Buffer.from(original.wav),vocal=Buffer.from(original.wav);
+  const frames=Math.round(original.duration*sampleRate),delay=Math.round(.025*sampleRate);
+  const reference=new Float32Array(frames);
+  for(let i=0;i<frames;i++){
+    const t=i/sampleRate;
+    const drum=.09*Math.sin(2*Math.PI*1987*t)*Math.exp(-32*(t%1));
+    const value=.3*Math.sin(2*Math.PI*110*t)+.21*Math.sin(2*Math.PI*196*t)+.12*Math.sin(2*Math.PI*137*t)+.06*Math.sin(2*Math.PI*1901*t)+drum;
+    reference[i]=value;
+    backing.writeInt16LE(Math.round(Math.max(-1,Math.min(1,value))*32767),44+i*2);
+  }
+  for(let i=0;i<frames;i++){
+    const clean=original.wav.readInt16LE(44+i*2)/32768;
+    const leaked=i>=delay?.37*reference[i-delay]:0;
+    vocal.writeInt16LE(Math.round(Math.max(-.99,Math.min(.99,clean+leaked))*32767),44+i*2);
+  }
+  return {backing,vocal,notes:original.notes};
+}
 function rmsWav(bytes,start,end){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');
   assert.equal(bytes.toString('ascii',8,12),'WAVE');
@@ -962,6 +981,35 @@ try{
   assert.equal(longAceRequests,0,'local 3-minute analysis must be offline');
   await fullContext.close();
   console.log('PASS 195-second full-song synthetic voice keeps its 100ms terminal note');
+  
+  // MUSIC-051: a reference backing track is intentionally leaked into the
+  // vocal take with 25ms acoustic delay. Only explicit opt-in may subtract it.
+  const bleedContext=await browser.newContext();
+  const bleedPage=await bleedContext.newPage();
+  const leaked=syntheticBackingBleedWavs();
+  let bleedAceCalls=0;
+  bleedPage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))bleedAceCalls++});
+  await bleedPage.goto(base,{waitUntil:'domcontentloaded'});
+  await bleedPage.waitForSelector('#mainFile',{state:'attached'});
+  await bleedPage.locator('[data-view="edit"]').click();
+  assert.equal(await bleedPage.locator('#guideBackingReference').isChecked(),false,'backing reference cancellation defaults OFF');
+  await bleedPage.locator('#mainFile').setInputFiles({name:'backing-ref-ci.wav',mimeType:'audio/wav',buffer:leaked.backing});
+  await bleedPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('backing-ref-ci'));
+  await bleedPage.locator('#vocalFile').setInputFiles({name:'bleed-voice-ci.wav',mimeType:'audio/wav',buffer:leaked.vocal});
+  await bleedPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('bleed-voice-ci'));
+  assert.equal(await bleedPage.locator('#tracks article.track').count(),2,'backing and raw vocal remain separate original tracks');
+  await bleedPage.locator('#guideBackingReference').check();
+  await bleedPage.locator('#guideInstrument').selectOption('humming');
+  await bleedPage.locator('#makeGuide').click();
+  await bleedPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('伴奏漏れ補正あり'),{timeout:45000});
+  const bleedNotes=await bleedPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  const expectedBleedNotes=['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'];
+  console.log('BLEED_REFERENCE_NOTES',JSON.stringify({bleedNotes,expectedBleedNotes}));
+  assert.deepEqual(bleedNotes,expectedBleedNotes,'opt-in 25ms-aligned reference cancellation preserves all 12 sung notes');
+  assert.equal(await bleedPage.locator('#tracks article.track').count(),3,'both original audio tracks remain after guide creation');
+  assert.equal(bleedAceCalls,0,'reference cancellation must remain completely offline');
+  await bleedContext.close();
+  console.log('PASS real Chromium reference cancels 25ms-delayed backing bleed without changing default');
   
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
