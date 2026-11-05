@@ -446,7 +446,7 @@ test('guide extraction scans through final sample frame and clips generated note
 });
 
 function bleedReductionHarness(){
-  const segment=source('  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate){','  async function extractGuide(){');
+  const segment=source('  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate,windowed=true){','  async function extractGuide(){');
   return new Function(segment+';return reduceGuideBackingLeak;')();
 }
 test('opt-in reference cancellation removes delayed accompaniment without modifying original recording',()=>{
