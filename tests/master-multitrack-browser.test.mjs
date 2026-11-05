@@ -74,6 +74,29 @@ function syntheticVibratoVocalWav(){
   }
   return {wav:out,notes,duration};
 }
+function syntheticBreathyConsonantWav(){
+  // Deterministic singing challenge: build on the known 12-note melody,
+  // layering voiced vibrato with unvoiced /s/-like attacks and breath noise.
+  // All bytes are local synthetic data, never a listener/user recording.
+  const base=syntheticVibratoVocalWav(),sr=16000,frames=Math.round(base.duration*sr);
+  const out=Buffer.from(base.wav);
+  let seed=0x531c83ab,previousNoise=0;
+  const random=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/0xffffffff*2-1;};
+  for(let i=0;i<frames;i++){
+    const t=i/sr,note=base.notes.find(n=>t>=n.from&&t<n.to);
+    const consonant=base.notes.find(n=>t>=n.from-.14&&t<n.from-.01);
+    const breath=base.notes.find(n=>t>=n.to&&t<n.to+.16);
+    const raw=random(),high=raw-previousNoise;previousNoise=raw;
+    let noise=.008*high;
+    if(consonant)noise+=.25*high*Math.sin(Math.PI*(t-(consonant.from-.14))/.13)**2;
+    if(breath)noise+=.105*high*Math.sin(Math.PI*(t-breath.to)/.16)**2;
+    if(note)noise+=.02*high;
+    const sung=out.readInt16LE(44+i*2)/32768;
+    const result=Math.max(-.98,Math.min(.98,sung+noise));
+    out.writeInt16LE(Math.round(result*32767),44+i*2);
+  }
+  return {...base,wav:out};
+}
 function rmsWav(bytes,start,end){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');
   assert.equal(bytes.toString('ascii',8,12),'WAVE');
@@ -854,6 +877,29 @@ try{
   assert.equal(await vibratoPage.locator('#tracks article.track').count(),2);
   await vibratoContext.close();
   console.log('PASS quasi-vocal harmonic vibrato fixture extracted 12-note long-form melodic phrases');
+  
+  // MUSIC-048: the same 12-note melody with noisy consonant onsets and
+  // unvoiced exhalation must not create false guide notes in the rests.
+  const consonantContext=await browser.newContext();
+  const consonantPage=await consonantContext.newPage();
+  const noisy=syntheticBreathyConsonantWav();
+  await consonantPage.goto(base,{waitUntil:'domcontentloaded'});
+  await consonantPage.waitForSelector('#vocalFile',{state:'attached'});
+  await consonantPage.locator('[data-view="edit"]').click();
+  await consonantPage.locator('#guideInstrument').selectOption('humming');
+  await consonantPage.locator('#vocalFile').setInputFiles({
+    name:'breathy-consonants-ci.wav',mimeType:'audio/wav',buffer:noisy.wav
+  });
+  await consonantPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('breathy-consonants-ci'));
+  await consonantPage.locator('#makeGuide').click();
+  await consonantPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('✓ メロディ'),{timeout:45000});
+  const consonantNotes=await consonantPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.note-step').allTextContents();
+  const consonantExpected=['C4','D4','E4','G4','C5','A4','A5','E5','C5','A3','C4','A4'];
+  console.log('BREATHY_VOCAL_NOTES',JSON.stringify({consonantNotes,expected:consonantExpected}));
+  assert.deepEqual(consonantNotes,consonantExpected,'consonant hiss, breath and noise must not create phantom pitches');
+  assert.equal(await consonantPage.locator('#tracks article.track').count(),2,'raw synthetic source must remain alongside guide');
+  await consonantContext.close();
+  console.log('PASS consonant and breath-laden singer extracts 12 notes without extras');
   
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
