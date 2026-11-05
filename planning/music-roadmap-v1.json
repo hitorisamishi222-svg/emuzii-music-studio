@@ -910,6 +910,35 @@
       ]
     },
     {
+      "id": "MUSIC-052",
+      "title": "伴奏漏れの遅延が曲の途中で変化しても参照補正し、歌唱12音を維持",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 68,
+      "dependsOn": [
+        "MUSIC-051",
+        "MUSIC-049"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "従来の安定した全曲参照補正を変更せず、異なる遅延が十分明瞭な場合のみ2区間補正へ切り替える",
+        "前半と後半で18ms→43msに遅れが変化する12秒の合成音源に対し双方の残留伴奏誤差を83%以上低減",
+        "2区間のモデル差、前半/後半の信頼性と全曲方式より4%以上の誤差改善を検証し、条件不足なら全曲補正へ戻す",
+        "切替位置を残留エネルギーが最小になる位置から求め、約20msだけ補正モデルを交差させて繋ぐ",
+        "実Chromiumで歌声・伴奏別トラックを読み込み、固定25msと途中18→43msの両条件で12音完全一致",
+        "元歌声と伴奏PCMは書き換えず、参照なし/未選択は従来方式を維持",
+        "195秒長尺・WAV・MASTER・録音/保存/復元の回帰試験すべてPASS。本番/main・元音源・SONG IDは変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41949488830",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-browser.test.mjs",
+        "tests/master-multitrack-contract.test.mjs",
+        "docs/MUSIC_052_CHANGED_LATENCY_BACKING_LEAK.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
