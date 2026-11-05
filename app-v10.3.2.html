@@ -1674,23 +1674,33 @@
     // audible discontinuities where the cancellation model changes. This
     // applies ONLY to temporary guide-extraction PCM and opt-in mode.
     if(windowed&&vocalData.length>=sampleRate*6){
-      const length=Math.max(1,Math.round(sampleRate*3)),fade=Math.max(1,Math.round(sampleRate*.025));
-      let samples=null,topGain=0,topCorrelation=0,dominantLag=0;
+      const length=Math.max(1,Math.round(sampleRate*3)),base=Math.round(relativeStartFrames);
+      let topGain=0,topCorrelation=0,dominantLag=0;
       const segments=[];
       for(let from=0;from<vocalData.length;from+=length){
         const to=Math.min(vocalData.length,from+length);
         const result=reduceGuideBackingLeak(vocalData.subarray(from,to),backingData,relativeStartFrames+from,sampleRate,false);
         segments.push({from:from/sampleRate,to:to/sampleRate,lag:result.lag,gain:result.gain,correlation:result.correlation});
         if(result.correlation>topCorrelation)topCorrelation=result.correlation;
-        if(result.gain<=0)continue;
         if(result.gain>topGain){topGain=result.gain;dominantLag=result.lag;}
-        if(!samples)samples=new Float32Array(vocalData);
-        for(let i=0;i<to-from;i++){
-          const weight=Math.min(1,(i+1)/fade,(to-from-i)/fade);
-          samples[from+i]=vocalData[from+i]+weight*(result.samples[i]-vocalData[from+i]);
-        }
       }
-      return {samples:samples||vocalData,gain:topGain,lag:dominantLag,correlation:topCorrelation,segments};
+      if(topGain<=0)return {samples:vocalData,gain:0,lag:0,correlation:topCorrelation,segments};
+      // Blend the two adjacent subtraction models around segment centers.
+      // Unlike fading each segment to the original audio, continuous models
+      // never reintroduce accompaniment on every three-second boundary.
+      const samples=new Float32Array(vocalData);
+      const last=segments.length-1;
+      for(let i=0;i<samples.length;i++){
+        const position=i/length-.5;
+        const left=Math.max(0,Math.min(last,Math.floor(position)));
+        const right=Math.min(last,left+1),fraction=Math.max(0,Math.min(1,position-left));
+        const a=segments[left],b=segments[right];
+        const indexA=base+i+a.lag,indexB=base+i+b.lag;
+        const x=indexA>=0&&indexA<backingData.length?a.gain*backingData[indexA]:0;
+        const y=indexB>=0&&indexB<backingData.length?b.gain*backingData[indexB]:0;
+        samples[i]-=x*(1-fraction)+y*fraction;
+      }
+      return {samples,gain:topGain,lag:dominantLag,correlation:topCorrelation,segments};
     }
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
     // Scan densely enough to resolve narrow percussion/harmonic peaks,
