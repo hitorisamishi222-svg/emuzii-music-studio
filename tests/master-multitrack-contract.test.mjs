@@ -377,3 +377,38 @@ test('octave peak preference is disabled for uncertain or flat correlation surfa
     'confident interval leaps must not be octave-locked to the prior note');
   assert.doesNotMatch(extraction,/if\(previousMidi\)\{const candidates/,'unconditional prior-note octave locking cannot return');
 });
+
+function onsetCalibrationHarness(){
+  const src=source('  function calibrateExtractedGuideOnsets(notes,windowSize,sampleRate){','  async function extractGuide(){');
+  return new Function(src+';return calibrateExtractedGuideOnsets;')();
+}
+test('calibrateExtractedGuideOnsets copies only stable sung note starts and preserves their ends',()=>{
+  const calibrate=onsetCalibrationHarness();
+  const original=[
+    {start:.36,duration:.9,midi:60,velocity:.8},
+    {start:1.26,duration:.90,midi:62,velocity:.8},
+    {start:0,duration:.7,midi:64},
+    {start:.30,duration:.09,midi:67},
+    {start:.4,duration:.8,drum:'kick'},
+    {start:NaN,duration:.8,midi:69}
+  ];
+  const before=original.map(n=>({...n}));
+  const shifted=calibrate(original,1024,12000);
+  const compensation=1024/12000*.3;
+  assert.ok(Math.abs(shifted[0].start-(original[0].start+compensation))<1e-9);
+  assert.ok(Math.abs(shifted[0].duration-(original[0].duration-compensation))<1e-9);
+  assert.ok(Math.abs(shifted[0].start+shifted[0].duration-(original[0].start+original[0].duration))<1e-9);
+  assert.deepEqual(shifted.slice(2),original.slice(2),'song beginning, short notes, drums, malformed data unchanged');
+  assert.deepEqual(original,before,'source note records are never changed');
+  const extraction=source('  async function extractGuide(){','  function transposeGuide(');
+  assert.match(extraction,/notes=calibrateExtractedGuideOnsets\(notes,win,targetRate\)/);
+});
+test('onset calibration bounds short-note compensation so pitch events remain valid',()=>{
+  const calibrate=onsetCalibrationHarness();
+  const short=[{start:.15,duration:.12,midi:67},{start:.01,duration:.5,midi:60},{start:0,duration:.2,midi:64}];
+  const out=calibrate(short,1024,12000);
+  assert.ok(out[0].duration>=.075);
+  assert.equal(out[1],short[1]);
+  assert.equal(out[2],short[2]);
+  assert.ok(out[0].start>=short[0].start);
+});
