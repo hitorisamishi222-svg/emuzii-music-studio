@@ -954,7 +954,7 @@ try{
   const fullNotes=await fullPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.pr-note').evaluateAll(nodes=>nodes.map(n=>({midi:n.textContent,title:n.title})));
   console.log('FULL_SONG_LAST_NOTES',JSON.stringify(fullNotes));
   assert.deepEqual(fullNotes.map(n=>n.midi),['C4','A4','E4','C5'],'the last sung 100ms C5 must not be omitted');
-  const tail=fullNotes.at(-1),tailStart=Number(tail.title.split(' / ')[1]);
+  const tail=fullNotes.at(-1),tailStart=Number.parseFloat(tail.title.split(' / ')[1]);
   const tailDuration=Number(tail.title.split(' / ')[2].replace('s',''));
   assert.ok(tailStart>=195.07&&tailStart<195.22,'last note must keep its actual near-end timestamp');
   assert.ok(tailStart+tailDuration<=195.23,'guide note must never extend beyond physical source duration');
