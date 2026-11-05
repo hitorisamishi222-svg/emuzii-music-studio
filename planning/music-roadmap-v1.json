@@ -939,6 +939,35 @@
       ]
     },
     {
+      "id": "MUSIC-053",
+      "title": "任意の伴奏漏れ補正を短い反射音の二重タップまで拡張してガイド12音を保護",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 67,
+      "dependsOn": [
+        "MUSIC-052",
+        "MUSIC-051",
+        "MUSIC-049"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "25msの直接伴奏漏れと82msの反射音を含む合成歌声を短音テストと22秒の実Chromiumで再現",
+        "静かな120msの解析区間から正の直接/反射ゲインを同時推定し、旧単一タップと比べ6%以上の残差改善がある場合のみ採用",
+        "未来の参照伴奏を読む正の遅延ラグを禁止し、反射音なし・乾いた歌声は非破壊・補正しない",
+        "22秒の倍音・ビブラート・子音入り合成歌声からC4,D4,E4,G4,C5,A4,A5,E5,C5,A3,C4,A4を過不足なく復元",
+        "単一25ms漏れ・途中18→43ms遅延変化・195秒の末尾100ms音符を含む実Chromium回帰がPASS",
+        "入力WAVや元歌声、参照伴奏、SONG ID、既存データ、本番URL、mainを変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/41954052593",
+        "app-v10.3.2.html",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_053_REFLECTED_BACKING_TWO_TAP.md"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
