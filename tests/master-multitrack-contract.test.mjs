@@ -444,3 +444,39 @@ test('guide extraction scans through final sample frame and clips generated note
   assert.match(extraction,/Math\.min\(duration,r\.end\)-r\.start/);
   assert.doesNotMatch(extraction,/i\+win<data\.length/,'song tail can no longer be omitted');
 });
+
+function bleedReductionHarness(){
+  const segment=source('  function reduceGuideBackingLeak(vocalData,backingData,relativeStartFrames,sampleRate){','  async function extractGuide(){');
+  return new Function(segment+';return reduceGuideBackingLeak;')();
+}
+test('opt-in reference cancellation removes delayed accompaniment without modifying original recording',()=>{
+  const reduce=bleedReductionHarness(),rate=12000,len=rate*4,delay=Math.round(rate*.025);
+  const backing=Float32Array.from({length:len},(_,i)=>{
+    const t=i/rate;
+    return .3*Math.sin(2*Math.PI*110*t)+.21*Math.sin(2*Math.PI*196*t)+.12*Math.sin(2*Math.PI*137*t)+.06*Math.sin(2*Math.PI*1901*t);
+  });
+  const voice=Float32Array.from({length:len},(_,i)=>{
+    const t=i/rate;
+    return t>1&&t<2.15?.23*Math.sin(2*Math.PI*440*t)+.08*Math.sin(2*Math.PI*880*t):0;
+  });
+  const mixture=Float32Array.from(voice,(v,i)=>v+(i>=delay?.37*backing[i-delay]:0));
+  const sourceCopy=mixture.slice(),referenceCopy=backing.slice();
+  const result=reduce(mixture,backing,0,rate);
+  assert.ok(result.gain>.25&&result.gain<.5,'must estimate genuine positive bleed gain');
+  assert.ok(Math.abs(result.lag+delay)<=8,'must align around 25ms input recording delay, found '+result.lag);
+  let before=0,after=0;
+  for(let i=0;i<len;i++){before+=(mixture[i]-voice[i])**2;after+=(result.samples[i]-voice[i])**2}
+  assert.ok(after<before*.08,'reference cancellation must reduce backing residual energy by >92%');
+  assert.deepEqual(mixture,sourceCopy,'input audio samples must not be changed');
+  assert.deepEqual(backing,referenceCopy,'reference backing must not be changed');
+});
+test('unrelated backing and absent backing cannot modify a dry vocal',()=>{
+  const reduce=bleedReductionHarness(),rate=12000,len=rate*2;
+  const dry=Float32Array.from({length:len},(_,i)=>.2*Math.sin(2*Math.PI*440*i/rate));
+  const unrelated=Float32Array.from({length:len},(_,i)=>.2*Math.sin(2*Math.PI*123*i/rate));
+  assert.equal(reduce(dry,unrelated,0,rate).samples,dry,'unrelated reference should be a no-op');
+  assert.equal(reduce(dry,null,0,rate).samples,dry,'missing reference should be a no-op');
+  const extraction=source('  async function extractGuide(){','  function transposeGuide(');
+  assert.match(extraction,/if\(els\.guideBackingReference\?\.checked\)/,'reference mode must be explicitly enabled');
+  assert.match(extraction,/const backing=\[\.\.\.state\.tracks\]\.reverse\(\)\.find/,'actual backing track must be used');
+});
