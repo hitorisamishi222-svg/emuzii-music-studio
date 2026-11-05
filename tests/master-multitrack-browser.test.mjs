@@ -97,6 +97,31 @@ function syntheticBreathyConsonantWav(){
   }
   return {...base,wav:out};
 }
+function syntheticFullLengthTailWav(){
+  // Three-plus-minute reference: a late, short vocal must not be omitted
+  // just because there is less than one analysis window left in the clip.
+  const sr=16000,duration=195.22,n=Math.round(sr*duration);
+  const out=Buffer.alloc(44+n*2);
+  out.write('RIFF',0);out.writeUInt32LE(out.length-8,4);out.write('WAVE',8);
+  out.write('fmt ',12);out.writeUInt32LE(16,16);out.writeUInt16LE(1,20);
+  out.writeUInt16LE(1,22);out.writeUInt32LE(sr,24);out.writeUInt32LE(sr*2,28);
+  out.writeUInt16LE(2,32);out.writeUInt16LE(16,34);out.write('data',36);out.writeUInt32LE(n*2,40);
+  const notes=[
+    {from:.3,to:.95,midi:60},
+    {from:64.2,to:65.02,midi:69},
+    {from:129.5,to:130.25,midi:64},
+    {from:195.12,to:195.22,midi:72}
+  ];
+  for(const note of notes){
+    const freq=440*Math.pow(2,(note.midi-69)/12);
+    for(let i=Math.floor(note.from*sr);i<Math.ceil(note.to*sr)&&i<n;i++){
+      const time=i/sr,env=Math.max(0,Math.min(1,(time-note.from)*100,(note.to-time)*100));
+      const sample=.42*env*Math.sin(2*Math.PI*freq*time);
+      out.writeInt16LE(Math.round(Math.max(-1,Math.min(1,sample))*32767),44+i*2);
+    }
+  }
+  return {wav:out,notes,duration};
+}
 function rmsWav(bytes,start,end){
   assert.equal(bytes.toString('ascii',0,4),'RIFF');
   assert.equal(bytes.toString('ascii',8,12),'WAVE');
@@ -908,6 +933,35 @@ try{
   assert.equal(await consonantPage.locator('#tracks article.track').count(),2,'raw synthetic source must remain alongside guide');
   await consonantContext.close();
   console.log('PASS consonant and breath-laden singer extracts 12 notes without extras');
+  
+  // MUSIC-049: 3m15s sparse song with an actual 100ms final sung note.
+  // Input-only fixture; do not store or modify any existing project.
+  const fullContext=await browser.newContext();
+  const fullPage=await fullContext.newPage();
+  const longVoice=syntheticFullLengthTailWav();
+  let longAceRequests=0;
+  fullPage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))longAceRequests++});
+  await fullPage.goto(base,{waitUntil:'domcontentloaded'});
+  await fullPage.waitForSelector('#vocalFile',{state:'attached'});
+  await fullPage.locator('[data-view="edit"]').click();
+  await fullPage.locator('#guideInstrument').selectOption('humming');
+  await fullPage.locator('#vocalFile').setInputFiles({
+    name:'195-second-sparse-tail.wav',mimeType:'audio/wav',buffer:longVoice.wav
+  });
+  await fullPage.waitForFunction(()=>document.querySelector('#tracks')?.textContent?.includes('195-second-sparse-tail'));
+  await fullPage.locator('#makeGuide').click();
+  await fullPage.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('✓ メロディ'),{timeout:90000});
+  const fullNotes=await fullPage.locator('#tracks article.track').filter({hasText:'MELODY GUIDE'}).locator('button.pr-note').evaluateAll(nodes=>nodes.map(n=>({midi:n.textContent,title:n.title})));
+  console.log('FULL_SONG_LAST_NOTES',JSON.stringify(fullNotes));
+  assert.deepEqual(fullNotes.map(n=>n.midi),['C4','A4','E4','C5'],'the last sung 100ms C5 must not be omitted');
+  const tail=fullNotes.at(-1),start=Number(tail.title.split(' / ')[1]);
+  const dur=Number(tail.title.split(' / ')[2].replace('s',''));
+  assert.ok(start>=195.07&&start<195.22,'last note must keep its actual near-end timestamp');
+  assert.ok(start+dur<=195.23,'guide note must never extend beyond physical source duration');
+  assert.equal(await fullPage.locator('#tracks article.track').count(),2);
+  assert.equal(longAceRequests,0,'local 3-minute analysis must be offline');
+  await fullContext.close();
+  console.log('PASS 195-second full-song synthetic voice keeps its 100ms terminal note');
   
   assert.deepEqual(errors,[],'No page errors during real WAV render');
   console.log('PASS actual Chromium multi-track MASTER WAV export contains backing and vocal');
