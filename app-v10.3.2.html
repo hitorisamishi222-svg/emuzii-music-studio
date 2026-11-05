@@ -1669,45 +1669,81 @@
     // A strong positive correlation is required before subtracting anything:
     // a dry microphone take or unrelated backing must stay bit-for-bit intact.
     if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate)||sampleRate<=0)return {samples:vocalData,gain:0,lag:0,correlation:0};
-    // A late, weaker reflection can remain after the strongest direct leak.
-    // Fit a SECOND tap only in opt-in guide extraction, from residual PCM,
-    // and only at a physically plausible 12–110ms later than the direct tap.
-    // Existing dry/uncorrelated audio and the original PCM stay unchanged.
+    // A second, later speaker reflection can bias a single-lag fit.
+    // Compare a small, simultaneous two-tap model against the proven
+    // single-tap result. Fit using quieter 120ms blocks to avoid training
+    // on the lead singer's melody. All samples are temporary analysis PCM.
     function removeShortReflection(primary){
       if(!primary?.gain||primary.segments?.length||vocalData.length<sampleRate||!primary.samples)return primary;
-      const base=Math.round(relativeStartFrames),stride=Math.max(32,Math.ceil(vocalData.length/12000));
-      const minExtra=Math.round(sampleRate*.012),maxExtra=Math.round(sampleRate*.11);
-      function measure(lag){
-        let xy=0,xx=0,yy=0,count=0;
-        for(let i=0;i<vocalData.length;i+=stride){
-          const j=base+i+lag;
-          if(j<0||j>=backingData.length)continue;
-          const x=primary.samples[i],y=backingData[j];
-          xy+=x*y;xx+=x*x;yy+=y*y;count++;
+      const base=Math.round(relativeStartFrames),blockSize=Math.max(128,Math.round(sampleRate*.12));
+      const blockEnergy=[];
+      for(let start=0;start<vocalData.length;start+=blockSize){
+        let sum=0,n=0;
+        for(let i=start;i<Math.min(vocalData.length,start+blockSize);i+=37){sum+=vocalData[i]*vocalData[i];n++;}
+        blockEnergy.push(sum/Math.max(1,n));
+      }
+      const sorted=blockEnergy.slice().sort((a,b)=>a-b);
+      const cutoff=sorted[Math.floor(sorted.length*.5)];
+      const step=Math.max(13,Math.ceil(vocalData.length/4800));
+      const indices=[];
+      for(let i=Math.ceil(sampleRate*.14);i<vocalData.length;i+=step){
+        if(blockEnergy[Math.floor(i/blockSize)]<=cutoff)indices.push(i);
+      }
+      if(indices.length<256)return primary;
+      function fit(lag1,lag2){
+        let x1=0,x2=0,s11=0,s22=0,s12=0,xx=0,count=0;
+        for(const i of indices){
+          const a=base+i+lag1,b=base+i+lag2;
+          if(a<0||b<0||a>=backingData.length||b>=backingData.length)continue;
+          const x=vocalData[i],u=backingData[a],v=backingData[b];
+          x1+=x*u;x2+=x*v;s11+=u*u;s22+=v*v;s12+=u*v;xx+=x*x;count++;
         }
-        return {lag,correlation:xy/Math.sqrt(Math.max(1e-12,xx*yy)),gain:yy>1e-12?xy/yy:0,count};
+        const det=s11*s22-s12*s12;
+        if(count<256||det<1e-6)return null;
+        const gain1=(x1*s22-x2*s12)/det,gain2=(x2*s11-x1*s12)/det;
+        if(gain1<.08||gain1>.85||gain2<.055||gain2>Math.min(.35,gain1*.7))return null;
+        const error=xx-gain1*x1-gain2*x2;
+        return {lag1,lag2,gain1,gain2,error,count};
       }
-      let best={lag:0,correlation:0,gain:0,count:0};
-      for(let extra=minExtra;extra<=maxExtra;extra+=6){
-        const candidate=measure(primary.lag-extra);
-        if(candidate.correlation>best.correlation)best=candidate;
+      const minExtra=Math.round(sampleRate*.012),maxExtra=Math.round(sampleRate*.11);
+      let best=null;
+      for(let lag1=primary.lag-18;lag1<=primary.lag+18;lag1+=3){
+        for(let extra=minExtra;extra<=maxExtra;extra+=6){
+          const candidate=fit(lag1,lag1-extra);
+          if(candidate&&(!best||candidate.error<best.error))best=candidate;
+        }
       }
-      const roughLag=best.lag;
-      for(let lag=roughLag-6;lag<=roughLag+6;lag++){
-        const extra=primary.lag-lag;
-        if(extra<minExtra||extra>maxExtra)continue;
-        const candidate=measure(lag);
-        if(candidate.correlation>best.correlation)best=candidate;
+      if(!best)return primary;
+      const coarse=best;
+      for(let lag1=coarse.lag1-3;lag1<=coarse.lag1+3;lag1++){
+        for(let lag2=coarse.lag2-3;lag2<=coarse.lag2+3;lag2++){
+          const delta=lag1-lag2;
+          if(delta<minExtra||delta>maxExtra)continue;
+          const candidate=fit(lag1,lag2);
+          if(candidate&&candidate.error<best.error)best=candidate;
+        }
       }
-      // Require a meaningful positive echo and a clear residual correlation.
-      // This strict gate avoids inventing an echo on a dry microphone take.
-      if(best.correlation<.24||best.gain<.045||best.gain>Math.min(.32,primary.gain*.8)||best.count<256)return primary;
-      const samples=new Float32Array(primary.samples),gain=best.gain;
+      let baselineError=0;
+      for(const i of indices){
+        const j=base+i+primary.lag;
+        if(j<0||j>=backingData.length)continue;
+        const v=vocalData[i]-primary.gain*backingData[j];
+        baselineError+=v*v;
+      }
+      // The added tap must *materially* outperform the old single-tap
+      // model on quiet passages before any source-derived guide is changed.
+      if(!(best.error<baselineError*.94))return primary;
+      const samples=new Float32Array(vocalData);
       for(let i=0;i<samples.length;i++){
-        const j=base+i+best.lag;
-        if(j>=0&&j<backingData.length)samples[i]-=gain*backingData[j];
+        const j1=base+i+best.lag1,j2=base+i+best.lag2;
+        if(j1>=0&&j1<backingData.length)samples[i]-=best.gain1*backingData[j1];
+        if(j2>=0&&j2<backingData.length)samples[i]-=best.gain2*backingData[j2];
       }
-      return {...primary,samples,echoGain:gain,echoLag:best.lag,echoCorrelation:best.correlation};
+      return {
+        ...primary,samples,gain:best.gain1,lag:best.lag1,
+        echoGain:best.gain2,echoLag:best.lag2,
+        echoErrorReduction:1-best.error/baselineError
+      };
     }
     // Preserve the previously verified whole-song model whenever latency is
     // stationary. Only a strong two-section disagreement may opt into a
