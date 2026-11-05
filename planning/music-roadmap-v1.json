@@ -968,6 +968,30 @@
       ]
     },
     {
+      "id": "MUSIC-054",
+      "title": "ACE-Step中継でGPUキー欠落・非HTTPS・禁止メソッド・大容量JSONを遮断",
+      "track": "ai-assist",
+      "state": "done",
+      "priority": 66,
+      "dependsOn": [
+        "MUSIC-011",
+        "MUSIC-030"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "未設定GPU APIキーとHTTP/不正URLは上流へ送信せず503",
+        "禁止メソッドは405、1MiB超JSONは413で拒否",
+        "正常な小JSONはモック上流へ接続できる",
+        "実GPU・本番公開は未実施で既存音源・本番mainは不変"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42023658740",
+        "docs/MUSIC_054_ACE_PROXY_FAIL_CLOSED.md",
+        "tests/ace-proxy-contract.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
