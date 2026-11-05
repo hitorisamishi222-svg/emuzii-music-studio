@@ -505,7 +505,7 @@ test('time-varying 18ms to 43ms delay is cancelled per phrase without changing s
   assert.ok(lateAfter<lateBefore*.17,'later phrase must remove >83% of changed-delay leak');
   assert.deepEqual(mixture,before,'source vocal samples must remain untouched');
   assert.deepEqual(backing,backingBefore,'reference samples must remain untouched');
-  assert.ok(result.segments?.length>=3,'per-phrase models should be reported for diagnostics');
+  assert.equal(result.segments?.length,2,'the two detected latency regimes should be reported separately');
   assert.ok(result.segments.some(x=>Math.abs(x.lag+d1)<=8),'must identify first delay');
   assert.ok(result.segments.some(x=>Math.abs(x.lag+d2)<=8),'must identify changed delay');
 });
