@@ -1669,6 +1669,46 @@
     // A strong positive correlation is required before subtracting anything:
     // a dry microphone take or unrelated backing must stay bit-for-bit intact.
     if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate)||sampleRate<=0)return {samples:vocalData,gain:0,lag:0,correlation:0};
+    // A late, weaker reflection can remain after the strongest direct leak.
+    // Fit a SECOND tap only in opt-in guide extraction, from residual PCM,
+    // and only at a physically plausible 12–110ms later than the direct tap.
+    // Existing dry/uncorrelated audio and the original PCM stay unchanged.
+    function removeShortReflection(primary){
+      if(!primary?.gain||primary.segments?.length||vocalData.length<sampleRate||!primary.samples)return primary;
+      const base=Math.round(relativeStartFrames),stride=Math.max(32,Math.ceil(vocalData.length/12000));
+      const minExtra=Math.round(sampleRate*.012),maxExtra=Math.round(sampleRate*.11);
+      function measure(lag){
+        let xy=0,xx=0,yy=0,count=0;
+        for(let i=0;i<vocalData.length;i+=stride){
+          const j=base+i+lag;
+          if(j<0||j>=backingData.length)continue;
+          const x=primary.samples[i],y=backingData[j];
+          xy+=x*y;xx+=x*x;yy+=y*y;count++;
+        }
+        return {lag,correlation:xy/Math.sqrt(Math.max(1e-12,xx*yy)),gain:yy>1e-12?xy/yy:0,count};
+      }
+      let best={lag:0,correlation:0,gain:0,count:0};
+      for(let extra=minExtra;extra<=maxExtra;extra+=6){
+        const candidate=measure(primary.lag-extra);
+        if(candidate.correlation>best.correlation)best=candidate;
+      }
+      const roughLag=best.lag;
+      for(let lag=roughLag-6;lag<=roughLag+6;lag++){
+        const extra=primary.lag-lag;
+        if(extra<minExtra||extra>maxExtra)continue;
+        const candidate=measure(lag);
+        if(candidate.correlation>best.correlation)best=candidate;
+      }
+      // Require a meaningful positive echo and a clear residual correlation.
+      // This strict gate avoids inventing an echo on a dry microphone take.
+      if(best.correlation<.24||best.gain<.045||best.gain>Math.min(.32,primary.gain*.8)||best.count<256)return primary;
+      const samples=new Float32Array(primary.samples),gain=best.gain;
+      for(let i=0;i<samples.length;i++){
+        const j=base+i+best.lag;
+        if(j>=0&&j<backingData.length)samples[i]-=gain*backingData[j];
+      }
+      return {...primary,samples,echoGain:gain,echoLag:best.lag,echoCorrelation:best.correlation};
+    }
     // Preserve the previously verified whole-song model whenever latency is
     // stationary. Only a strong two-section disagreement may opt into a
     // changed-latency correction, with a measured change point.
@@ -1723,7 +1763,7 @@
           };
         }
       }
-      return global;
+      return removeShortReflection(global);
     }
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
     // Scan densely enough to resolve narrow percussion/harmonic peaks,
@@ -1762,7 +1802,8 @@
       const j=base+best.lag+i;
       if(j>=0&&j<backingData.length)samples[i]-=gain*backingData[j];
     }
-    return {samples,gain,lag:best.lag,correlation:best.correlation};
+    const direct={samples,gain,lag:best.lag,correlation:best.correlation};
+    return windowed?removeShortReflection(direct):direct;
   }
 
   async function extractGuide(){
