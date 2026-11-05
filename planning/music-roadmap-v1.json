@@ -1017,6 +1017,31 @@
       ]
     },
     {
+      "id": "MUSIC-056",
+      "title": "長く伸ばすハミングの共鳴を音符全体の位置に合わせ変化させWAV分割境界を保護",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-045",
+        "MUSIC-055"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "0.65秒以上の音符だけに音符位置・音高で決まる穏やかな共鳴周波数変化を追加",
+        "195秒地点を模擬したWAV分割前後で共鳴周波数が一致",
+        "短音・他の音色・元音源・ガイド音符・保存形式が不変",
+        "Studio/Vocal/MASTER開発版回帰テスト成功",
+        "実歌唱音質・iPhone/Android実機・本番公開は未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42031552939",
+        "docs/MUSIC_056_SUSTAINED_HUMMING_FORMANT.md",
+        "tests/master-multitrack-contract.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
