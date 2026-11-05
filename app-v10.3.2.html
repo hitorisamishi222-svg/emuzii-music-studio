@@ -1670,7 +1670,9 @@
     // a dry microphone take or unrelated backing must stay bit-for-bit intact.
     if(!vocalData?.length||!backingData?.length||!Number.isFinite(relativeStartFrames)||!Number.isFinite(sampleRate))return {samples:vocalData,gain:0,lag:0,correlation:0};
     const base=Math.round(relativeStartFrames),search=Math.round(sampleRate*.10);
-    const stride=32;
+    // Scan densely enough to resolve narrow percussion/harmonic peaks,
+    // but cap work for three-minute recordings.
+    const stride=Math.max(32,Math.ceil(vocalData.length/12000));
     function measure(lag){
       let xy=0,xx=0,yy=0,count=0;
       for(let i=0;i<vocalData.length;i+=stride){
@@ -1685,13 +1687,13 @@
     let best=measure(0);
     // Look for normal mic/monitor latency around the known project offset.
     // A coarse scan plus sample-near refinement avoids a full O(N*latency) scan.
-    const step=24;
+    const step=6;
     for(let lag=-search;lag<=search;lag+=step){
       const candidate=measure(lag);
       if(candidate.correlation>best.correlation)best=candidate;
     }
     const coarseLag=best.lag;
-    for(let lag=coarseLag-step;lag<=coarseLag+step;lag+=3){
+    for(let lag=coarseLag-step;lag<=coarseLag+step;lag++){
       if(lag< -search||lag>search)continue;
       const candidate=measure(lag);
       if(candidate.correlation>best.correlation)best=candidate;
