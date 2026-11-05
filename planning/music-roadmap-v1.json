@@ -1042,6 +1042,33 @@
       ]
     },
     {
+      "id": "MUSIC-057",
+      "title": "長音ハミングのADSRを元音符に固定し5秒・10秒WAV分割境界での音量落ち込みを抑制",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-045",
+        "MUSIC-055",
+        "MUSIC-056"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "0.65秒以上の合成ハミングの音量を元音符時刻で計算しチャンク境界の誤再アタック・誤減衰を防止",
+        "5秒・10秒分割と途中シークの長音はサステイン/真のリリースを維持",
+        "7秒の模擬長音をChromiumで13秒WAVに書き出し両境界RMS・休符・末尾の音・44.1kHzの正確な尺を検証",
+        "短音・他楽器・元音源・ガイド音符・保存形式を変更しない",
+        "Studio/Vocal/MASTERブラウザ回帰・契約テスト合格、実ユーザー歌唱/実機音質は未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42033154173",
+        "docs/MUSIC_057_LONG_HUMMING_ENVELOPE.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
