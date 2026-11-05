@@ -122,7 +122,7 @@ function hummingHarness(){
   const src=source('  function scheduleTone(ctx,destination,track,note,base,windowStart,windowEnd,collect){','  function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {');
   const f=new Function('state','midiHz','stereoDestination','noiseBuffer','collectNode',src+';return scheduleTone;');
   const events={oscs:[],filters:[],gainChanges:[]};
-  function parameter(){return {value:0,setValueAtTime(v,t){this.value=v;events.gainChanges.push({v,t})},linearRampToValueAtTime(v,t){events.gainChanges.push({v,t})},exponentialRampToValueAtTime(v,t){events.gainChanges.push({v,t})}}}
+  function parameter(){return {value:0,history:[],setValueAtTime(v,t){this.value=v;this.history.push({kind:'set',v,t});events.gainChanges.push({v,t})},linearRampToValueAtTime(v,t){this.history.push({kind:'linear',v,t});events.gainChanges.push({v,t})},exponentialRampToValueAtTime(v,t){this.history.push({kind:'exp',v,t});events.gainChanges.push({v,t})}}}
   const ctx={
     createGain(){return {gain:parameter(),connect(){return this}}},
     createBiquadFilter(){const node={type:'',Q:parameter(),gain:parameter(),frequency:parameter(),connect(){return this}};events.filters.push(node);return node},
@@ -171,6 +171,41 @@ test('MUSIC-055 sustained humming blooms into bounded, varied late vibrato',()=>
   const otherLfo=other.events.oscs.find(x=>x.freq>=4.7&&x.freq<=5.4);
   assert.ok(otherLfo&&otherLfo.freq!==lfos[0].freq,
     'vibrato speed varies reproducibly across sung notes');
+});
+test('MUSIC-056 sustained humming vowel color follows original note progress at WAV chunk seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const note={start:194.3,duration:1.2,midi:69,velocity:.8};
+  const original=structuredClone(note);
+  const left=hummingHarness(),right=hummingHarness(),whole=hummingHarness();
+  left.run(left.ctx,{},track,note,0,190,195,false);
+  right.run(right.ctx,{},track,note,0,195,196,false);
+  whole.run(whole.ctx,{},track,note,0,0,196,false);
+  const automation=h=>h.events.filters[1].frequency.history;
+  const l=automation(left),r=automation(right),w=automation(whole);
+  assert.equal(l.length,2);
+  assert.equal(r.length,2);
+  assert.equal(w.length,2);
+  assert.equal(l[0].kind,'set');assert.equal(l[1].kind,'linear');
+  assert.equal(r[0].kind,'set');assert.equal(r[1].kind,'linear');
+  assert.ok(Math.abs(l[1].v-r[0].v)<1e-8,
+    'adjacent 195-second timeline windows must match vowel frequency at their seam');
+  assert.ok(Math.abs(l[0].v-w[0].v)<1e-8);
+  assert.ok(Math.abs(r[1].v-w[1].v)<1e-8);
+  assert.ok([...l,...r,...w].every(x=>x.v>=860&&x.v<=1060&&Number.isFinite(x.t)));
+  assert.deepEqual(note,original,'no guide note data or source timing is mutated');
+});
+test('MUSIC-056 short humming and unrelated piano notes keep existing fixed formants',()=>{
+  const cases=[
+    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:1,duration:.35,midi:60},hz:960},
+    {track:{type:'guide',gain:.7,guideInstrument:'piano'},note:{start:1,duration:1.4,midi:60},hz:2300}
+  ];
+  for(const c of cases){
+    const h=hummingHarness();
+    h.run(h.ctx,{},c.track,c.note,0,0,Infinity,false);
+    assert.equal(h.events.filters[1].frequency.value,c.hz);
+    assert.deepEqual(h.events.filters[1].frequency.history,[],
+      'short sounds and other instrument profiles must retain their original formant behavior');
+  }
 });
 test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
   const h=hummingHarness(),track={type:'guide',gain:.7,guideInstrument:'humming'};
