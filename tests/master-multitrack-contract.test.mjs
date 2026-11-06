@@ -425,6 +425,97 @@ test('MUSIC-061 piano playback retains original reattack and note durations',()=
   h.scheduleGuide({}, {},{type:'guide',guideInstrument:'piano',notes},0,0,Infinity,false);
   assert.deepEqual(h.scheduled,notes);
 });
+test('MUSIC-063 connected humming phrases receive a bounded runtime loudness arc',()=>{
+  const notes=[
+    {start:0,duration:.30,midi:60,velocity:.8},
+    {start:.34,duration:.30,midi:62,velocity:.8},
+    {start:.68,duration:.30,midi:64,velocity:.8},
+    {start:1.20,duration:.30,midi:65,velocity:.8},
+    {start:1.60,duration:.30,midi:72,velocity:.8},
+    {start:1.92,duration:.30,midi:72,velocity:.8},
+    {start:2.24,duration:.30,midi:74,velocity:.8},
+    {start:2.56,duration:.30,midi:76,velocity:.8}
+  ],original=structuredClone(notes);
+  const h=legatoHarness();
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  const gains=h.scheduled.map(x=>x.hummingPhraseGain);
+  assert.ok(Math.abs(gains[0]-.95)<1e-9);
+  assert.ok(gains[1]>1.04&&gains[1]<1.06,'three-note phrase is most expressive in the middle');
+  assert.ok(Math.abs(gains[2]-.94)<1e-9);
+  assert.equal(gains[3],undefined,'a note after a 220ms breath stays neutral');
+  assert.ok(gains[4]<1&&gains[5]>1&&gains[6]>1&&gains[7]<1,
+    'next four-note phrase has an independent contour');
+  assert.ok(gains.filter(Number.isFinite).every(x=>x>=.94&&x<=1.05),
+    'gain remains conservative and cannot suddenly jump');
+  assert.equal(h.scheduled[5].glideFromMidi,undefined,
+    'repeated pitches are still separately articulated, even within a phrase');
+  assert.deepEqual(notes,original,'no original pitch, duration, velocity or project fields change');
+});
+test('MUSIC-063 large leaps, overlapping voices, invalid notes and real breaths split phrases',()=>{
+  const notes=[
+    {start:0,duration:.3,midi:60},
+    {start:.33,duration:.3,midi:67},
+    {start:.66,duration:.3,midi:69},
+    {start:.99,duration:.3,midi:71},
+    {start:1.25,duration:.3,midi:74},
+    {start:1.58,duration:.3,midi:76},
+    {start:1.91,duration:.3,midi:77},
+    {start:2.24,duration:.3,midi:79},
+    {start:2.45,duration:.3,midi:81},
+    {start:2.77,duration:NaN,midi:83},
+    {start:3.12,duration:.3,drum:'kick'}
+  ];
+  const original=structuredClone(notes),h=legatoHarness();
+  const out=h.hummingLegatoNotes(notes);
+  assert.equal(out[0].hummingPhraseGain,undefined,
+    'a 7 semitone leap after a 30ms gap must be a phrase boundary');
+  assert.ok(out[1].hummingPhraseGain&&out[2].hummingPhraseGain&&out[3].hummingPhraseGain,
+    'valid connected notes after the leap form an independent phrase');
+  assert.equal(out[4].hummingPhraseGain,undefined,
+    'an overlapping note breaks phrase contour instead of inventing monophonic phrasing');
+  assert.equal(out[7].hummingPhraseGain,undefined,
+    'the voice cannot extend its phrase over a new overlapping onset');
+  assert.equal(out[8].hummingPhraseGain,undefined);
+  assert.equal(out[9].hummingPhraseGain,undefined);
+  assert.equal(out[10].hummingPhraseGain,undefined);
+  assert.deepEqual(notes,original);
+});
+test('MUSIC-063 phrase dynamics change only humming synth amplitude, never other instruments',()=>{
+  const original={start:.12,duration:.30,midi:60,velocity:.8};
+  const shaped={...original,hummingPhraseGain:1.045};
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const flat=hummingHarness(),expressive=hummingHarness();
+  flat.run(flat.ctx,{},track,original,0,0,2,false);
+  expressive.run(expressive.ctx,{},track,shaped,0,0,2,false);
+  const peak=x=>x.events.gains[0].history.find(y=>y.kind==='linear').v;
+  assert.ok(Math.abs(peak(expressive)/peak(flat)-1.045)<1e-9,
+    'the local note gain scales the existing synth peak without changing pitch');
+  assert.deepEqual(expressive.events.oscs.map(x=>x.freq),flat.events.oscs.map(x=>x.freq));
+  const piano=hummingHarness(),pianoFlat=hummingHarness();
+  piano.run(piano.ctx,{}, {...track,guideInstrument:'piano'},shaped,0,0,2,false);
+  pianoFlat.run(pianoFlat.ctx,{}, {...track,guideInstrument:'piano'},original,0,0,2,false);
+  assert.equal(peak(piano),peak(pianoFlat),'piano ignores humming-only phrase gain');
+  const clamped=hummingHarness();
+  clamped.run(clamped.ctx,{},track,{...original,hummingPhraseGain:100},0,0,2,false);
+  assert.ok(Math.abs(peak(clamped)/peak(flat)-1.08)<1e-9,'unexpected input is gain-bounded');
+});
+test('MUSIC-063 long simulated phrases remain non-destructive and keep real rests',()=>{
+  const notes=Array.from({length:450},(_,i)=>({
+    start:i*.43+(Math.floor(i/15)*.23),duration:.37,midi:60+i%5,velocity:.78
+  }));
+  const original=structuredClone(notes),h=legatoHarness();
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  assert.equal(h.scheduled.length,450);
+  for(let i=0;i<450;i++){
+    const v=h.scheduled[i].hummingPhraseGain;
+    assert.ok(Number.isFinite(v)&&v>=.94&&v<=1.05,'all 30 simulated fifteen-note phrases stay bounded');
+    if(i%15===0)assert.ok(Math.abs(v-.95)<1e-9,
+      'after every 230ms breath, a fresh phrase starts quietly');
+    if(i%15===14)assert.ok(Math.abs(v-.94)<1e-9,
+      'every phrase releases energy toward its last syllable');
+  }
+  assert.deepEqual(notes,original,'a simulated multi-minute guide does not rewrite project notes');
+});
 test('MUSIC-062 humming small connected steps get transient glides without changing notes',()=>{
   const notes=[
     {start:0,duration:.30,midi:60,velocity:.8},
