@@ -1239,6 +1239,33 @@
       ]
     },
     {
+      "id": "MUSIC-065",
+      "title": "0.08〜0.28秒の短いハミングでもWAV分割時の音量エンベロープを元音符から継続",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-057",
+        "MUSIC-059",
+        "MUSIC-064"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ハミング音の元音符基準振幅エンベロープを0.08秒以上に拡張し短音のWAV分割で誤再アタック・誤減衰を抑制",
+        "80ms、120ms、130ms、180ms、220msの短音のアタック・ディケイ・サステイン・リリース中に5秒・10秒境界が来るテストで左右音量と元音符振幅の一致を検証",
+        "80ms未満の超短音や他ガイド音色、元音符/MIDI/録音・保存形式は変更しない",
+        "実Chromiumで13秒・44.1kHzのWAVを出力し、両境界をまたぐ180ms短音・休符・正確な全尺・外部生成API未使用を検証",
+        "Studio/Vocal/MASTERの契約・ブラウザ回帰テストに合格、実歌唱聴感・モバイル実機・GPU・公開は未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42177189719",
+        "docs/MUSIC_065_SHORT_HUMMING_SEAM.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
