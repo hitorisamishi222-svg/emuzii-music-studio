@@ -244,9 +244,9 @@ test('MUSIC-057 seek inside humming release follows original envelope rather tha
   assert.equal(history.at(-1).v,.0001);
   assert.equal(history.at(-1).kind,'exp');
 });
-test('MUSIC-057/064/065 leaves sub-80ms humming transients and sustained piano unchanged',()=>{
+test('MUSIC-057/064/065/066 leaves sub-20ms humming transients and sustained piano unchanged',()=>{
   for(const c of [
-    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.04,midi:64}},
+    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.015,midi:64}},
     {track:{type:'guide',gain:.7,guideInstrument:'piano'},note:{start:0,duration:7,midi:64}}
   ]){
     const h=hummingHarness();h.run(h.ctx,{},c.track,c.note,0,0,2,false);
@@ -287,10 +287,10 @@ test('MUSIC-065 80–280ms short humming syllables preserve original note envelo
     assert.deepEqual(note,before,'source MIDI note must remain byte-for-byte equivalent');
   }
 });
-test('MUSIC-065 very short transients and all other guide instruments keep prior boundary behavior',()=>{
+test('MUSIC-065/066 sub-20ms transients and all other guide instruments keep prior boundary behavior',()=>{
   for(const c of [
-    {instrument:'humming',duration:.079},
-    {instrument:'humming',duration:.04},
+    {instrument:'humming',duration:.019},
+    {instrument:'humming',duration:.015},
     {instrument:'piano',duration:.18},
     {instrument:'electone',duration:.22}
   ]){
@@ -299,7 +299,60 @@ test('MUSIC-065 very short transients and all other guide instruments keep prior
       {start:4.97,duration:c.duration,midi:69,velocity:.8},0,0,5,false);
     const data=h.events.gains[0].history;
     assert.ok(data.length>=4&&data.at(-1).v===.0001,
-      'sub-80ms or non-humming source must retain legacy clipped release: '+c.instrument+' '+c.duration);
+      'sub-20ms or non-humming source must retain legacy clipped release: '+c.instrument+' '+c.duration);
+  }
+});
+test('MUSIC-066 ultra-short 20–80ms humming resumes original amplitude across 5s/10s WAV seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const scenarios=[
+    {start:4.997,duration:.045,seam:5,stage:'attack'},
+    {start:4.985,duration:.055,seam:5,stage:'decay'},
+    {start:9.960,duration:.075,seam:10,stage:'sustain'},
+    {start:9.975,duration:.035,seam:10,stage:'release'},
+    {start:4.986,duration:.020,seam:5,stage:'minimum supported'}
+  ];
+  for(const c of scenarios){
+    const note={start:c.start,duration:c.duration,midi:69,velocity:.8};
+    const original=structuredClone(note);
+    const left=hummingHarness(),right=hummingHarness(),whole=hummingHarness();
+    left.run(left.ctx,{},track,note,0,0,c.seam,false);
+    right.run(right.ctx,{},track,note,0,c.seam,c.seam+1,false);
+    whole.run(whole.ctx,{},track,note,0,0,c.seam+1,false);
+    const l=left.events.gains[0].history,r=right.events.gains[0].history,w=whole.events.gains[0].history;
+    const peak=.086*.75*.8,floor=.0001,held=peak*.90;
+    const at=c.seam-c.start;
+    const attack=Math.min(.028,c.duration*.25),decay=Math.min(.085,c.duration*.25),release=Math.min(.19,c.duration*.35);
+    const decayEnd=attack+decay,releaseStart=Math.max(decayEnd,c.duration-release);
+    const expected=at<attack?floor+(peak-floor)*at/attack:
+      at<decayEnd?peak*Math.pow(held/peak,(at-attack)/decay):
+      at<releaseStart?held:
+      at<c.duration?held*Math.pow(floor/held,(at-releaseStart)/(c.duration-releaseStart)):floor;
+    assert.ok(Math.abs(l.at(-1).v-expected)<1e-7,c.stage+' first chunk ends on global envelope');
+    assert.ok(Math.abs(r[0].v-expected)<1e-7,c.stage+' second chunk resumes exact same amplitude');
+    assert.ok(expected>floor*1.5,'the seam does not fall outside the short note');
+    assert.ok(w.some(x=>x.kind==='linear'&&Math.abs(x.v-peak)<1e-8),
+      'unsegmented short note still reaches the original peak');
+    assert.equal(left.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4).length,0,
+      'ultra-short syllables must remain pitch-steady without vibrato');
+    assert.equal(right.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4).length,0,
+      'seeking into a short syllable must never add unwanted vibrato');
+    assert.deepEqual(note,original,'restoring envelopes never mutates saved notes');
+  }
+});
+test('MUSIC-066 hundreds of late short notes stay numerically bounded and keep source data',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const durations=[.022,.035,.055,.075],original=[];
+  for(let i=0;i<240;i++){
+    const note={start:180+i*.24,duration:durations[i%4],midi:60+i%7,velocity:.8};
+    original.push(note);
+    const h=hummingHarness(),from=Math.floor(note.start/5)*5;
+    h.run(h.ctx,{},track,note,0,from,from+5,false);
+    assert.equal(h.events.oscs.filter(x=>x.freq>100).length,5,
+      'each short syllable retains its five harmonics near the end of a simulated song');
+    for(const g of h.events.gains)for(const event of g.history)
+      assert.ok(Number.isFinite(event.v)&&Number.isFinite(event.t),
+        'long-score short-syllable gain automation never becomes NaN/Infinity');
+    assert.deepEqual(note,original.at(-1),'long timeline scheduling is non-destructive');
   }
 });
 test('MUSIC-058 sustained humming LFO preserves note-relative phase at the 5s and 10s WAV seams',()=>{
