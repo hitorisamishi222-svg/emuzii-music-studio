@@ -1581,8 +1581,13 @@
       const start=Number(note.start),duration=Number(note.duration),nextStart=Number(next.start);
       if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0||!Number.isFinite(nextStart))return note;
       const gap=nextStart-(start+duration);
-      // Bridge tiny silences only; genuine pauses remain untouched.
+      // Bridge only truly connected pitch changes. A repeated pitch has a
+      // new syllable attack; a clear melodic leap needs its short breath.
+      // Keep this a transient playback copy: never rewrite the saved notes.
       if(gap<0||gap>.08)return note;
+      const semitones=Math.abs(next.midi-note.midi);
+      if(semitones===0)return note;
+      if(semitones>=7&&gap>.025)return note;
       return {...note,duration:duration+gap+.018};
     });
   }
