@@ -1486,13 +1486,30 @@
       if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
     }
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
-    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;
-    // MUSIC-059: keep each pitched humming partial at its original note phase,
-    // even when a 5/10s WAV window resumes the same vowel mid-note. The LFO's
-    // own phase remains handled separately by MUSIC-058.
-    if(kind==="guide"&&guideInstrument==="humming"&&type==="sine"&&overlapStart>gStart&&ctx.createPeriodicWave&&osc.setPeriodicWave){
-      const elapsed=overlapStart-gStart;
-      const cycles=(elapsed*osc.frequency.value)%1;
+    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{
+    const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;
+    const targetHz=midiHz(note.midi,cents+centsJitter)*ratio;
+    const glideMidi=Number(note.glideFromMidi),isHummingCarrier=kind==="guide"&&guideInstrument==="humming"&&type==="sine";
+    const glide=isHummingCarrier&&note.glideFromMidi!=null&&Number.isFinite(glideMidi)&&Math.abs(note.midi-glideMidi)>=1&&Math.abs(note.midi-glideMidi)<=5;
+    const glideSeconds=glide?Math.min(.045,noteDuration*.18):0;
+    const fromHz=glide?midiHz(glideMidi,cents+centsJitter)*ratio:targetHz;
+    const logRatio=glide?Math.log(targetHz/fromHz):0;
+    const elapsed=Math.max(0,overlapStart-gStart);
+    const glideHzAt=t=>fromHz*Math.exp(logRatio*Math.min(1,Math.max(0,t/glideSeconds)));
+    // MUSIC-062: for two connected notes separated by a tiny gap, make a
+    // short pitch glide on the playback copy only; never rewrite MIDI notes.
+    // Every split WAV window must use original-note elapsed time, not restart
+    // a new slide. Integrate exponential frequency for seamless carrier phase.
+    if(glide){
+      osc.frequency.setValueAtTime(glideHzAt(elapsed),start);
+      const progressEnd=Math.min(glideSeconds,Math.max(elapsed,overlapEnd-gStart));
+      if(progressEnd>elapsed)
+        osc.frequency.exponentialRampToValueAtTime(glideHzAt(progressEnd),start+progressEnd-elapsed);
+    }else osc.frequency.value=targetHz;
+    if(isHummingCarrier&&overlapStart>gStart&&ctx.createPeriodicWave&&osc.setPeriodicWave){
+      const glideElapsed=glide?Math.min(elapsed,glideSeconds):0;
+      const glidedCycles=glide?fromHz*glideSeconds*Math.expm1(logRatio*glideElapsed/glideSeconds)/logRatio:0;
+      const cycles=(glide?glidedCycles+targetHz*Math.max(0,elapsed-glideSeconds):elapsed*targetHz)%1;
       const phase=2*Math.PI*cycles;
       osc.setPeriodicWave(ctx.createPeriodicWave(
         new Float32Array([0,Math.sin(phase)]),new Float32Array([0,Math.cos(phase)]),
@@ -1576,19 +1593,33 @@
   function hummingLegatoNotes(notes){
     // Transient playback copies only: source note timing and MIDI remain exact.
     return notes.map((note,i)=>{
+      if(!note||note.drum||!Number.isFinite(note.midi))return note;
+      const start=Number(note.start),duration=Number(note.duration);
+      if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0)return note;
+      let shaped=note;
+      const prev=notes[i-1];
+      if(prev&&!prev.drum&&Number.isFinite(prev.midi)){
+        const prevStart=Number(prev.start),prevDuration=Number(prev.duration);
+        const gap=start-(prevStart+prevDuration),distance=Math.abs(note.midi-prev.midi);
+        // Only a small connected step gets a gentle transient portamento.
+        // Repeated syllables, wide leaps, overlapping voices and breaths stay sharp.
+        if(Number.isFinite(gap)&&Number.isFinite(prevStart)&&Number.isFinite(prevDuration)&&prevDuration>0&&
+          gap>=0&&gap<=.05&&distance>=1&&distance<=5)
+          shaped={...note,glideFromMidi:prev.midi};
+      }
       const next=notes[i+1];
-      if(!note||!next||note.drum||next.drum||!Number.isFinite(note.midi)||!Number.isFinite(next.midi))return note;
-      const start=Number(note.start),duration=Number(note.duration),nextStart=Number(next.start);
-      if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0||!Number.isFinite(nextStart))return note;
+      if(!next||next.drum||!Number.isFinite(next.midi))return shaped;
+      const nextStart=Number(next.start);
+      if(!Number.isFinite(nextStart))return shaped;
       const gap=nextStart-(start+duration);
       // Bridge only truly connected pitch changes. A repeated pitch has a
       // new syllable attack; a clear melodic leap needs its short breath.
       // Keep this a transient playback copy: never rewrite the saved notes.
-      if(gap<0||gap>.08)return note;
+      if(gap<0||gap>.08)return shaped;
       const semitones=Math.abs(next.midi-note.midi);
-      if(semitones===0)return note;
-      if(semitones>=7&&gap>.025)return note;
-      return {...note,duration:duration+gap+.018};
+      if(semitones===0)return shaped;
+      if(semitones>=7&&gap>.025)return shaped;
+      return {...shaped,duration:duration+gap+.018};
     });
   }
 
