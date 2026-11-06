@@ -1483,6 +1483,15 @@
         else if(point.curve==="exponential")bus.gain.exponentialRampToValueAtTime(point.value,t);
         else bus.gain.setValueAtTime(point.value,t);
       }
+      // A WAV chunk can end inside the attack/decay/release, before any
+      // global envelope breakpoint. Schedule that partial curve's endpoint
+      // so short syllables are not silent or abruptly held at the seam.
+      if(overlapEnd<gEnd){
+        const atEnd=amplitudeAt(overlapEnd);
+        if(overlapEnd<attackEnd)bus.gain.linearRampToValueAtTime(atEnd,stop);
+        else if(overlapEnd<decayEnd||overlapEnd>releaseStart)
+          bus.gain.exponentialRampToValueAtTime(Math.max(floor,atEnd),stop);
+      }
     }else{
       bus.gain.setValueAtTime(.0001,start);bus.gain.linearRampToValueAtTime(Math.max(.0002,peak),start+a);bus.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*sustain),Math.min(stop-r,start+a+d));
       if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
