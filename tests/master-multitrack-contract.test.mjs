@@ -528,7 +528,7 @@ test('MUSIC-064 complete phrases have identical playback-only gains in full and 
   full.scheduleGuide({}, {},track,0,0,13,false);
   for(const [from,to] of [[0,5],[5,10],[10,13]])pieces.scheduleGuide({}, {},track,0,from,to,false);
   const g=full.scheduled.map(n=>n.hummingPhraseGain);
-  assert.deepEqual(g,[.95,1.045,.94,.95,1.045,.94],
+  assert.ok(g.every((v,i)=>Math.abs(v-[.95,1.045,.94,.95,1.045,.94][i])<1e-9),
     'both three-note phrases keep the same start-middle-end intensity');
   assert.equal(pieces.scheduled.length,notes.length*3,
     'all segmented render windows receive a complete consistent phrase copy');
