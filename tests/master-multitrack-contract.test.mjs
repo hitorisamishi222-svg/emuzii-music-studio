@@ -244,9 +244,9 @@ test('MUSIC-057 seek inside humming release follows original envelope rather tha
   assert.equal(history.at(-1).v,.0001);
   assert.equal(history.at(-1).kind,'exp');
 });
-test('MUSIC-057 leaves short humming and sustained piano envelope schedules unchanged',()=>{
+test('MUSIC-057/064 leaves very short humming and sustained piano envelope schedules unchanged',()=>{
   for(const c of [
-    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.4,midi:64}},
+    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.18,midi:64}},
     {track:{type:'guide',gain:.7,guideInstrument:'piano'},note:{start:0,duration:7,midi:64}}
   ]){
     const h=hummingHarness();h.run(h.ctx,{},c.track,c.note,0,0,2,false);
@@ -514,6 +514,71 @@ test('MUSIC-063 long simulated phrases remain non-destructive and keep real rest
       'every phrase releases energy toward its last syllable');
   }
   assert.deepEqual(notes,original,'a simulated multi-minute guide does not rewrite project notes');
+});
+test('MUSIC-064 complete phrases have identical playback-only gains in full and 5s/10s windows',()=>{
+  const notes=[
+    {start:4.55,duration:.34,midi:69,velocity:.8},
+    {start:4.93,duration:.34,midi:69,velocity:.8},
+    {start:5.31,duration:.34,midi:69,velocity:.8},
+    {start:9.55,duration:.34,midi:69,velocity:.8},
+    {start:9.93,duration:.34,midi:69,velocity:.8},
+    {start:10.31,duration:.34,midi:69,velocity:.8}
+  ],original=structuredClone(notes),track={type:'guide',guideInstrument:'humming',gain:.75,pan:0,notes};
+  const full=legatoHarness(),pieces=legatoHarness();
+  full.scheduleGuide({}, {},track,0,0,13,false);
+  for(const [from,to] of [[0,5],[5,10],[10,13]])pieces.scheduleGuide({}, {},track,0,from,to,false);
+  const g=full.scheduled.map(n=>n.hummingPhraseGain);
+  assert.deepEqual(g,[.95,1.045,.94,.95,1.045,.94],
+    'both three-note phrases keep the same start-middle-end intensity');
+  assert.equal(pieces.scheduled.length,notes.length*3,
+    'all segmented render windows receive a complete consistent phrase copy');
+  for(let i=0;i<3;i++)assert.deepEqual(pieces.scheduled.slice(i*6,(i+1)*6),full.scheduled);
+  assert.ok(full.scheduled.every(n=>n.glideFromMidi===undefined),
+    'same-pitch syllables remain separately articulated without portamento');
+  assert.deepEqual(notes,original,'scheduling does not write phrase dynamics into saved notes');
+});
+test('MUSIC-064 non-gliding phrased humming syllables keep absolute envelope at 5s and 10s seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  for(const seam of [5,10]){
+    const start=seam-.07,note={start,duration:.34,midi:69,velocity:.8,hummingPhraseGain:1.045};
+    const left=hummingHarness(),right=hummingHarness(),whole=hummingHarness();
+    left.run(left.ctx,{},track,note,0,0,seam,false);
+    right.run(right.ctx,{},track,note,0,seam,seam+.5,false);
+    whole.run(whole.ctx,{},track,note,0,0,seam+.5,false);
+    const l=left.events.gains[0].history,q=right.events.gains[0].history,w=whole.events.gains[0].history;
+    const peak=.086*.75*.8*1.045,sustain=peak*.90;
+    const attack=.028,decay=.085,elapsed=seam-start;
+    const expected=peak*Math.pow(sustain/peak,(elapsed-attack)/decay);
+    assert.ok(Math.abs(l.at(-1).v-expected)<1e-7,
+      'first chunk must finish at the original-note decay rather than release to silence');
+    assert.ok(Math.abs(q[0].v-l.at(-1).v)<1e-7,
+      'second chunk must start from exactly the same source-relative syllable amplitude');
+    assert.ok(q.some(x=>x.kind==='exp'&&x.v===.0001),
+      'the release occurs only at the original note end');
+    assert.ok(w.some(x=>x.kind==='linear'&&Math.abs(x.v-peak)<1e-8),
+      'one-shot render retains identical original phrase peak');
+  }
+});
+test('MUSIC-064 phrase intensity remains independent of WAV position late in a simulated song',()=>{
+  const notes=Array.from({length:630},(_,i)=>{
+    const group=Math.floor(i/9),within=i%9;
+    return {start:group*4.05+within*.39,duration:.34,midi:64,velocity:.8};
+  });
+  const before=structuredClone(notes),h=legatoHarness();
+  const track={type:'guide',guideInstrument:'humming',notes,gain:.7,pan:0};
+  h.scheduleGuide({}, {},track,0,0,300,false);
+  assert.equal(h.scheduled.length,630);
+  for(let group=0;group<70;group++){
+    const g=h.scheduled.slice(group*9,group*9+9).map(n=>n.hummingPhraseGain);
+    assert.ok(g[0]===.95&&Math.abs(g[4]-1.045)<1e-8&&Math.abs(g[8]-.94)<1e-8,
+      'breath boundaries preserve the same phrase arc throughout a multi-minute score');
+  }
+  const end=h.scheduled[626],left=hummingHarness(),right=hummingHarness();
+  const seam=end.start+.18;
+  left.run(left.ctx,{},track,end,0,0,seam,false);
+  right.run(right.ctx,{},track,end,0,seam,seam+.5,false);
+  assert.ok(Math.abs(left.events.gains[0].history.at(-1).v-right.events.gains[0].history[0].v)<1e-7);
+  assert.deepEqual(notes,before);
 });
 test('MUSIC-062 humming small connected steps get transient glides without changing notes',()=>{
   const notes=[
