@@ -308,6 +308,51 @@ test('MUSIC-058 entering a long vowel during vibrato fade retains fractional dep
     'remaining 100ms of segment must continue rising instead of restarting at zero');
   assert.ok(vibGain.history.at(-1).v<target,'the truncated window cannot jump to full depth early');
 });
+test('MUSIC-059 every humming harmonic resumes with absolute note phase at 5s and 10s WAV seams',()=>{
+  const note={start:4.4,duration:7,midi:69,velocity:.8};
+  const track={type:'guide',gain:.75,pan:0,start:0,guideInstrument:'humming'},original=structuredClone(note);
+  const parts=[[0,5],[4.9,10],[9.9,13]].map(([from,to])=>{
+    const h=hummingHarness();h.run(h.ctx,{},track,note,0,from,to,false);
+    return {from,harmonics:h.events.oscs.filter(x=>x.freq>100),lfos:h.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4)};
+  });
+  assert.ok(parts.every(p=>p.harmonics.length===5&&p.lfos.length===2));
+  assert.ok(parts[0].harmonics.every(o=>o.wave===null),
+    'first note onset must keep the original unmodified sine harmonics');
+  for(const p of parts.slice(1)){
+    const elapsed=p.from-note.start;
+    for(const [idx,osc] of p.harmonics.entries()){
+      assert.ok(osc.wave&&osc.wave.options?.disableNormalization,
+        'all five carrier harmonics must use phase-correct periodic waves at chunk resumption');
+      assert.ok(Math.abs(osc.freq/parts[0].harmonics[0].freq-(idx+1))<.001);
+      const theta=2*Math.PI*(elapsed*osc.freq);
+      assert.ok(Math.abs(osc.wave.real[1]-Math.sin(theta))<1e-5);
+      assert.ok(Math.abs(osc.wave.imag[1]-Math.cos(theta))<1e-5);
+      // The same absolute sample within a crossfade must agree with an
+      // oscillator that started at the original note onset, not the new chunk.
+      const absolute=p.from+.037;
+      const fromChunk=osc.wave.real[1]*Math.cos(2*Math.PI*osc.freq*(absolute-p.from))+
+        osc.wave.imag[1]*Math.sin(2*Math.PI*osc.freq*(absolute-p.from));
+      const fromSource=Math.sin(2*Math.PI*osc.freq*(absolute-note.start));
+      assert.ok(Math.abs(fromChunk-fromSource)<1e-5,
+        'carrier harmonic '+(idx+1)+' has continuous source-relative phase');
+    }
+  }
+  assert.deepEqual(note,original,'carrier rephasing must not change saved pitch or timing');
+});
+test('MUSIC-059 other guide instruments never receive new carrier periodic waves',()=>{
+  const piano=hummingHarness();
+  piano.run(piano.ctx,{}, {type:'guide',gain:.75,pan:0,guideInstrument:'piano'},
+    {start:4.4,duration:7,midi:69},0,4.9,10,false);
+  assert.ok(piano.events.oscs.every(o=>o.wave===null),
+    'the previous piano synthesis path must remain untouched');
+});
+test('MUSIC-059 carrier phase lock safely falls back without periodic-wave support',()=>{
+  const h=hummingHarness();h.ctx.createPeriodicWave=undefined;
+  h.run(h.ctx,{}, {type:'guide',gain:.75,pan:0,guideInstrument:'humming'},
+    {start:4.4,duration:7,midi:69},0,4.9,10,false);
+  assert.equal(h.events.oscs.filter(o=>o.freq>100).length,5);
+  assert.ok(h.events.oscs.every(o=>o.wave===null),'legacy audio contexts still render without crashing');
+});
 test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
   const h=hummingHarness(),track={type:'guide',gain:.7,guideInstrument:'humming'};
   h.run(h.ctx,{},track,{start:0,duration:.4,midi:69},.1,0,Infinity,false);
