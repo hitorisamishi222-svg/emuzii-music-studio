@@ -1295,6 +1295,38 @@
       ]
     },
     {
+      "id": "MUSIC-067",
+      "title": "3分34秒（214秒）フル尺ハミングWAVを43区間出力し終盤までの音量・短音・休符とクリップを検証",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-057",
+        "MUSIC-059",
+        "MUSIC-062",
+        "MUSIC-063",
+        "MUSIC-064",
+        "MUSIC-065",
+        "MUSIC-066"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "実Chromiumにて214秒・44.1kHz・2ch・43分割区間のWAVを書き出しサンプル数とRIFF長が一致",
+        "5本の同一持続ハミングの開始・中盤・終了に渡るRMS差が1.45倍未満",
+        "5秒・100秒・200秒WAV境界をまたぐ75ms極短音が途切れず継ぎ目のRMS差が2.8倍未満",
+        "21組のフレーズが序盤・中盤・終盤で維持される一方、休符と末尾は無音",
+        "サンプリングした全尺ピークが0.98未満で過大レベルなし、進捗表示100%、外部API呼び出しゼロ",
+        "Studio/Vocal/MASTERとブラウザの回帰テストが合格、本番main・原音・MIDI・保存形式は変更なし",
+        "実楽曲の聴感評価・スマホ実機・GPU推論・公開は対象外"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42183796090",
+        "docs/MUSIC_067_FULL_SONG_WAV_STABILITY.md",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
