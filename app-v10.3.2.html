@@ -1457,10 +1457,10 @@
       presence.frequency.setValueAtTime(vowelHz(sourceProgressStart),start);
       presence.frequency.linearRampToValueAtTime(vowelHz(sourceProgressEnd),stop);
     }
-    if(kind==="guide"&&guideInstrument==="humming"&&noteDuration>=.08){
-      // MUSIC-065: even short 80–280ms humming syllables need the original-note
-      // envelope when a 5s/10s WAV window splits their attack or release.
-      // Keep sub-80ms transients and all other guide instruments unchanged.
+    if(kind==="guide"&&guideInstrument==="humming"&&noteDuration>=.02){
+      // MUSIC-066: preserve source-relative attack, decay and release for
+      // 20–80ms humming syllables as well as longer notes. Extremely brief
+      // sub-20ms transients and unrelated instruments retain legacy behavior.
       // Render the amplitude envelope against the original note,
       // never the clipped 5/10s WAV window. Do not retrigger the attack or
       // release a sustained vowel just because a chunk boundary was reached.
