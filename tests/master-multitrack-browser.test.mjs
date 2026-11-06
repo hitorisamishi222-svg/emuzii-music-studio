@@ -1136,7 +1136,7 @@ try{
   await fullSongPage.goto(base,{waitUntil:'domcontentloaded'});
   await fullSongPage.waitForSelector('#portableProjectFile',{state:'attached'});
   const fullSongBytes=await fullSongPage.evaluate(async()=>{
-    const holds=[1,45,89,139,202].map(start=>({
+    const holds=[1,45,94,139,202].map(start=>({
       start,duration:1.2,midi:69,velocity:.8
     }));
     const ultraShort=[4.97,99.97,199.97].map(start=>({
@@ -1194,7 +1194,7 @@ try{
     }
     return {
       rate,channels,frames,bytes:wav.byteLength,maxPeak,clipped,
-      holds:[1,45,89,139,202].map(t=>rms(t+.52,t+.70)),
+      holds:[1,45,94,139,202].map(t=>rms(t+.52,t+.70)),
       seams:[5,100,200].map(t=>[rms(t-.012,t-.002),rms(t+.002,t+.012)]),
       phraseCenters:[12.4,97.4,182.4].map(t=>rms(t+.50,t+.62)),
       rests:[7,75,108,207,213].map(t=>rms(t,t+.5)),
