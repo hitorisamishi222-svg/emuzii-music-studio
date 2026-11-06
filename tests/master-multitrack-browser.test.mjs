@@ -1050,6 +1050,78 @@ try{
   await shortContext.close();
   console.log('PASS MUSIC-065 180ms humming syllables remain audible across both 5s/10s WAV seams');
 
+  // MUSIC-066: 33-second real PCM stress case. Repeat equivalent long notes
+  // at early/middle/late positions while placing 75ms humming syllables over
+  // 5s, 10s and 20s WAV boundaries. Inspect exact output duration, short
+  // attacks, long-note loudness, real rests and no external requests.
+  const shortLongContext=await browser.newContext();
+  const shortLongPage=await shortLongContext.newPage();
+  let shortLongAceCalls=0;
+  shortLongPage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))shortLongAceCalls++});
+  await shortLongPage.goto(base,{waitUntil:'domcontentloaded'});
+  await shortLongPage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const shortLongBytes=await shortLongPage.evaluate(async()=>{
+    const holds=[.7,10.7,20.7,30.7].map(start=>({start,duration:1.2,midi:69,velocity:.8}));
+    const transients=[4.97,9.97,19.97].map(start=>({start,duration:.075,midi:69,velocity:.8}));
+    const project={id:'portable',name:'MUSIC-066 33s loudness and short syllable test',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{id:'music066-guide',name:'33s guide reference',type:'guide',
+        gain:.85,pan:0,start:0,duration:33,guideInstrument:'humming',
+        mute:false,solo:false,
+        notes:[...holds,...transients].sort((a,b)=>a.start-b.start)
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await shortLongPage.locator('[data-view="project"]').click();
+  await shortLongPage.locator('#portableProjectFile').setInputFiles({
+    name:'music066-stress.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(shortLongBytes)
+  });
+  await shortLongPage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await shortLongPage.locator('[data-view="edit"]').click();
+  await shortLongPage.locator('#compatPlay').click();
+  await shortLongPage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('33.0秒'),{timeout:60000});
+  const shortLongStats=await shortLongPage.evaluate(async()=>{
+    const buffer=await (await fetch(document.querySelector('#compatAudio').src)).arrayBuffer();
+    const view=new DataView(buffer),rate=view.getUint32(24,true),channels=view.getUint16(22,true);
+    const frames=view.getUint32(40,true)/(channels*2);
+    const rms=(a,b)=>{
+      const from=Math.round(a*rate),to=Math.min(frames,Math.round(b*rate));
+      let power=0,count=0;
+      for(let i=from;i<to;i++){
+        const v=view.getInt16(44+i*channels*2,true)/32768;
+        power+=v*v;count++;
+      }
+      return Math.sqrt(power/Math.max(1,count));
+    };
+    return {
+      rate,frames,
+      longNotes:[1.1,11.1,21.1,31.1].map(t=>rms(t,t+.15)),
+      boundaries:[5,10,20].map(t=>[rms(t-.012,t-.002),rms(t+.002,t+.012)]),
+      rests:[6,16,26,32.3].map(t=>rms(t,t+.35))
+    };
+  });
+  assert.equal(shortLongStats.rate,44100);
+  assert.equal(shortLongStats.frames,33*44100,'33s WAV duration has no lost or duplicated frames across 7 chunks');
+  const longValues=shortLongStats.longNotes;
+  assert.ok(longValues.every(v=>v>.003),'early, middle and late sustained notes remain audible');
+  const longRatio=Math.max(...longValues)/Math.min(...longValues);
+  assert.ok(longRatio<1.4,'source-level repeated long tones must not drift in loudness over 33s, ratio '+longRatio);
+  for(const [i,levels] of shortLongStats.boundaries.entries()){
+    assert.ok(levels.every(v=>v>.002),
+      '75ms short humming syllable stays audible on both sides of '+[5,10,20][i]+'s WAV seam');
+    const ratio=Math.max(...levels)/Math.min(...levels);
+    assert.ok(ratio<2.8,'ultra-short syllable has no artificial extreme seam volume change, ratio '+ratio);
+  }
+  assert.ok(shortLongStats.rests.every(v=>v<.0005),
+    'long timeline keeps true breaths and final trailing silence');
+  assert.equal(shortLongAceCalls,0,'33s local guide rendering makes no paid AI requests');
+  await shortLongContext.close();
+  console.log('PASS MUSIC-066 33-second 44.1kHz WAV balances repeated notes and short 5/10/20s seam syllables');
+
+
 
   
   // MUSIC-046: actual guide extraction must recover deliberately changed
