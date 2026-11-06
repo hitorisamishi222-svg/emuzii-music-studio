@@ -984,6 +984,72 @@ try{
   assert.equal(phraseAceCalls,0,'local phrase WAV export must not use paid generation APIs');
   await phraseContext.close();
   console.log('PASS MUSIC-064 short humming phrase dynamics survive both 5s/10s WAV seams with rests intact');
+  
+  // MUSIC-065: short 180ms syllables begin BEFORE each WAV seam and end
+  // AFTER it. Verify actual PCM remains audible on both sides without a
+  // spurious end-of-chunk release/retrigger, while real rests remain silent.
+  const shortContext=await browser.newContext();
+  const shortPage=await shortContext.newPage();
+  let shortAceCalls=0;
+  shortPage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))shortAceCalls++});
+  await shortPage.goto(base,{waitUntil:'domcontentloaded'});
+  await shortPage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const shortBytes=await shortPage.evaluate(async()=>{
+    const project={
+      id:'portable',name:'MUSIC-065 short humming seam test',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'short-seam-ci',name:'Short humming seam guide',type:'guide',
+        gain:.85,pan:0,start:0,duration:13,guideInstrument:'humming',
+        mute:false,solo:false,
+        notes:[
+          {start:4.94,duration:.18,midi:69,velocity:.9},
+          {start:9.94,duration:.18,midi:69,velocity:.9}
+        ]
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await shortPage.locator('[data-view="project"]').click();
+  await shortPage.locator('#portableProjectFile').setInputFiles({
+    name:'short-seam.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(shortBytes)
+  });
+  await shortPage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await shortPage.locator('[data-view="edit"]').click();
+  await shortPage.locator('#compatPlay').click();
+  await shortPage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('13.0秒'),{timeout:30000});
+  const shortStats=await shortPage.evaluate(async()=>{
+    const buffer=await (await fetch(document.querySelector('#compatAudio').src)).arrayBuffer();
+    const view=new DataView(buffer),rate=view.getUint32(24,true),channels=view.getUint16(22,true);
+    const frames=view.getUint32(40,true)/(channels*2);
+    const rms=(from,to)=>{
+      let sum=0,n=0;
+      for(let i=Math.round(from*rate);i<Math.min(frames,Math.round(to*rate));i++){
+        const v=view.getInt16(44+i*channels*2,true)/32768;sum+=v*v;n++;
+      }
+      return Math.sqrt(sum/Math.max(1,n));
+    };
+    return {rate,frames,
+      first:[rms(4.976,4.993),rms(5.007,5.024)],
+      second:[rms(9.976,9.993),rms(10.007,10.024)],
+      rests:[rms(6,7),rms(11,12)],tail:rms(12,12.5)};
+  });
+  assert.equal(shortStats.rate,44100);
+  assert.equal(shortStats.frames,13*44100,'short-syllable WAV has exact length at 44.1kHz');
+  for(const [i,values] of [shortStats.first,shortStats.second].entries()){
+    assert.ok(values.every(v=>v>.003),'180ms humming remains audible across seam '+(i===0?5:10));
+    const ratio=values[1]/values[0];
+    assert.ok(ratio>.45&&ratio<1.6,
+      'no false envelope drop or exaggerated reattack across short note seam '+(i===0?5:10)+', observed ratio '+ratio);
+  }
+  assert.ok([...shortStats.rests,shortStats.tail].every(v=>v<.0005),
+    'short syllables must not fill genuine rests with sound');
+  assert.equal(shortAceCalls,0,'short-syllable WAV export makes no external AI calls');
+  await shortContext.close();
+  console.log('PASS MUSIC-065 180ms humming syllables remain audible across both 5s/10s WAV seams');
+
 
   
   // MUSIC-046: actual guide extraction must recover deliberately changed
