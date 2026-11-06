@@ -1097,6 +1097,35 @@
       ]
     },
     {
+      "id": "MUSIC-059",
+      "title": "長尺ハミング5倍音キャリアの位相を元音符に同期しWAV分割境界の音色衝突を抑制",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-045",
+        "MUSIC-055",
+        "MUSIC-056",
+        "MUSIC-057",
+        "MUSIC-058"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ハミング5倍音キャリアを元音符位置と各実周波数から決定論的に再位相設定",
+        "5秒・10秒境界の周期波係数および絶対時刻の位相一致を自動検証",
+        "ピアノ等の他楽器と従来の音符開始時挙動を保持し周期波非対応の環境でも安全",
+        "実Chromiumの13秒WAVで継ぎ目の音量・休符・出力長・位相波14以上を検証",
+        "Studio/Vocal/MASTERの自動回帰合格、実歌唱聴感・モバイル実機・本番公開は未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42146768342",
+        "docs/MUSIC_059_HUMMING_CARRIER_PHASE.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
