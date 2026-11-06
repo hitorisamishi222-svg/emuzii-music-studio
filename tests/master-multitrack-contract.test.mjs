@@ -481,6 +481,20 @@ test('MUSIC-062 glide phase and pitch remain continuous when a WAV chunk begins 
   assert.ok(after.events.oscs.filter(x=>x.freq>100).every((x,i)=>Math.abs(x.freq-440*Math.pow(2,(62-69)/12)*(i+1))<2),
     'a later chunk should hold the target pitch without retriggering a glide');
 });
+test('MUSIC-062 short connected glides do not restart the amplitude envelope at WAV seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'},
+    note={start:4.98,duration:.5,midi:62,glideFromMidi:60,velocity:.8};
+  const before=hummingHarness(),after=hummingHarness();
+  before.run(before.ctx,{},track,note,0,0,5,false);
+  after.run(after.ctx,{},track,note,0,5,5.5,false);
+  const peak=.086*track.gain*note.velocity,held=peak*.90;
+  const left=before.events.gains[0].history,right=after.events.gains[0].history;
+  assert.ok(left.at(-1).v>=held*.80&&left.at(-1).v<=peak,
+    'the clipped first 20ms must retain vowel attack, not fake silence at 5s');
+  assert.ok(right[0].v>held*.6&&right[0].v<=peak,
+    'the resumed vowel must keep its absolute note envelope');
+  assert.ok(right.at(-1).v===.0001,'only the real note ending can release fully');
+});
 test('humming legato ignores broken note boundaries or transitions involving drums',()=>{
   const h=legatoHarness();
   const notes=[{start:0,duration:.2,midi:60},{start:.23,duration:.04,drum:'kick'},{start:.30,duration:NaN,midi:62},{start:.35,duration:.24,midi:65}];
