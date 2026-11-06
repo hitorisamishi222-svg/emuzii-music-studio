@@ -1069,6 +1069,34 @@
       ]
     },
     {
+      "id": "MUSIC-058",
+      "title": "長音ハミングのビブラート深さとLFO位相を元音符位置で再開し分割WAV継ぎ目を保護",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-045",
+        "MUSIC-055",
+        "MUSIC-056",
+        "MUSIC-057"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "0.28秒以上の長音は短い分割断片でもビブラートを保持し音符開始基準の強さを引き継ぐ",
+        "5秒・10秒WAVチャンクと途中シークでLFOの単周期波形位相を音符開始基準で計算する",
+        "短音や他楽器、元音源、ガイド音符、MIDI、保存形式を変更しない",
+        "実Chromiumの合成WAVでPeriodicWave係数の適用、両継ぎ目、休符を検証",
+        "Studio/Vocal/MASTERの開発用回帰試験合格、本番や実歌唱の聴感・実機試験なし"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42144084386",
+        "docs/MUSIC_058_HUMMING_VIBRATO_CHUNK_PHASE.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
