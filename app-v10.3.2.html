@@ -1487,16 +1487,37 @@
     }
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
     const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){
-      const isHumming=kind==="guide"&&guideInstrument==="humming",voicedSeconds=stop-start;
-      // Short syllables should remain steady. Sustained notes gain a gentle
-      // delayed vibrato instead of starting every synthetic note with a wobble.
-      if(!isHumming||voicedSeconds>=.28){
+      const isHumming=kind==="guide"&&guideInstrument==="humming";
+      // MUSIC-058: use the ORIGINAL note length and offset for a sustained
+      // humming vibrato, so a clipped 5/10s WAV chunk does not retrigger it.
+      if(!isHumming||noteDuration>=.28){
         const lfo=ctx.createOscillator(),lfoGain=ctx.createGain();
         const variation=(Math.sin(noteStart*2.31+note.midi*.87)+1)*.5;
-        lfo.frequency.value=isHumming?4.7+variation*.7:5.05;
-        lfoGain.gain.setValueAtTime(0,start);
-        const vibIn=isHumming?start+Math.min(.26,Math.max(.14,voicedSeconds*.48)):Math.min(stop,start+.11);
-        lfoGain.gain.linearRampToValueAtTime(isHumming?Math.min(12,vibrato*4):vibrato,vibIn);
+        const rate=isHumming?4.7+variation*.7:5.05;
+        lfo.frequency.value=rate;
+        if(isHumming){
+          const depth=Math.min(12,vibrato*4);
+          const fadeSeconds=Math.min(.26,Math.max(.14,noteDuration*.48));
+          const sinceOnset=Math.max(0,overlapStart-gStart);
+          const startingDepth=depth*Math.min(1,sinceOnset/fadeSeconds);
+          lfoGain.gain.setValueAtTime(startingDepth,start);
+          if(sinceOnset<fadeSeconds){
+            const fadeEnd=Math.min(stop,start+fadeSeconds-sinceOnset);
+            lfoGain.gain.linearRampToValueAtTime(depth*Math.min(1,(sinceOnset+fadeEnd-start)/fadeSeconds),fadeEnd);
+          }
+          // Web Audio oscillators begin with phase zero in each fresh context.
+          // Rotate a single harmonic so the LFO instead resumes at the same
+          // original-note phase after a chunk split or a playback seek.
+          if(sinceOnset>0&&ctx.createPeriodicWave&&lfo.setPeriodicWave){
+            const phase=2*Math.PI*((sinceOnset*rate)%1);
+            const real=new Float32Array([0,Math.sin(phase)]);
+            const imag=new Float32Array([0,Math.cos(phase)]);
+            lfo.setPeriodicWave(ctx.createPeriodicWave(real,imag,{disableNormalization:true}));
+          }
+        }else{
+          lfoGain.gain.setValueAtTime(0,start);
+          lfoGain.gain.linearRampToValueAtTime(vibrato,Math.min(stop,start+.11));
+        }
         lfo.connect(lfoGain).connect(osc.detune);lfo.start(start);lfo.stop(stop+.02);collectNode(lfo,collect);
       }
     }osc.start(start);osc.stop(stop+.02);collectNode(osc,collect);};
