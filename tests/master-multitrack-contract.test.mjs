@@ -244,15 +244,62 @@ test('MUSIC-057 seek inside humming release follows original envelope rather tha
   assert.equal(history.at(-1).v,.0001);
   assert.equal(history.at(-1).kind,'exp');
 });
-test('MUSIC-057/064 leaves very short humming and sustained piano envelope schedules unchanged',()=>{
+test('MUSIC-057/064/065 leaves sub-80ms humming transients and sustained piano unchanged',()=>{
   for(const c of [
-    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.18,midi:64}},
+    {track:{type:'guide',gain:.7,guideInstrument:'humming'},note:{start:0,duration:.04,midi:64}},
     {track:{type:'guide',gain:.7,guideInstrument:'piano'},note:{start:0,duration:7,midi:64}}
   ]){
     const h=hummingHarness();h.run(h.ctx,{},c.track,c.note,0,0,2,false);
     const times=h.events.gains[0].history;
     assert.equal(times[0].v,.0001);
     assert.equal(times.at(-1).v,.0001,'unchanged instruments keep previous clipped release behavior');
+  }
+});
+test('MUSIC-065 80–280ms short humming syllables preserve original note envelope over both WAV seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const cases=[
+    {start:4.99,duration:.12,seam:5,stage:'attack'},
+    {start:4.97,duration:.18,seam:5,stage:'decay'},
+    {start:9.91,duration:.22,seam:10,stage:'sustain'},
+    {start:9.89,duration:.13,seam:10,stage:'release'},
+    {start:4.96,duration:.08,seam:5,stage:'release'}
+  ];
+  for(const c of cases){
+    const note={start:c.start,duration:c.duration,midi:69,velocity:.8},before=structuredClone(note);
+    const left=hummingHarness(),right=hummingHarness(),whole=hummingHarness();
+    left.run(left.ctx,{},track,note,0,0,c.seam,false);
+    right.run(right.ctx,{},track,note,0,c.seam,c.seam+1,false);
+    whole.run(whole.ctx,{},track,note,0,0,c.seam+1,false);
+    const l=left.events.gains[0].history,r=right.events.gains[0].history,w=whole.events.gains[0].history;
+    const peak=.086*.75*.8,floor=.0001,held=peak*.9;
+    const attack=Math.min(.028,c.duration*.25),decay=Math.min(.085,c.duration*.25),release=Math.min(.19,c.duration*.35);
+    const elapsed=c.seam-c.start,decayEnd=attack+decay,releaseStart=Math.max(decayEnd,c.duration-release);
+    const expected=elapsed<=0?floor:elapsed<attack?
+      floor+(peak-floor)*elapsed/attack:
+      elapsed<decayEnd?peak*Math.pow(held/peak,(elapsed-attack)/decay):
+      elapsed<releaseStart?held:
+      elapsed<c.duration?held*Math.pow(floor/held,(elapsed-releaseStart)/(c.duration-releaseStart)):floor;
+    assert.ok(Math.abs(l.at(-1).v-expected)<1e-7,c.stage+' left WAV must end on the original amplitude');
+    assert.ok(Math.abs(r[0].v-expected)<1e-7,c.stage+' right WAV must start on the same original amplitude');
+    assert.ok(l.at(-1).v>floor*1.5&&r[0].v>floor*1.5,
+      'short note must not be muted at a window split '+c.stage);
+    assert.ok(w.some(x=>x.kind==='linear'&&Math.abs(x.v-peak)<1e-8));
+    assert.deepEqual(note,before,'source MIDI note must remain byte-for-byte equivalent');
+  }
+});
+test('MUSIC-065 very short transients and all other guide instruments keep prior boundary behavior',()=>{
+  for(const c of [
+    {instrument:'humming',duration:.079},
+    {instrument:'humming',duration:.04},
+    {instrument:'piano',duration:.18},
+    {instrument:'electone',duration:.22}
+  ]){
+    const h=hummingHarness();
+    h.run(h.ctx,{}, {type:'guide',gain:.75,pan:0,guideInstrument:c.instrument},
+      {start:4.97,duration:c.duration,midi:69,velocity:.8},0,0,5,false);
+    const data=h.events.gains[0].history;
+    assert.ok(data.length>=4&&data.at(-1).v===.0001,
+      'sub-80ms or non-humming source must retain legacy clipped release: '+c.instrument+' '+c.duration);
   }
 });
 test('MUSIC-058 sustained humming LFO preserves note-relative phase at the 5s and 10s WAV seams',()=>{
