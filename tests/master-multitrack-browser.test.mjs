@@ -922,6 +922,70 @@ try{
   await longGuideContext.close();
   console.log('PASS 13-second Safari WAV keeps a 7s sustained humming vowel across 5s and 10s seams without false envelope drops');
   
+  // MUSIC-064: two distinct three-syllable phrases cross 5s and 10s.
+  // Repeated-pitch syllables intentionally do not receive pitch glides.
+  // Compare equal positions within the syllables after actual 44.1kHz WAV
+  // rendering: the middle syllable should be gently louder in BOTH phrases.
+  const phraseContext=await browser.newContext();
+  const phrasePage=await phraseContext.newPage();
+  let phraseAceCalls=0;
+  phrasePage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))phraseAceCalls++});
+  await phrasePage.goto(base,{waitUntil:'domcontentloaded'});
+  await phrasePage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const phraseBytes=await phrasePage.evaluate(async()=>{
+    const mk=(start)=>[0,.38,.76].map(offset=>({
+      start:start+offset,duration:.34,midi:69,velocity:.8
+    }));
+    const project={
+      id:'portable',name:'MUSIC-064 phrase seam fixture',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'phrase-seam-ci',name:'Connected humming phrases',
+        type:'guide',gain:.85,pan:0,start:0,duration:13,guideInstrument:'humming',
+        mute:false,solo:false,notes:[...mk(4.55),...mk(9.55)]
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await phrasePage.locator('[data-view="project"]').click();
+  await phrasePage.locator('#portableProjectFile').setInputFiles({
+    name:'phrase-seams.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(phraseBytes)
+  });
+  await phrasePage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await phrasePage.locator('[data-view="edit"]').click();
+  await phrasePage.locator('#compatPlay').click();
+  await phrasePage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('13.0秒'),{timeout:30000});
+  const phraseStats=await phrasePage.evaluate(async()=>{
+    const bytes=await (await fetch(document.querySelector('#compatAudio').src)).arrayBuffer();
+    const dv=new DataView(bytes),rate=dv.getUint32(24,true),channels=dv.getUint16(22,true);
+    const frames=dv.getUint32(40,true)/(channels*2);
+    function rms(a,b){
+      const from=Math.round(a*rate),to=Math.min(frames,Math.round(b*rate));let sum=0;
+      for(let i=from;i<to;i++){const v=dv.getInt16(44+i*channels*2,true)/32768;sum+=v*v;}
+      return Math.sqrt(sum/Math.max(1,to-from));
+    }
+    return {rate,frames,first:[rms(4.67,4.73),rms(5.05,5.11),rms(5.43,5.49)],
+      second:[rms(9.67,9.73),rms(10.05,10.11),rms(10.43,10.49)],
+      rest:rms(7,8),tail:rms(11.5,12)};
+  });
+  assert.equal(phraseStats.rate,44100);
+  assert.equal(phraseStats.frames,13*44100,'WAV phrase seam export keeps the exact full project duration');
+  for(const [i,phrase] of [phraseStats.first,phraseStats.second].entries()){
+    assert.ok(phrase.every(v=>v>.003),'all three phrase notes remain audible on both sides of WAV seam '+i);
+    assert.ok(phrase[1]>phrase[0]*1.01&&phrase[1]>phrase[2]*1.01,
+      'the middle phrase syllable remains louder even when its envelope crosses WAV seam '+i);
+    assert.ok(phrase[1]<Math.max(phrase[0],phrase[2])*1.30,
+      'modest phrase dynamics cannot create an outlying loud syllable at WAV seam '+i);
+  }
+  assert.ok(phraseStats.rest<.0005&&phraseStats.tail<.0005,
+    'true phrase rests and the final song tail must stay silent');
+  assert.equal(phraseAceCalls,0,'local phrase WAV export must not use paid generation APIs');
+  await phraseContext.close();
+  console.log('PASS MUSIC-064 short humming phrase dynamics survive both 5s/10s WAV seams with rests intact');
+
+  
   // MUSIC-046: actual guide extraction must recover deliberately changed
   // octaves after silence, not lock to an earlier note in the song.
   const pitchContext=await browser.newContext();
