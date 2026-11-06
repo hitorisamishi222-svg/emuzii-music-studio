@@ -394,6 +394,37 @@ test('humming-only legato never changes previous guide instruments or overlappin
   assert.ok(Math.abs(h.scheduled[2].duration-.268)<1e-9);
   assert.deepEqual(notes[0],{start:0,duration:.3,midi:60});
 });
+test('MUSIC-061 humming treats repeated notes as separate syllables and preserves leap breaths',()=>{
+  const h=legatoHarness();
+  const notes=[
+    {start:0,duration:.28,midi:60},
+    {start:.32,duration:.28,midi:60},
+    {start:.65,duration:.20,midi:65},
+    {start:.90,duration:.20,midi:72},
+    {start:1.12,duration:.20,midi:79},
+    {start:1.43,duration:.15,midi:81}
+  ];
+  const original=structuredClone(notes);
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  assert.equal(h.scheduled.length,notes.length);
+  assert.equal(h.scheduled[0].duration,.28,
+    'identical notes separated by 40ms must retain a fresh syllable attack');
+  assert.ok(Math.abs(h.scheduled[1].duration-.348)<1e-9,
+    'a connected 5-semitone step may bridge a 50ms micro-gap');
+  assert.equal(h.scheduled[2].duration,.20,
+    'a 7-semitone leap with 50ms silence must retain breath space');
+  assert.ok(Math.abs(h.scheduled[3].duration-.238)<1e-9,
+    'an almost connected 7-semitone leap keeps the original legato option');
+  assert.equal(h.scheduled[4].duration,.20,'genuine 110ms pause remains untouched');
+  assert.deepEqual(notes,original,'MIDI pitches, source timing and saved project notes must stay unchanged');
+});
+test('MUSIC-061 piano playback retains original reattack and note durations',()=>{
+  const h=legatoHarness();
+  const notes=[{start:0,duration:.3,midi:60},{start:.34,duration:.3,midi:60},
+    {start:.68,duration:.25,midi:67}];
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'piano',notes},0,0,Infinity,false);
+  assert.deepEqual(h.scheduled,notes);
+});
 test('humming legato ignores broken note boundaries or transitions involving drums',()=>{
   const h=legatoHarness();
   const notes=[{start:0,duration:.2,midi:60},{start:.23,duration:.04,drum:'kick'},{start:.30,duration:NaN,midi:62},{start:.35,duration:.24,midi:65}];
