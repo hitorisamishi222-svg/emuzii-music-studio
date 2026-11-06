@@ -1183,6 +1183,32 @@
       ]
     },
     {
+      "id": "MUSIC-063",
+      "title": "ハミングのフレーズに控えめな強弱を加えブレスで独立させ原音・MIDIを保護",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-061",
+        "MUSIC-062"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "3音以上で0〜90msの近接した単旋律フレーズだけに再生時の緩やかな音量変化0.94〜1.045倍を付与",
+        "繰り返し音符の再発音、大跳躍、ブレス、重なり、ドラムおよび無効音符で安全に分離",
+        "ハミング以外には一切適用せず最大音量倍率を0.90〜1.08に制限",
+        "450音符の模擬数分尺および実Chromiumでの4音音色試聴、Studio/Vocal/MASTER回帰テストが合格",
+        "原音、MIDI、SONG ID、保存形式、本番mainとURLは変更せず実歌唱聴感と実機は未評価"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42168675455",
+        "docs/MUSIC_063_HUMMING_PHRASE_DYNAMICS.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
