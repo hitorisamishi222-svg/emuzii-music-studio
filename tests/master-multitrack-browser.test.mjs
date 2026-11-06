@@ -1121,6 +1121,116 @@ try{
   await shortLongContext.close();
   console.log('PASS MUSIC-066 33-second 44.1kHz WAV balances repeated notes and short 5/10/20s seam syllables');
 
+  // MUSIC-067: production-length 3:34 (214-second) fixture, including long
+  // sustained vowels, separated three-syllable phrases and 75ms syllables at
+  // early/middle/late 5-second WAV seams. This must exercise the real UI and
+  // real 44.1kHz PCM render, not just an isolated mock audio graph.
+  const fullSongContext=await browser.newContext();
+  const fullSongPage=await fullSongContext.newPage();
+  let fullSongAceCalls=0;
+  const fullSongErrors=[];
+  fullSongPage.on('request',req=>{
+    if(new URL(req.url()).pathname.startsWith('/api/ace'))fullSongAceCalls++;
+  });
+  fullSongPage.on('pageerror',e=>fullSongErrors.push(String(e)));
+  await fullSongPage.goto(base,{waitUntil:'domcontentloaded'});
+  await fullSongPage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const fullSongBytes=await fullSongPage.evaluate(async()=>{
+    const holds=[1,45,89,139,202].map(start=>({
+      start,duration:1.2,midi:69,velocity:.8
+    }));
+    const ultraShort=[4.97,99.97,199.97].map(start=>({
+      start,duration:.075,midi:69,velocity:.8
+    }));
+    const phrases=[];
+    for(let i=0;i<21;i++){
+      const start=12.4+i*8.5;
+      for(let j=0;j<3;j++){
+        phrases.push({start:start+j*.38,duration:.34,midi:60+2*j+(i%2)*2,velocity:.78});
+      }
+    }
+    const notes=[...holds,...ultraShort,...phrases].sort((a,b)=>a.start-b.start);
+    const project={
+      id:'portable',name:'MUSIC-067 3m34s full-length WAV consistency',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{
+        id:'long-form-humming-ci',name:'Full-length humming guide',type:'guide',
+        gain:.85,pan:0,start:0,duration:214,guideInstrument:'humming',
+        mute:false,solo:false,notes
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await fullSongPage.locator('[data-view="project"]').click();
+  await fullSongPage.locator('#portableProjectFile').setInputFiles({
+    name:'music067-full-song.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(fullSongBytes)
+  });
+  await fullSongPage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await fullSongPage.locator('[data-view="edit"]').click();
+  await fullSongPage.locator('#compatPlay').click();
+  await fullSongPage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('214.0秒'),{timeout:150000});
+  const fullSongStats=await fullSongPage.evaluate(async()=>{
+    const audio=document.querySelector('#compatAudio');
+    const wav=await (await fetch(audio.src)).arrayBuffer();
+    const dv=new DataView(wav),rate=dv.getUint32(24,true),channels=dv.getUint16(22,true),
+      frames=dv.getUint32(40,true)/(channels*2);
+    const rms=(a,b)=>{
+      let sum=0,count=0;
+      for(let i=Math.round(a*rate);i<Math.min(frames,Math.round(b*rate));i++){
+        const v=dv.getInt16(44+i*channels*2,true)/32768;
+        sum+=v*v;count++;
+      }
+      return Math.sqrt(sum/Math.max(1,count));
+    };
+    let maxPeak=0,clipped=0;
+    // Inspect every 23rd frame throughout the full song for unexpected
+    // high levels; this is a bound, not a mastering loudness guarantee.
+    for(let i=0;i<frames;i+=23){
+      const v=Math.abs(dv.getInt16(44+i*channels*2,true)/32768);
+      maxPeak=Math.max(maxPeak,v);
+      if(v>=.98)clipped++;
+    }
+    return {
+      rate,channels,frames,bytes:wav.byteLength,maxPeak,clipped,
+      holds:[1,45,89,139,202].map(t=>rms(t+.52,t+.70)),
+      seams:[5,100,200].map(t=>[rms(t-.012,t-.002),rms(t+.002,t+.012)]),
+      phraseCenters:[12.4,97.4,182.4].map(t=>rms(t+.50,t+.62)),
+      rests:[7,75,108,207,213].map(t=>rms(t,t+.5)),
+      progress:document.querySelector('#wavEta')?.textContent||''
+    };
+  });
+  assert.equal(fullSongStats.rate,44100,'full 3:34 export uses 44.1kHz');
+  assert.equal(fullSongStats.channels,2,'full 3:34 export retains stereo');
+  assert.equal(fullSongStats.frames,214*44100,'214 seconds need exact sample frames over 43 WAV chunks');
+  assert.equal(fullSongStats.bytes,44+fullSongStats.frames*4,'WAV RIFF/PCM header and payload size match');
+  assert.ok(fullSongStats.holds.every(v=>v>.003),
+    'five sustained vowels remain audible at early, middle and very late song positions');
+  const fullSongHoldRatio=Math.max(...fullSongStats.holds)/Math.min(...fullSongStats.holds);
+  assert.ok(fullSongHoldRatio<1.45,
+    'identical sustained notes stay reasonably level over 3m34s, ratio '+fullSongHoldRatio);
+  for(const [index,levels] of fullSongStats.seams.entries()){
+    assert.ok(levels.every(v=>v>.002),
+      'short humming syllables remain audible across '+[5,100,200][index]+'s WAV seam');
+    const ratio=Math.max(...levels)/Math.min(...levels);
+    assert.ok(ratio<2.8,
+      'no artificial extreme level drop across full-song WAV seam '+[5,100,200][index]+': '+ratio);
+  }
+  assert.ok(fullSongStats.phraseCenters.every(v=>v>.003),
+    'connected expressive phrases remain audible from song start to late chorus');
+  assert.ok(fullSongStats.rests.every(v=>v<.0005),
+    'genuine silence and trailing 213-second rest remain silent');
+  assert.equal(fullSongStats.clipped,0,'full-song guide does not exceed 98% PCM peak in sampling');
+  assert.ok(fullSongStats.maxPeak>.005&&fullSongStats.maxPeak<.98,
+    'full-song output remains safely below digital clipping in sampled frames');
+  assert.match(fullSongStats.progress,/100%/,'long-song UI progress completes');
+  assert.equal(fullSongAceCalls,0,'full-length WAV generation needs no paid cloud generation API');
+  assert.deepEqual(fullSongErrors,[],'no uncaught browser errors during 43-chunk WAV rendering');
+  await fullSongContext.close();
+  console.log('PASS MUSIC-067 3m34s/214s 44.1kHz stereo WAV keeps steady guide levels, short seams and clean rests');
+
+
 
 
   
