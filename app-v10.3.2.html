@@ -1486,7 +1486,20 @@
       if(sustainTime<stop-r)bus.gain.setValueAtTime(Math.max(.0002,peak*sustain),sustainTime);bus.gain.exponentialRampToValueAtTime(.0001,stop);
     }
     const centsJitter=((Math.sin((note.start||0)*17.31+(note.midi||60)*1.71)+1)*.5-.5)*1.8;
-    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){
+    const addOsc=(type,ratio=1,cents=0,amp=1,vibrato=0,ampEnd=1)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type=type;osc.frequency.value=midiHz(note.midi,cents+centsJitter)*ratio;
+    // MUSIC-059: keep each pitched humming partial at its original note phase,
+    // even when a 5/10s WAV window resumes the same vowel mid-note. The LFO's
+    // own phase remains handled separately by MUSIC-058.
+    if(kind==="guide"&&guideInstrument==="humming"&&type==="sine"&&overlapStart>gStart&&ctx.createPeriodicWave&&osc.setPeriodicWave){
+      const elapsed=overlapStart-gStart;
+      const cycles=(elapsed*osc.frequency.value)%1;
+      const phase=2*Math.PI*cycles;
+      osc.setPeriodicWave(ctx.createPeriodicWave(
+        new Float32Array([0,Math.sin(phase)]),new Float32Array([0,Math.cos(phase)]),
+        {disableNormalization:true}
+      ));
+    }
+    g.gain.setValueAtTime(Math.max(.0001,amp),start);if(ampEnd!==1)g.gain.exponentialRampToValueAtTime(Math.max(.0001,amp*Math.max(.01,ampEnd)),Math.min(stop,start+Math.max(.05,usable*.72)));osc.connect(g).connect(bus);if(vibrato>0){
       const isHumming=kind==="guide"&&guideInstrument==="humming";
       // MUSIC-058: use the ORIGINAL note length and offset for a sustained
       // humming vibrato, so a clipped 5/10s WAV chunk does not retrigger it.
