@@ -193,6 +193,12 @@ try{
     window.__hummingOscillators=[];
     window.__hummingStops=[];
     window.__previewPitchRamps=[];
+    window.__previewVolumePeaks=[];
+    const linear=AudioParam.prototype.linearRampToValueAtTime;
+    AudioParam.prototype.linearRampToValueAtTime=function(value,time){
+      if(value>.042&&value<.06)window.__previewVolumePeaks.push({value,time});
+      return linear.call(this,value,time);
+    };
     const ramp=AudioParam.prototype.exponentialRampToValueAtTime;
     AudioParam.prototype.exponentialRampToValueAtTime=function(value,time){
       if(value>200&&value<1200)window.__previewPitchRamps.push({value,time});
@@ -227,6 +233,14 @@ try{
   assert.ok(c4End>d4Start&&c4End-d4Start<.055,'connected notes must overlap gently rather than restart with a gap');
   assert.ok(previewRamps.some(x=>Math.abs(x.value-293.66)<1&&x.time>d4Start&&x.time<=d4Start+.05),
     'connected-note preview must actually glide to the new D4 pitch within 50ms');
+  // MUSIC-063: the first three connected syllables get a small phrase arc;
+  // the final note, separated by an intentional breath, remains neutral.
+  const peakEvents=await page.evaluate(()=>window.__previewVolumePeaks);
+  const phraseExpected=[.78*.95,.75*1.045,.80*.94,.72].map(x=>.086*.72*x);
+  for(const expected of phraseExpected)assert.ok(peakEvents.some(x=>Math.abs(x.value-expected)<1e-6),
+    'real Chromium guide audition must schedule the bounded phrase gain '+expected);
+  assert.equal(peakEvents.filter(x=>x.value>.042&&x.value<.06).length,4,
+    'preview has exactly four independently articulated humming notes');
   assert.equal(await page.locator('#tracks article.track').count(),tracksBeforePreview,'audition must not add song tracks');
   assert.equal(aceRequests,0,'local audition must not call paid generation API');
   await page.waitForFunction(()=>!document.querySelector('#previewGuideInstrument')?.disabled,{timeout:5000});
