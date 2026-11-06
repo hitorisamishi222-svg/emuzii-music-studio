@@ -1153,6 +1153,36 @@
       ]
     },
     {
+      "id": "MUSIC-062",
+      "title": "ハミング小音程移動を最大45msの短いスライドで滑らかにつなぎWAV分割時の周波数・位相・音量を保持",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-055",
+        "MUSIC-057",
+        "MUSIC-058",
+        "MUSIC-059",
+        "MUSIC-061"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "ハミングの1〜5半音かつ0〜50msの接続音符だけに一時的な短い音程スライドを適用し他楽器・同音・跳躍・ブレスは不変",
+        "全5倍音が45ms以内で元の音程から目的音程へ到達",
+        "分割WAVの途中からでも周波数・積分位相・短音音量エンベロープを元音符進行度から再開",
+        "音色試聴ボタンのC4→D4音程スライドを実Chromiumで測定",
+        "Studio/Vocal/MASTERの自動回帰・契約テスト成功、本番main・原音・MIDI・保存形式の変更なし",
+        "フル尺実歌唱聴感および実機・GPUは未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42159434761",
+        "docs/MUSIC_062_CONNECTED_HUMMING_GLIDE.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
