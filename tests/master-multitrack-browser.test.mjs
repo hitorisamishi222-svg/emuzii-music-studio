@@ -841,7 +841,9 @@ try{
         mute:false,solo:false,
         notes:[
           {start:4.4,duration:7.0,midi:69,velocity:.9},
-          {start:12.2,duration:.35,midi:72,velocity:.8}
+          {start:12.2,duration:.35,midi:72,velocity:.8},
+          // MUSIC-061: 70ms between same-pitch syllables must stay quiet.
+          {start:12.62,duration:.28,midi:72,velocity:.8}
         ]
       }]
     };
@@ -867,7 +869,7 @@ try{
       for(let i=from;i<to;i++){const y=view.getInt16(44+i*channels*2,true)/32768;sum+=y*y;}
       return Math.sqrt(sum/Math.max(1,to-from));
     }
-    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),body5:rms(4.7,4.8),body10:rms(9.5,9.6),rest:rms(11.7,12.0),tail:rms(12.27,12.37),phaseWaves:window.__sustainedPhaseWaves};
+    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),body5:rms(4.7,4.8),body10:rms(9.5,9.6),rest:rms(11.7,12.0),tail:rms(12.27,12.37),repeatGap:rms(12.565,12.595),repeatAttack:rms(12.70,12.78),phaseWaves:window.__sustainedPhaseWaves};
   });
   assert.equal(longGuideStats.rate,44100);
   assert.equal(longGuideStats.frames,13*44100,'full WAV must have exact duration with no repeated/dropped overlap samples');
@@ -880,6 +882,10 @@ try{
     '10s WAV seam must not create a false release or retrigger dip inside the sustained vowel');
   assert.ok(longGuideStats.tail>.003,'late melody should not disappear in the final chunk');
   assert.ok(longGuideStats.rest<.0005,'a genuine breath/rest remains silent');
+  assert.ok(longGuideStats.repeatGap<.0005,
+    '70ms silence between repeated C5 syllables must not be filled by humming legato');
+  assert.ok(longGuideStats.repeatAttack>.003,
+    'the repeated note must reattack audibly after its preserved separation');
   assert.ok(longGuideStats.phaseWaves.length>=14,
     'each 5s/10s seam must rephase both vibrato LFOs and all five humming carrier harmonics');
   assert.ok(longGuideStats.phaseWaves.every(w=>!w.normalized&&Math.abs(w.real*w.real+w.imag*w.imag-1)<1e-5),
