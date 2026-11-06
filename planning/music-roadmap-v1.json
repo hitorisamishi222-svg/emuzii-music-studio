@@ -1266,6 +1266,35 @@
       ]
     },
     {
+      "id": "MUSIC-066",
+      "title": "20〜80ms極短ハミングをWAV分割時も元音符ADSRで保持し33秒の音量安定性を検証",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-058",
+        "MUSIC-059",
+        "MUSIC-063",
+        "MUSIC-064",
+        "MUSIC-065"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "20〜80msの極短ハミング音に元音符時刻基準の振幅エンベロープを適用し5秒・10秒境界での誤再アタック・誤リリースを防止",
+        "アタック/減衰/持続/リリース区間を分割しても前チャンク末端と次チャンク先頭の振幅一致を検証",
+        "20ms未満のトランジェントとハミング以外の音色は以前の動作を保ち原音・保存MIDI・プロジェクトの不変性を確認",
+        "180秒以降の短音240件の有限性と五倍音、実Chromiumの33秒・44.1kHzのWAVで5/10/20秒境界と長尺序盤・中盤・終盤のRMS/休符/サンプル数を検証",
+        "Studio/Vocal/MASTERの自動回帰テスト合格、ユーザー実歌唱の聴感・スマホ実機・GPU・本番公開は未評価"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42179519719",
+        "docs/MUSIC_066_ULTRA_SHORT_LONG_FORM_HUMMING.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
