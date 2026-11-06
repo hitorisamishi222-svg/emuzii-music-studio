@@ -1209,6 +1209,36 @@
       ]
     },
     {
+      "id": "MUSIC-064",
+      "title": "短音ハミングのWAV分割時にフレーズ抑揚と元音符の音量エンベロープを継続",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-057",
+        "MUSIC-059",
+        "MUSIC-061",
+        "MUSIC-062",
+        "MUSIC-063"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "0.28秒以上のハミングは音程スライド有無によらず元音符の振幅カーブをWAV分割位置でも維持",
+        "5秒/10秒をまたぐ同音3音フレーズの開始・中央・終了の一時音量係数は全区間で同じ",
+        "模擬630音符/70フレーズの数分尺でもフレーズ係数・ブレスと保存元音符が不変",
+        "実Chromiumで13秒/44.1kHzの2つの3音フレーズをWAV出力し各分割位置の中央音強調、無音、尺を確認",
+        "既存Studio/Vocal/MASTERの自動回帰合格、原音・本番main・保存形式の変更なし",
+        "0.28秒未満の短音とフル尺実歌唱の聴感・実機検証は対象外"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42176615776",
+        "docs/MUSIC_064_PHRASE_WAV_SEAM.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
