@@ -1287,16 +1287,16 @@ try{
     };
   });
   assert.equal(arcStats.rate,44100);
-  const [first,center,last,neutral,lateFirst,lateCenter,lateLast]=arcStats.notes;
+  const [arcFirst,arcCenter,arcLast,arcNeutral,arcLateFirst,arcLateCenter,arcLateLast]=arcStats.notes;
   assert.ok(arcStats.notes.every(x=>x>.002),'every phrase syllable and isolated reference is audible');
-  assert.ok(center>first*1.035&&center>last*1.035,
+  assert.ok(arcCenter>arcFirst*1.035&&arcCenter>arcLast*1.035,
     'middle of a three-note humming phrase is audibly stronger than its edges');
-  assert.ok(lateCenter>lateFirst*1.035&&lateCenter>lateLast*1.035,
+  assert.ok(arcLateCenter>arcLateFirst*1.035&&arcLateCenter>arcLateLast*1.035,
     'phrase arc survives a 5-second WAV chunk seam');
-  assert.ok(Math.abs(first/neutral-.95)<.08,
+  assert.ok(Math.abs(arcFirst/arcNeutral-.95)<.08,
     'phrase onset remains near 95% of isolated same-pitch reference');
-  assert.ok(Math.abs(center/neutral-1.045)<.08,
-    'phrase center remains near 104.5% of isolated same-pitch reference');
+  assert.ok(Math.abs(arcCenter/arcNeutral-1.045)<.08,
+    'phrase arcCenter remains near 104.5% of isolated same-pitch reference');
   assert.ok(arcStats.rests.every(x=>x<.0005),
     'phrase shaping does not create phantom audio inside breaths');
   await arcContext.close();
