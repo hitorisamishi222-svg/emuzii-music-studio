@@ -818,7 +818,7 @@ try{
   // sustained humming tone across BOTH of its 5s and 10s WAV chunk seams.
   const longGuideContext=await browser.newContext();
   const longGuidePage=await longGuideContext.newPage();
-  // MUSIC-058: observe phase-rotated LFOs in real Chromium OfflineAudioContext.
+  // MUSIC-058/059: observe phase-rotated LFOs and all five carrier harmonics in Chromium.
   await longGuidePage.addInitScript(()=>{
     window.__sustainedPhaseWaves=[];
     const original=OfflineAudioContext.prototype.createPeriodicWave;
@@ -880,8 +880,8 @@ try{
     '10s WAV seam must not create a false release or retrigger dip inside the sustained vowel');
   assert.ok(longGuideStats.tail>.003,'late melody should not disappear in the final chunk');
   assert.ok(longGuideStats.rest<.0005,'a genuine breath/rest remains silent');
-  assert.ok(longGuideStats.phaseWaves.length>=4,
-    'both long-note fundamentals should use phase-locked waves at the 5s and 10s chunk seams');
+  assert.ok(longGuideStats.phaseWaves.length>=14,
+    'each 5s/10s seam must rephase both vibrato LFOs and all five humming carrier harmonics');
   assert.ok(longGuideStats.phaseWaves.every(w=>!w.normalized&&Math.abs(w.real*w.real+w.imag*w.imag-1)<1e-5),
     'phase-corrected sine coefficient pairs preserve bounded 1x modulation gain');
   assert.ok(longGuideStats.phaseWaves.some(w=>Math.abs(w.real)>.1),
