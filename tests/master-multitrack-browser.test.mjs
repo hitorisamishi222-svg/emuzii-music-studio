@@ -1230,6 +1230,79 @@ try{
   await fullSongContext.close();
   console.log('PASS MUSIC-067 3m34s/214s 44.1kHz stereo WAV keeps steady guide levels, short seams and clean rests');
 
+  // MUSIC-068: verify actual playback-only phrase dynamics from a real
+  // Chromium WAV, rather than treating the calculated gain as audible proof.
+  // Same MIDI, velocity, duration and gain for every note; only position in
+  // the 3-note phrase is allowed to change amplitude. Isolated note is the
+  // neutral reference. Rests must stay silent.
+  const arcContext=await browser.newContext();
+  const arcPage=await arcContext.newPage();
+  await arcPage.goto(base,{waitUntil:'domcontentloaded'});
+  await arcPage.waitForSelector('#portableProjectFile',{state:'attached'});
+  const arcBytes=await arcPage.evaluate(async()=>{
+    const project={
+      id:'portable',name:'MUSIC-068 humming phrase arc acoustic regression',
+      manualEditor:{guideNotes:[],chordProgression:[],songForm:[]},
+      tracks:[{id:'music068-guide',name:'Phrase dynamic guide',type:'guide',
+        gain:.85,pan:0,start:0,duration:9,guideInstrument:'humming',
+        mute:false,solo:false,
+        notes:[
+          {start:.5,duration:.34,midi:69,velocity:.8},
+          {start:.88,duration:.34,midi:69,velocity:.8},
+          {start:1.26,duration:.34,midi:69,velocity:.8},
+          {start:3,duration:.34,midi:69,velocity:.8},
+          {start:5.5,duration:.34,midi:69,velocity:.8},
+          {start:5.88,duration:.34,midi:69,velocity:.8},
+          {start:6.26,duration:.34,midi:69,velocity:.8}
+        ]
+      }]
+    };
+    const file=await window.ASAHIMusicBackup.create({project,audio:[]});
+    return Array.from(new Uint8Array(await file.arrayBuffer()));
+  });
+  await arcPage.locator('[data-view="project"]').click();
+  await arcPage.locator('#portableProjectFile').setInputFiles({
+    name:'music068-phrase.asahi-music',mimeType:'application/octet-stream',
+    buffer:Buffer.from(arcBytes)
+  });
+  await arcPage.waitForFunction(()=>document.querySelector('#portableProjectStatus')?.textContent?.includes('バックアップを復元しました'));
+  await arcPage.locator('[data-view="edit"]').click();
+  await arcPage.locator('#compatPlay').click();
+  await arcPage.waitForFunction(()=>document.querySelector('#compatMeta')?.textContent?.includes('9.0秒'),{timeout:60000});
+  const arcStats=await arcPage.evaluate(async()=>{
+    const wav=await (await fetch(document.querySelector('#compatAudio').src)).arrayBuffer();
+    const dv=new DataView(wav),rate=dv.getUint32(24,true),channels=dv.getUint16(22,true);
+    const rms=(a,b)=>{
+      let power=0,count=0;
+      for(let i=Math.round(a*rate);i<Math.round(b*rate);i++){
+        const v=dv.getInt16(44+i*channels*2,true)/32768;
+        power+=v*v;count++;
+      }
+      return Math.sqrt(power/Math.max(1,count));
+    };
+    return {
+      rate,
+      notes:[.5,.88,1.26,3,5.5,5.88,6.26].map(t=>rms(t+.16,t+.25)),
+      rests:[2,4,7].map(t=>rms(t,t+.3))
+    };
+  });
+  assert.equal(arcStats.rate,44100);
+  const [first,center,last,neutral,lateFirst,lateCenter,lateLast]=arcStats.notes;
+  assert.ok(arcStats.notes.every(x=>x>.002),'every phrase syllable and isolated reference is audible');
+  assert.ok(center>first*1.035&&center>last*1.035,
+    'middle of a three-note humming phrase is audibly stronger than its edges');
+  assert.ok(lateCenter>lateFirst*1.035&&lateCenter>lateLast*1.035,
+    'phrase arc survives a 5-second WAV chunk seam');
+  assert.ok(Math.abs(first/neutral-.95)<.08,
+    'phrase onset remains near 95% of isolated same-pitch reference');
+  assert.ok(Math.abs(center/neutral-1.045)<.08,
+    'phrase center remains near 104.5% of isolated same-pitch reference');
+  assert.ok(arcStats.rests.every(x=>x<.0005),
+    'phrase shaping does not create phantom audio inside breaths');
+  await arcContext.close();
+  console.log('PASS MUSIC-068 real 44.1kHz WAV phrase dynamics: soft opening, stronger center, intact breath and 5s seam');
+
+
 
 
 
