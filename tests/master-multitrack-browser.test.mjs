@@ -192,6 +192,12 @@ try{
   await page.evaluate(()=>{
     window.__hummingOscillators=[];
     window.__hummingStops=[];
+    window.__previewPitchRamps=[];
+    const ramp=AudioParam.prototype.exponentialRampToValueAtTime;
+    AudioParam.prototype.exponentialRampToValueAtTime=function(value,time){
+      if(value>200&&value<1200)window.__previewPitchRamps.push({value,time});
+      return ramp.call(this,value,time);
+    };
     const start=OscillatorNode.prototype.start;
     const stop=OscillatorNode.prototype.stop;
     OscillatorNode.prototype.start=function(...args){
@@ -211,10 +217,16 @@ try{
   assert.ok(previewOscillators.length>=20,'audition must schedule actual WebAudio oscillators');
   assert.ok(previewOscillators.some(x=>Math.abs(x.frequency-261.63)<1),'C4 fundamental must be present');
   const previewStops=await page.evaluate(()=>window.__hummingStops);
+  const c4Start=previewOscillators.find(x=>Math.abs(x.frequency-261.63)<1)?.time;
   const c4End=previewStops.find(x=>Math.abs(x.frequency-261.63)<1)?.time;
-  const d4Start=previewOscillators.find(x=>Math.abs(x.frequency-293.66)<1)?.time;
+  // MUSIC-062 glides from C4 at the onset of D4: the oscillator's initial
+  // frequency is now C4, while its frequency automation reaches D4 by 45ms.
+  const d4Start=previewOscillators.find(x=>x.frequency>100&&x.time>c4Start+.25)?.time;
+  const previewRamps=await page.evaluate(()=>window.__previewPitchRamps);
   assert.ok(Number.isFinite(c4End)&&Number.isFinite(d4Start));
   assert.ok(c4End>d4Start&&c4End-d4Start<.055,'connected notes must overlap gently rather than restart with a gap');
+  assert.ok(previewRamps.some(x=>Math.abs(x.value-293.66)<1&&x.time>d4Start&&x.time<=d4Start+.05),
+    'connected-note preview must actually glide to the new D4 pitch within 50ms');
   assert.equal(await page.locator('#tracks article.track').count(),tracksBeforePreview,'audition must not add song tracks');
   assert.equal(aceRequests,0,'local audition must not call paid generation API');
   await page.waitForFunction(()=>!document.querySelector('#previewGuideInstrument')?.disabled,{timeout:5000});
