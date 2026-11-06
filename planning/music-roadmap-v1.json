@@ -1,6 +1,6 @@
 {
   "schema": "asahi-music-roadmap/v1",
-  "asOf": "2026-11-05",
+  "asOf": "2026-11-06",
   "repository": "hitorisamishi222-svg/emuzii-music-studio",
   "developmentBranch": "feature/vocal-recorder-v1",
   "productionBaseline": "ec5b91b70829a085784a80fc9f4172daba0913e3",
@@ -1121,6 +1121,33 @@
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42146768342",
         "docs/MUSIC_059_HUMMING_CARRIER_PHASE.md",
+        "tests/master-multitrack-contract.test.mjs",
+        "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
+      "id": "MUSIC-061",
+      "title": "ハミング音符の歌い直し・跳躍で必要な休止を保持するフレーズ分離",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-055",
+        "MUSIC-057",
+        "MUSIC-059"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "同音反復では80ms以下の微小休止を勝手に埋めず新しいシラブルを発音",
+        "7半音以上の跳躍で25msを超える休止を保持し通常の小刻みな音程移動は従来通り接続",
+        "再生用コピーのみ変更し元ガイド音符・MIDI・保存データ・他音色を保護",
+        "実Chromiumの13秒WAVで同音反復前70msの無音と再アタックを実測し既存5/10秒分割とStudio/Vocal/MASTERの回帰テスト合格",
+        "本番main・GPU・実機・実歌唱音質の評価は未実施"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42147951187",
+        "docs/MUSIC_061_HUMMING_PHRASE_ARTICULATION.md",
         "tests/master-multitrack-contract.test.mjs",
         "tests/master-multitrack-browser.test.mjs"
       ]
