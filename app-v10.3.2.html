@@ -1457,10 +1457,11 @@
       presence.frequency.setValueAtTime(vowelHz(sourceProgressStart),start);
       presence.frequency.linearRampToValueAtTime(vowelHz(sourceProgressEnd),stop);
     }
-    const validConnectedGlide=note.glideFromMidi!=null&&Number.isFinite(Number(note.glideFromMidi))&&
-      Math.abs(note.midi-Number(note.glideFromMidi))>=1&&Math.abs(note.midi-Number(note.glideFromMidi))<=5;
-    if(kind==="guide"&&guideInstrument==="humming"&&(noteDuration>=.65||(validConnectedGlide&&noteDuration>=.28))){
-      // MUSIC-057/062: render the amplitude envelope against the original note,
+    if(kind==="guide"&&guideInstrument==="humming"&&noteDuration>=.28){
+      // MUSIC-057/062/064: short sustained phrase syllables also keep the
+      // original-note envelope when WAV chunks split them; this is no longer
+      // conditional on a pitch glide being present.
+      // Render the amplitude envelope against the original note,
       // never the clipped 5/10s WAV window. Do not retrigger the attack or
       // release a sustained vowel just because a chunk boundary was reached.
       const floor=.0001,high=Math.max(.0002,peak),held=Math.max(.0002,peak*sustain);
