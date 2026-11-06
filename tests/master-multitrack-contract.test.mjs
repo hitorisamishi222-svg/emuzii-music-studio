@@ -127,7 +127,7 @@ function hummingHarness(){
     createGain(){const gain=parameter();events.gains.push(gain);return {gain,connect(){return this}}},
     createBiquadFilter(){const node={type:'',Q:parameter(),gain:parameter(),frequency:parameter(),connect(){return this}};events.filters.push(node);return node},
     createPeriodicWave(real,imag,options){return {real:Array.from(real),imag:Array.from(imag),options}},
-    createOscillator(){const node={type:'sine',wave:null,frequency:parameter(),detune:parameter(),connect(){return this},setPeriodicWave(wave){this.wave=wave},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t,wave:this.wave})},stop(){}};return node}
+    createOscillator(){const node={type:'sine',wave:null,frequency:parameter(),detune:parameter(),connect(){return this},setPeriodicWave(wave){this.wave=wave},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t,wave:this.wave,freqHistory:structuredClone(this.frequency.history)})},stop(){}};return node}
   };
   const run=f({guideInstrument:'humming'},(midi,cents=0)=>440*Math.pow(2,((midi-69)+(cents/100))/12),()=>{},()=>{throw Error('humming must not require a noise sample')},()=>{});
   return {run,ctx,events};
@@ -424,6 +424,62 @@ test('MUSIC-061 piano playback retains original reattack and note durations',()=
     {start:.68,duration:.25,midi:67}];
   h.scheduleGuide({}, {},{type:'guide',guideInstrument:'piano',notes},0,0,Infinity,false);
   assert.deepEqual(h.scheduled,notes);
+});
+test('MUSIC-062 humming small connected steps get transient glides without changing notes',()=>{
+  const notes=[
+    {start:0,duration:.30,midi:60,velocity:.8},
+    {start:.34,duration:.30,midi:62,velocity:.8},
+    {start:.69,duration:.30,midi:62,velocity:.8},
+    {start:1.04,duration:.30,midi:69,velocity:.8},
+    {start:1.40,duration:.30,midi:72,velocity:.8},
+    {start:1.76,duration:.30,midi:74,velocity:.8}
+  ];
+  const original=structuredClone(notes),h=legatoHarness();
+  h.scheduleGuide({}, {},{type:'guide',guideInstrument:'humming',notes},0,0,Infinity,false);
+  assert.equal(h.scheduled[1].glideFromMidi,60,'2-semitone connected step should glide');
+  assert.equal(h.scheduled[2].glideFromMidi,undefined,'same-note reattack must remain distinct');
+  assert.equal(h.scheduled[3].glideFromMidi,undefined,'7-semitone leap retains deliberate articulation');
+  assert.equal(h.scheduled[4].glideFromMidi,undefined,'60ms breath must not be smoothed');
+  assert.equal(h.scheduled[5].glideFromMidi,undefined,'later 60ms breath must remain');
+  assert.deepEqual(notes,original,'the saved source note array must remain exact');
+  const piano=legatoHarness();
+  piano.scheduleGuide({}, {},{type:'guide',guideInstrument:'piano',notes},0,0,Infinity,false);
+  assert.deepEqual(piano.scheduled,notes,'other instruments must never inherit transient glide');
+});
+test('MUSIC-062 all five humming harmonics glide to target pitch in under 45ms',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'},note={start:4.98,duration:.5,midi:62,glideFromMidi:60};
+  const h=hummingHarness();
+  h.run(h.ctx,{},track,note,0,0,6,false);
+  const voices=h.events.oscs.filter(x=>x.freq>100),fromHz=440*Math.pow(2,(60-69)/12),toHz=440*Math.pow(2,(62-69)/12);
+  assert.equal(voices.length,5);
+  for(let i=0;i<5;i++){
+    const osc=voices[i],ramp=osc.freqHistory.find(x=>x.kind==='exp');
+    assert.ok(Math.abs(osc.freq-fromHz*(i+1))<2,'glide should start from adjacent previous pitch');
+    assert.ok(ramp&&Math.abs(ramp.v-toHz*(i+1))<2,'all harmonics arrive at exact target');
+    assert.ok(ramp.t>note.start&&ramp.t<=note.start+.045+1e-9,'short glide is tightly bounded');
+  }
+});
+test('MUSIC-062 glide phase and pitch remain continuous when a WAV chunk begins during the slide',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'},note={start:4.98,duration:.50,midi:62,glideFromMidi:60};
+  const early=hummingHarness(),late=hummingHarness();
+  early.run(early.ctx,{},track,note,0,0,5,false);
+  late.run(late.ctx,{},track,note,0,4.99,5.5,false);
+  const first=early.events.oscs.filter(x=>x.freq>100),second=late.events.oscs.filter(x=>x.freq>100);
+  assert.equal(first.length,5);assert.equal(second.length,5);
+  const dt=.01,glideDuration=.045;
+  for(let i=0;i<5;i++){
+    const a=first[i],z=second[i],from=a.freq,target=from*Math.pow(2,2/12);
+    const k=Math.log(target/from),expectedHz=from*Math.exp(k*dt/glideDuration);
+    const integrated=from*glideDuration*Math.expm1(k*dt/glideDuration)/k;
+    assert.ok(Math.abs(z.freq-expectedHz)<.02,'resumed frequency is already part-way through slide');
+    assert.ok(Math.abs(z.wave.real[1]-Math.sin(2*Math.PI*integrated))<.0001);
+    assert.ok(Math.abs(z.wave.imag[1]-Math.cos(2*Math.PI*integrated))<.0001);
+    assert.ok(z.freqHistory.some(x=>x.kind==='exp'&&Math.abs(x.v-target)<.02),
+      'clipped note must finish remaining glide, not reset the slide');
+  }
+  const after=hummingHarness();after.run(after.ctx,{},track,note,0,5.2,5.4,false);
+  assert.ok(after.events.oscs.filter(x=>x.freq>100).every((x,i)=>Math.abs(x.freq-440*Math.pow(2,(62-69)/12)*(i+1))<2),
+    'a later chunk should hold the target pitch without retriggering a glide');
 });
 test('humming legato ignores broken note boundaries or transitions involving drums',()=>{
   const h=legatoHarness();
