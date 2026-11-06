@@ -818,6 +818,15 @@ try{
   // sustained humming tone across BOTH of its 5s and 10s WAV chunk seams.
   const longGuideContext=await browser.newContext();
   const longGuidePage=await longGuideContext.newPage();
+  // MUSIC-058: observe phase-rotated LFOs in real Chromium OfflineAudioContext.
+  await longGuidePage.addInitScript(()=>{
+    window.__sustainedPhaseWaves=[];
+    const original=OfflineAudioContext.prototype.createPeriodicWave;
+    OfflineAudioContext.prototype.createPeriodicWave=function(real,imag,options){
+      window.__sustainedPhaseWaves.push({real:real[1],imag:imag[1],normalized:!options?.disableNormalization});
+      return original.call(this,real,imag,options);
+    };
+  });
   let longGuideAceCalls=0;
   longGuidePage.on('request',req=>{if(new URL(req.url()).pathname.startsWith('/api/ace'))longGuideAceCalls++});
   await longGuidePage.goto(base,{waitUntil:'domcontentloaded'});
@@ -858,7 +867,7 @@ try{
       for(let i=from;i<to;i++){const y=view.getInt16(44+i*channels*2,true)/32768;sum+=y*y;}
       return Math.sqrt(sum/Math.max(1,to-from));
     }
-    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),body5:rms(4.7,4.8),body10:rms(9.5,9.6),rest:rms(11.7,12.0),tail:rms(12.27,12.37)};
+    return {rate,frames,seam5before:rms(4.92,4.98),seam5after:rms(5.02,5.08),seam10before:rms(9.92,9.98),seam10after:rms(10.02,10.08),body5:rms(4.7,4.8),body10:rms(9.5,9.6),rest:rms(11.7,12.0),tail:rms(12.27,12.37),phaseWaves:window.__sustainedPhaseWaves};
   });
   assert.equal(longGuideStats.rate,44100);
   assert.equal(longGuideStats.frames,13*44100,'full WAV must have exact duration with no repeated/dropped overlap samples');
@@ -871,6 +880,12 @@ try{
     '10s WAV seam must not create a false release or retrigger dip inside the sustained vowel');
   assert.ok(longGuideStats.tail>.003,'late melody should not disappear in the final chunk');
   assert.ok(longGuideStats.rest<.0005,'a genuine breath/rest remains silent');
+  assert.ok(longGuideStats.phaseWaves.length>=4,
+    'both long-note fundamentals should use phase-locked waves at the 5s and 10s chunk seams');
+  assert.ok(longGuideStats.phaseWaves.every(w=>!w.normalized&&Math.abs(w.real*w.real+w.imag*w.imag-1)<1e-5),
+    'phase-corrected sine coefficient pairs preserve bounded 1x modulation gain');
+  assert.ok(longGuideStats.phaseWaves.some(w=>Math.abs(w.real)>.1),
+    'real browser must apply a nonzero source-relative oscillator phase');
   assert.equal(longGuideAceCalls,0,'local WAV rendering makes no generation requests');
   await longGuideContext.close();
   console.log('PASS 13-second Safari WAV keeps a 7s sustained humming vowel across 5s and 10s seams without false envelope drops');
