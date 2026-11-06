@@ -126,7 +126,8 @@ function hummingHarness(){
   const ctx={
     createGain(){const gain=parameter();events.gains.push(gain);return {gain,connect(){return this}}},
     createBiquadFilter(){const node={type:'',Q:parameter(),gain:parameter(),frequency:parameter(),connect(){return this}};events.filters.push(node);return node},
-    createOscillator(){const node={type:'sine',frequency:parameter(),detune:parameter(),connect(){return this},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t})},stop(){}};return node}
+    createPeriodicWave(real,imag,options){return {real:Array.from(real),imag:Array.from(imag),options}},
+    createOscillator(){const node={type:'sine',wave:null,frequency:parameter(),detune:parameter(),connect(){return this},setPeriodicWave(wave){this.wave=wave},start(t){events.oscs.push({type:this.type,freq:this.frequency.value,time:t,wave:this.wave})},stop(){}};return node}
   };
   const run=f({guideInstrument:'humming'},(midi,cents=0)=>440*Math.pow(2,((midi-69)+(cents/100))/12),()=>{},()=>{throw Error('humming must not require a noise sample')},()=>{});
   return {run,ctx,events};
@@ -253,6 +254,59 @@ test('MUSIC-057 leaves short humming and sustained piano envelope schedules unch
     assert.equal(times[0].v,.0001);
     assert.equal(times.at(-1).v,.0001,'unchanged instruments keep previous clipped release behavior');
   }
+});
+test('MUSIC-058 sustained humming LFO preserves note-relative phase at the 5s and 10s WAV seams',()=>{
+  const track={type:'guide',gain:.75,pan:0,start:0,guideInstrument:'humming'};
+  const note={start:4.4,duration:7,midi:69,velocity:.8},original=structuredClone(note);
+  const segments=[[0,5],[4.9,10],[9.9,13]];
+  const snapshots=segments.map(([a,b])=>{
+    const h=hummingHarness();
+    h.run(h.ctx,{},track,note,0,a,b,false);
+    const lfos=h.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4);
+    assert.equal(lfos.length,2,'both vibrato partials must exist in every chunk');
+    return {lfos,h};
+  });
+  assert.equal(snapshots[0].lfos[0].wave,null,'the note-origin LFO can use the original sine');
+  const rate=snapshots[0].lfos[0].freq;
+  for(let i=1;i<segments.length;i++){
+    const from=segments[i][0],elapsed=from-note.start;
+    for(const lfo of snapshots[i].lfos){
+      assert.ok(lfo.wave?.options?.disableNormalization,'phase-rotated sine is not gain-normalized');
+      assert.ok(Math.abs(lfo.wave.real[1]-Math.sin(2*Math.PI*rate*elapsed))<1e-5,
+        'cosine coefficient must follow original onset time');
+      assert.ok(Math.abs(lfo.wave.imag[1]-Math.cos(2*Math.PI*rate*elapsed))<1e-5,
+        'sine coefficient must preserve original note phase');
+      const at=Math.min(10.02,note.start+note.duration-.1);
+      const chunkPhase=Math.atan2(lfo.wave.real[1],lfo.wave.imag[1]);
+      const expected=Math.sin(2*Math.PI*rate*(at-note.start));
+      const actual=Math.sin(chunkPhase+2*Math.PI*rate*(at-from));
+      assert.ok(Math.abs(actual-expected)<1e-5,'same global beat must have matching vibrato phase across chunks');
+    }
+  }
+  assert.deepEqual(note,original,'source melody records must not change');
+});
+test('MUSIC-058 clipped sustained-note tail maintains full vibrato depth even for short windows',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const note={start:4.4,duration:.8,midi:64,velocity:.8};
+  const h=hummingHarness();
+  h.run(h.ctx,{},track,note,0,5.0,5.05,false);
+  const lfos=h.events.oscs.filter(x=>x.freq>=4.7&&x.freq<=5.4);
+  assert.equal(lfos.length,2,'a 50ms split tail of an 800ms vowel must not lose its LFO');
+  const depths=h.events.gains.filter(g=>g.history.some(x=>Math.abs(x.v-9.6)<1e-6));
+  assert.equal(depths.length,1,'fundamental LFO depth must remain at sustained strength');
+  assert.deepEqual(depths[0].history,[{kind:'set',v:9.6,t:0}]);
+});
+test('MUSIC-058 entering a long vowel during vibrato fade retains fractional depth',()=>{
+  const track={type:'guide',gain:.75,pan:0,guideInstrument:'humming'};
+  const note={start:4.4,duration:1.1,midi:64,velocity:.8};
+  const h=hummingHarness();
+  h.run(h.ctx,{},track,note,0,4.5,4.6,false);
+  const target=9.6,fadeSeconds=.26;
+  const vibGain=h.events.gains.find(g=>g.history.some(x=>Math.abs(x.v-target*.1/fadeSeconds)<1e-6));
+  assert.ok(vibGain,'LFO must start with the fraction of elapsed original-note fade');
+  assert.ok(vibGain.history.at(-1).v>vibGain.history[0].v,
+    'remaining 100ms of segment must continue rising instead of restarting at zero');
+  assert.ok(vibGain.history.at(-1).v<target,'the truncated window cannot jump to full depth early');
 });
 test('humming guide tolerates omitted start and never schedules clipped or invalid notes',()=>{
   const h=hummingHarness(),track={type:'guide',gain:.7,guideInstrument:'humming'};
