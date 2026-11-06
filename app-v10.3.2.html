@@ -1422,6 +1422,10 @@
         bell:[.108,.002,.26,.14,.34,7600],marimba:[.11,.002,.18,.13,.14,5000],trumpet:[.088,.016,.07,.75,.16,4700],sax:[.09,.02,.08,.72,.19,4100],harmonica:[.086,.014,.07,.77,.16,4300],musicBox:[.102,.002,.30,.08,.38,8200],soft:[.088,.014,.09,.72,.16,5200],humming:[.086,.028,.085,.90,.19,2600]
       };
       const p=profiles[guideInstrument]||profiles.electone;peak=p[0]*track.gain*vel;attack=p[1];decay=p[2];sustain=p[3];release=p[4];cutoff=p[5];
+      // MUSIC-063: a bounded playback-only phrase dynamic, never saved in MIDI
+      // or applied to other instruments. An isolated note retains its level.
+      if(guideInstrument==="humming"&&Number.isFinite(note.hummingPhraseGain))
+        peak*=Math.max(.90,Math.min(1.08,note.hummingPhraseGain));
       const pitchBright=Math.max(-700,Math.min(900,(note.midi-64)*28));cutoff=Math.max(1500,cutoff+pitchBright+(vel-.72)*900);
       if(guideInstrument==="humming"){tone.Q.value=.45;presence.Q.value=1.35;presence.frequency.value=960;presence.gain.value=2.6;}
       else if(guideInstrument==="piano"){tone.Q.value=.72;presence.frequency.value=2300;presence.gain.value=2.2;}
@@ -1603,7 +1607,7 @@
 
   function hummingLegatoNotes(notes){
     // Transient playback copies only: source note timing and MIDI remain exact.
-    return notes.map((note,i)=>{
+    const shapedNotes=notes.map((note,i)=>{
       if(!note||note.drum||!Number.isFinite(note.midi))return note;
       const start=Number(note.start),duration=Number(note.duration);
       if(!Number.isFinite(start)||!Number.isFinite(duration)||duration<=0)return note;
@@ -1632,6 +1636,34 @@
       if(semitones>=7&&gap>.025)return shaped;
       return {...shaped,duration:duration+gap+.018};
     });
+    // MUSIC-063: a small phrase arc is applied to runtime copies only.
+    // Break on a breath, overlapping voices, invalid notes or a deliberate leap.
+    // Repeated notes still reattack; only their relative loudness is shaped.
+    let phraseStart=0;
+    while(phraseStart<shapedNotes.length){
+      const valid=n=>n&&!n.drum&&Number.isFinite(n.midi)&&
+        Number.isFinite(Number(n.start))&&Number.isFinite(Number(n.duration))&&Number(n.duration)>0;
+      if(!valid(notes[phraseStart])){phraseStart++;continue;}
+      let phraseEnd=phraseStart;
+      while(phraseEnd+1<notes.length){
+        const a=notes[phraseEnd],b=notes[phraseEnd+1];
+        if(!valid(a)||!valid(b))break;
+        const gap=Number(b.start)-(Number(a.start)+Number(a.duration));
+        if(!Number.isFinite(gap)||gap<0||gap>.09)break;
+        if(Math.abs(b.midi-a.midi)>=7&&gap>.025)break;
+        phraseEnd++;
+      }
+      const count=phraseEnd-phraseStart+1;
+      if(count>=3){
+        for(let k=phraseStart;k<=phraseEnd;k++){
+          const pos=(k-phraseStart)/(count-1);
+          const hummingPhraseGain=.95+.10*Math.sin(Math.PI*pos)-.01*pos;
+          shapedNotes[k]={...shapedNotes[k],hummingPhraseGain};
+        }
+      }
+      phraseStart=phraseEnd+1;
+    }
+    return shapedNotes;
   }
 
   function scheduleGuide(ctx,destination,track,base,windowStart=0,windowEnd=Infinity,collect=true) {
