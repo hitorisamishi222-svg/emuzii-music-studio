@@ -489,10 +489,11 @@ test('MUSIC-062 short connected glides do not restart the amplitude envelope at 
   after.run(after.ctx,{},track,note,0,5,5.5,false);
   const peak=.086*track.gain*note.velocity,held=peak*.90;
   const left=before.events.gains[0].history,right=after.events.gains[0].history;
-  assert.ok(left.at(-1).v>=held*.80&&left.at(-1).v<=peak,
-    'the clipped first 20ms must retain vowel attack, not fake silence at 5s');
-  assert.ok(right[0].v>held*.6&&right[0].v<=peak,
-    'the resumed vowel must keep its absolute note envelope');
+  const expectedAtSeam=.0001+(peak-.0001)*((5-note.start)/.028);
+  assert.ok(Math.abs(left.at(-1).v-expectedAtSeam)<1e-8,
+    'the clipped first 20ms must ramp to the exact source-envelope attack value');
+  assert.ok(Math.abs(right[0].v-left.at(-1).v)<1e-8,
+    'the resumed vowel must start at the exact amplitude where the prior chunk ended');
   assert.ok(right.at(-1).v===.0001,'only the real note ending can release fully');
 });
 test('humming legato ignores broken note boundaries or transitions involving drums',()=>{
