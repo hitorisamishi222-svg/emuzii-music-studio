@@ -471,11 +471,10 @@ test('MUSIC-063 large leaps, overlapping voices, invalid notes and real breaths 
     'a 7 semitone leap after a 30ms gap must be a phrase boundary');
   assert.ok(out[1].hummingPhraseGain&&out[2].hummingPhraseGain&&out[3].hummingPhraseGain,
     'valid connected notes after the leap form an independent phrase');
-  assert.equal(out[4].hummingPhraseGain,undefined,
-    'an overlapping note breaks phrase contour instead of inventing monophonic phrasing');
-  assert.equal(out[7].hummingPhraseGain,undefined,
-    'the voice cannot extend its phrase over a new overlapping onset');
-  assert.equal(out[8].hummingPhraseGain,undefined);
+  assert.ok(out[4].hummingPhraseGain&&out[7].hummingPhraseGain,
+    'the following four connected notes have their own independent phrase arc');
+  assert.equal(out[8].hummingPhraseGain,undefined,
+    'an overlapping onset cannot inherit the preceding phrase contour');
   assert.equal(out[9].hummingPhraseGain,undefined);
   assert.equal(out[10].hummingPhraseGain,undefined);
   assert.deepEqual(notes,original);
