@@ -63,6 +63,18 @@ try{
   assert.equal(frames,Math.round(3*sampleRate));
   assert.equal(downloaded.readInt16LE(44+2*(sampleRate-1))!==0,true);
   assert.equal(downloaded.subarray(44+2*sampleRate).every(x=>x===0),true);
+  // Prompt planning must reject unsupported instruments and never change controls.
+  const fadeBefore=await page.locator("#fade").inputValue();
+  await page.locator("#editPrompt").fill("ピアノをもっと優しくして");
+  await page.locator("#planPrompt").click();
+  assert.match(await page.locator("#editPlan").innerText(),/未対応/);
+  assert.equal(await page.locator("#fade").inputValue(),fadeBefore);
+  await page.locator("#editPrompt").fill("最後の0.5秒をフェードアウトして、3秒無音にして");
+  await page.locator("#planPrompt").click();
+  assert.match(await page.locator("#editPlan").innerText(),/反映する編集案/);
+  assert.equal(await page.locator("#fade").inputValue(),"0.5");
+  assert.equal(await page.locator("#silence").inputValue(),"3");
+  assert.equal(await page.locator("#result").isVisible(),false);
   // The second input has a deliberately quiet 0.8s outro, so no active-tail warning.
   await page.locator("#source").setInputFiles({name:"quiet.wav",mimeType:"audio/wav",buffer:exampleWav({quietSeconds:.8})});
   assert.equal(await page.locator("#lyricsChecked").isChecked(),false);
@@ -75,7 +87,7 @@ try{
   assert.equal(await page.locator("#warning").isVisible(),false);
   assert.match(await page.locator("#qualityStatus").innerText(),/未確認/);
   assert.deepEqual(pageErrors,[]);
-  console.log("PASS: preflight original → active-tail guard → WAV output → manual review → quiet-tail no override");
+  console.log("PASS: preflight original → active-tail guard → WAV output → Japanese prompt plan → quiet-tail recheck");
 } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
