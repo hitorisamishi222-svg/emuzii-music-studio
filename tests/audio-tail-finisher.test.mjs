@@ -71,3 +71,30 @@ test("rejects malformed input and unsafe arguments",()=>{
   assert.throws(()=>createTailSafeWav([new Float32Array(4)],sr,{silenceSeconds:0}),/無音/);
   assert.throws(()=>createTailSafeWav([new Float32Array(4)],sr,{fadeSeconds:31}),/フェード/);
 });
+
+test("trailing quiet windows are reported as candidates rather than proof of finished lyrics",()=>{
+  const src=new Float32Array(sr*3);
+  src.fill(.2,0,sr*2);
+  const a=analyzeAudioEnding([src],sr);
+  assert.equal(a.possibleAbruptEnding,false);
+  assert.equal(a.endingAssessment,"quiet_tail");
+  assert.ok(a.trailingQuietSeconds >= .99 && a.trailingQuietSeconds <= 1.05);
+});
+
+test("low volume ambience near the end stays flagged for listening",()=>{
+  const src=new Float32Array(sr);
+  src.fill(.004);
+  const a=analyzeAudioEnding([src],sr);
+  assert.equal(a.possibleAbruptEnding,false);
+  assert.equal(a.endingAssessment,"review_tail");
+  assert.equal(a.trailingQuietSeconds,0);
+});
+
+test("single high-level endpoint transient is flagged even when 250ms RMS is low",()=>{
+  const src=new Float32Array(sr);
+  src[sr-1]=.85;
+  const a=analyzeAudioEnding([src],sr);
+  assert.ok(a.rms < .01);
+  assert.equal(a.possibleAbruptEnding,true);
+  assert.equal(a.endingAssessment,"active_tail");
+});
