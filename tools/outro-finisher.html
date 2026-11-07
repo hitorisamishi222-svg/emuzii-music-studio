@@ -118,7 +118,7 @@ $("run").addEventListener("click",async()=>{
         : "末尾診断：弱い音が末尾まで続く可能性があります。自然な余韻か試聴してください。";
     $("warning").hidden=r.endingAssessment==="quiet_tail";
     $("warning").textContent=r.endingAssessment==="active_tail"
-      ? "⚠ 元音源の最後0.25秒に音が残っています。追加した無音は、切れた歌詞やアウトロを復元しません。Suno Extend等で先に音源を完成させてください。"
+      ? "⚠ 元音源の最後0.25秒に音が残り、途中切れの可能性があります。追加した無音は、切れた歌詞やアウトロを復元しません。Suno Extend等で先に音源を完成させてください。"
       : "⚠ 末尾の余韻が十分かどうかは数値だけでは判定できません。最後の35秒を聴いて確認してください。";
     for(const id of qualityIds)$(id).checked=false;
     updateQualityStatus();
