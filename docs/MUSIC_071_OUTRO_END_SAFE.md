@@ -20,7 +20,9 @@ Sunoなどで作った音源を端末内で読み込み、元音源を一切上�
 
 ## 結果・未検証
 - 新規ユニットCI: https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382273704 — success。
-- 新規実装に対するユニット検査成功のみ確証あり。開発UIの実機(iPhone/Android)操作、実楽曲の末尾聴感評価、リリース統合は未検証。
+- Chromiumブラウザ実操作CI（WAV選択→デコード→保存→完全無音2秒＋途中切れ警告）: https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382687670 — success。
+- 初回ブラウザテストは、ChromiumのAudioContextが入力16kHzを44.1kHzへ変換する挙動をテスト側が考慮せず失敗。その後、出力WAVのサンプルレートを基準に検証する形へ修正し合格。
+- ユニット検査およびChromiumでの基本的なファイル選択・変換・保存・末尾警告までは実証済み。iPhone/Android実機操作、実楽曲の末尾聴感評価、リリース統合は未検証。デコード時にブラウザのサンプルレートへ変換される場合があり、出力WAVのPCMバイト列は入力ファイルと一致しない。入力元ファイルは常に変更されない。
 - ファイル容量は出力WAVのデータ部最大512MiB、1〜2ch、整数8k〜192kHz。ファイルデコードの対応形式はブラウザ依存。
 - **元の音声・SONG ID・TAKE・保存DB・本番main・公開URLは変更していない。**
 - 末尾に音が残った音源へ無音を足しても「急に切れた」音自体は直らないので、警告に従いExtendや編集が必要。
