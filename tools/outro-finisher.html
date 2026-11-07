@@ -10,7 +10,10 @@
 main{max-width:740px;margin:auto}h1{font-size:1.65rem;margin-bottom:4px}
 small,.muted{color:#b9c5d7}.panel{padding:22px;background:#1c293d;border:1px solid #455875;border-radius:18px;margin:18px 0}
 label{display:block;font-weight:700;margin:16px 0 6px}
-input,select,button{font:inherit}input[type=file],select{width:100%;padding:13px;border:1px solid #6c7e99;background:#0e1829;color:#fff;border-radius:10px}
+input,select,button,textarea{font:inherit}input[type=file],select,textarea{width:100%;padding:13px;border:1px solid #6c7e99;background:#0e1829;color:#fff;border-radius:10px}
+textarea{min-height:90px;resize:vertical}
+#editPlan{white-space:pre-wrap;border-left:3px solid #87d6e8;padding:10px;background:#152338}
+#editPlan[data-state=error]{border-left-color:#ffa673;color:#ffe1ac}
 button,.download{background:#e4f4ff;color:#10283f;font-weight:800;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;text-decoration:none;display:inline-block;margin:14px 0}
 button:disabled{opacity:.4;cursor:not-allowed}
 .note{border-left:3px solid #a2dcff;padding:10px 14px;background:#152338}
@@ -50,6 +53,14 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 <label><input type="checkbox" id="allowRisk">途中切れの疑いを理解しました。元音源は別途確認済みで、このまま新しいWAVを作ります。</label>
 </div>
 </section>
+<section class="panel" aria-label="文章による編集指示">
+<h2>✍️ 日本語で編集する（試作）</h2>
+<p>例：「最後の8秒をフェードアウトして、2秒無音にして」</p>
+<textarea id="editPrompt" aria-label="編集の指示を日本語で入力" placeholder="最後の8秒をフェードアウトして、2秒無音にして"></textarea>
+<button id="planPrompt" type="button">🔎 指示を編集設定に変換</button>
+<p id="editPlan" role="status" aria-live="polite">いま対応できるのはフェードアウト秒数と末尾の完全無音秒数だけです。メロディや音色の変更はまだ実行しません。</p>
+<p class="muted">編集設定への変換だけでは音源は変更しません。内容を確認してから下のWAV作成ボタンで保存してください。未対応の指示は反映しません。</p>
+</section>
 <label for="silence">② 末尾に追加する完全無音</label>
 <select id="silence"><option value="2">2秒（推奨）</option><option value="3">3秒</option><option value="5">5秒</option></select>
 <label for="fade">③ 終盤フェード（必要な場合のみ）</label>
@@ -79,6 +90,7 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 </main>
 <script type="module">
 import { analyzeAudioEnding, createTailSafeWav } from "../integration/audio-tail-finisher.js";
+import { planJapaneseOutroEdit } from "../integration/japanese-outro-edit-plan.js";
 const $=id=>document.getElementById(id);
 const qualityIds=["lyricsChecked","outroChecked","silenceChecked"];
 let outputUrl=null, originalUrl=null, decodedAudio=null, busy=false, selectionVersion=0, preflightReport=null;
@@ -103,6 +115,42 @@ for(const id of qualityIds)$(id).addEventListener("change",updateQualityStatus);
 $("allowRisk").addEventListener("change",updateRunAvailability);
 $("listenEnd").addEventListener("click",()=>playLast35($("preview")));
 $("listenOriginalEnd").addEventListener("click",()=>playLast35($("originalPreview")));
+$("planPrompt").addEventListener("click",()=>{
+  const plan=planJapaneseOutroEdit($("editPrompt").value);
+  if(!plan.ok){
+    $("editPlan").dataset.state="error";
+    $("editPlan").textContent="編集設定は変更していません。\n"+plan.errors.join("\n");
+    return;
+  }
+  if(Object.hasOwn(plan.changes,"fadeSeconds")){
+    const value=String(plan.changes.fadeSeconds);
+    const selector=$("fade");
+    let option=Array.from(selector.options).find(o=>o.value===value);
+    if(!option){
+      option=document.createElement("option");
+      option.value=value;option.textContent="最後の"+value+"秒をフェード（文章指定）";
+      selector.appendChild(option);
+    }
+    selector.value=value;
+  }
+  if(Object.hasOwn(plan.changes,"silenceSeconds")){
+    const value=String(plan.changes.silenceSeconds);
+    const selector=$("silence");
+    let option=Array.from(selector.options).find(o=>o.value===value);
+    if(!option){
+      option=document.createElement("option");
+      option.value=value;option.textContent=value+"秒（文章指定）";
+      selector.appendChild(option);
+    }
+    selector.value=value;
+  }
+  $("editPlan").dataset.state="ok";
+  $("editPlan").textContent="反映する編集案：\n・"+plan.summary.join("\n・")+"\nまだ音源は変更していません。確認後「新しいWAVを作成」を押してください。";
+  if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
+  $("result").hidden=true;
+  for(const id of qualityIds)$(id).checked=false;
+  updateQualityStatus();
+});
 $("source").addEventListener("change",async()=>{
   const current=++selectionVersion;
   const file=$("source").files?.[0];
