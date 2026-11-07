@@ -1475,13 +1475,15 @@
         "既定はフェードOFF・元ファイル非破壊・端末内処理・外部APIゼロ",
         "専用CIが合格し、ブラウザ画面からWAV読込と再試聴・保存の手順が実際に動くことを検証",
         "iPhone/Android実機でファイル選択・出力・アウトロ試聴を検証（未実施なら未完了を維持）",
-        "本番main/公開URL/SONG ID/TAKE/原音・既存DBは変更しない"
+        "本番main/公開URL/SONG ID/TAKE/原音・既存DBは変更しない",
+        "末尾の静音候補・音が残る終端・一瞬のピークを区別し、最後の35秒の試聴と歌詞完走/余韻/無音の手動確認欄を提供（自動で歌詞完走と誤判定しない）"
       ],
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382273704",
         "docs/MUSIC_071_OUTRO_END_SAFE.md",
         "tests/audio-tail-finisher.test.mjs",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382687670"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382687670",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42384281748"
       ]
     }
   ]
