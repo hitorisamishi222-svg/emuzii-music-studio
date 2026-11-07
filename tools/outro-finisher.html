@@ -16,6 +16,12 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .note{border-left:3px solid #a2dcff;padding:10px 14px;background:#152338}
 #result[hidden],#warning[hidden],#done[hidden]{display:none}
 #warning{color:#ffe1ac}.success{color:#a9f0d9}
+#endInfo{padding:10px 14px;border-left:3px solid #87d6e8;background:#152338}
+.quality-list{margin-top:18px;padding-top:12px;border-top:1px solid #455875}
+.quality-list label{display:flex;align-items:flex-start;gap:10px;font-weight:500;margin:10px 0}
+.quality-list input{margin-top:8px;flex-shrink:0}
+#qualityStatus{font-weight:700}
+
 audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 </style>
 </head>
@@ -38,10 +44,20 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 </section>
 <section id="result" class="panel" hidden>
 <h2>仕上げ結果</h2>
-<p id="details"></p><p id="warning" hidden></p>
-<p id="done" class="success" hidden>✓ 新しいWAVが完成しました。元のファイルは変更していません。</p>
-<a id="download" class="download" download>完成WAVを保存</a>
-<p>仕上がりを試聴</p><audio id="preview" controls preload="metadata"></audio>
+<p id="details"></p>
+<p id="endInfo"></p><p id="warning" hidden></p>
+<p id="done" class="success" hidden>✓ 新しいWAVを書き出せます。元ファイルは非破壊です。楽曲の完成判定は別途必要です。</p>
+<a id="download" class="download" download>WAVを保存</a>
+<p><strong>最後の歌詞・アウトロを実際に聴いて確認</strong></p>
+<button id="listenEnd" type="button">🎧 最後の35秒を試聴</button>
+<audio id="preview" controls preload="metadata"></audio>
+<div class="quality-list">
+<strong>最終チェック（自動判定ではありません）</strong>
+<label><input id="lyricsChecked" type="checkbox">歌詞の最後の一言まで途切れていない</label>
+<label><input id="outroChecked" type="checkbox">アウトロの余韻が不自然に切れていない</label>
+<label><input id="silenceChecked" type="checkbox">最後の無音を含めて試聴した</label>
+<p id="qualityStatus" role="status">未確認：試聴してからチェックしてください。</p>
+</div>
 </section>
 <p class="muted">端末内で処理します。アップロード・外部API・課金はありません。本番公開前の開発用ツールです。</p>
 </main>
@@ -49,10 +65,29 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 import { createTailSafeWav } from "../integration/audio-tail-finisher.js";
 const $=id=>document.getElementById(id);
 let outputUrl=null;
+const qualityIds=["lyricsChecked","outroChecked","silenceChecked"];
+function updateQualityStatus(){
+  const count=qualityIds.filter(id=>$(id).checked).length;
+  $("qualityStatus").textContent=count===3
+    ? "✓ 3項目を自分で確認済み（音声の自動判定ではありません）"
+    : "未確認："+count+"/3項目。歌詞とアウトロは耳で確認してください。";
+}
+for(const id of qualityIds)$(id).addEventListener("change",updateQualityStatus);
+$("listenEnd").addEventListener("click",()=>{
+  const audio=$("preview");
+  if(!Number.isFinite(audio.duration)||audio.duration<=0){
+    $("status").textContent="試聴準備中です。再生バーを読み込んでから押してください。";
+    return;
+  }
+  audio.currentTime=Math.max(0,audio.duration-35);
+  audio.play().catch(()=>{$("status").textContent="再生できません。下の再生バーから確認してください。";});
+});
 $("source").addEventListener("change",()=>{
   $("run").disabled=!$("source").files?.length;
   $("status").textContent=$("source").files?.length?"準備できました。":"音源を選んでください。";
   $("result").hidden=true;
+  for(const id of qualityIds)$(id).checked=false;
+  updateQualityStatus();
 });
 $("run").addEventListener("click",async()=>{
   const file=$("source").files?.[0];
@@ -75,8 +110,18 @@ $("run").addEventListener("click",async()=>{
     $("preview").src=outputUrl;
     const r=finished.report;
     $("details").textContent="元の長さ "+r.durationSeconds.toFixed(2)+"秒 ＋ 無音 "+r.silenceSeconds.toFixed(2)+"秒 ／ "+r.sampleRate+"Hz・"+r.channels+"ch";
-    $("warning").hidden=!r.possibleAbruptEnding;
-    $("warning").textContent="⚠ 元音源の末尾0.25秒にまだ音が残っています。途中切れの可能性があります。無音を足しても失われた歌詞・アウトロは復元できません。必ず聴いて確認してください。";
+    const quiet=Number(r.trailingQuietSeconds).toFixed(2);
+    $("endInfo").textContent=r.endingAssessment==="quiet_tail"
+      ? "末尾診断：静かな終わりの候補です（末尾の静かな部分 約"+quiet+"秒）。歌詞が完走したかは耳で確認してください。"
+      : r.endingAssessment==="active_tail"
+        ? "末尾診断：元の最後まで音が続いています。途中切れの可能性があります。"
+        : "末尾診断：弱い音が末尾まで続く可能性があります。自然な余韻か試聴してください。";
+    $("warning").hidden=r.endingAssessment==="quiet_tail";
+    $("warning").textContent=r.endingAssessment==="active_tail"
+      ? "⚠ 元音源の最後0.25秒に音が残っています。追加した無音は、切れた歌詞やアウトロを復元しません。Suno Extend等で先に音源を完成させてください。"
+      : "⚠ 末尾の余韻が十分かどうかは数値だけでは判定できません。最後の35秒を聴いて確認してください。";
+    for(const id of qualityIds)$(id).checked=false;
+    updateQualityStatus();
     $("done").hidden=false;$("result").hidden=false;
     $("status").textContent="完成。末尾を聴いて問題がないか確認してください。";
   } catch(error) {
