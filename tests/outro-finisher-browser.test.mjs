@@ -31,6 +31,13 @@ try{
   const pageErrors=[];page.on("pageerror",e=>pageErrors.push(String(e)));
   await page.goto("http://127.0.0.1:"+server.address().port+"/tools/outro-finisher.html");
   await page.locator("#source").setInputFiles({name:"original.wav",mimeType:"audio/wav",buffer:exampleWav()});
+  await page.locator("#preflightInfo").getByText(/要確認/).waitFor({state:"visible",timeoutMs:20000});
+  assert.equal(await page.locator("#run").isDisabled(),true);
+  assert.equal(await page.locator("#riskCheck").isVisible(),true);
+  assert.match(await page.locator("#preflightWarning").innerText(),/途中で切れた歌詞/);
+  await page.locator("#listenOriginalEnd").click();
+  await page.locator("#allowRisk").check();
+  assert.equal(await page.locator("#run").isEnabled(),true);
   await page.locator("#run").click();
   await page.locator("#done").waitFor({state:"visible",timeoutMs:20000});
   assert.match(await page.locator("#details").innerText(),/無音 2.00秒/);
@@ -59,12 +66,16 @@ try{
   // The second input has a deliberately quiet 0.8s outro, so no active-tail warning.
   await page.locator("#source").setInputFiles({name:"quiet.wav",mimeType:"audio/wav",buffer:exampleWav({quietSeconds:.8})});
   assert.equal(await page.locator("#lyricsChecked").isChecked(),false);
+  await page.locator("#preflightInfo").getByText(/静かな終わり/).waitFor({state:"visible",timeoutMs:20000});
+  assert.equal(await page.locator("#riskCheck").isVisible(),false);
+  assert.equal(await page.locator("#allowRisk").isChecked(),false);
+  assert.equal(await page.locator("#run").isEnabled(),true);
   await page.locator("#run").click();
   await page.locator("#endInfo").getByText(/静かな終わり/).waitFor({state:"visible",timeoutMs:20000});
   assert.equal(await page.locator("#warning").isVisible(),false);
   assert.match(await page.locator("#qualityStatus").innerText(),/未確認/);
   assert.deepEqual(pageErrors,[]);
-  console.log("PASS: browser upload → decode → WAV download → tail warnings → manual review → quiet-tail recheck");
+  console.log("PASS: preflight original → active-tail guard → WAV output → manual review → quiet-tail no override");
 } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
