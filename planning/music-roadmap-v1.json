@@ -1456,6 +1456,32 @@
         "対象CI合格とユーザーの明示承認"
       ],
       "evidence": []
+    },
+    {
+      "id": "MUSIC-071",
+      "title": "アウトロ末尾の元音声保持・2秒以上の完全無音追加・途切れ警告の開発UIと実機検証",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 65,
+      "dependsOn": [
+        "MUSIC-012",
+        "MUSIC-020"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "入力音声の全サンプルを保全して16-bit WAVへ書き出し末尾に2秒以上のゼロPCMを追加",
+        "末尾に音が残る場合は途中切れの可能性を警告し歌詞やアウトロの復元を装わない",
+        "既定はフェードOFF・元ファイル非破壊・端末内処理・外部APIゼロ",
+        "専用CIが合格し、ブラウザ画面からWAV読込と再試聴・保存の手順が実際に動くことを検証",
+        "iPhone/Android実機でファイル選択・出力・アウトロ試聴を検証（未実施なら未完了を維持）",
+        "本番main/公開URL/SONG ID/TAKE/原音・既存DBは変更しない"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382273704",
+        "docs/MUSIC_071_OUTRO_END_SAFE.md",
+        "tests/audio-tail-finisher.test.mjs"
+      ]
     }
   ]
 }
