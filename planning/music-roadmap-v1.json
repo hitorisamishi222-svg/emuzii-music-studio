@@ -1354,6 +1354,28 @@
       ]
     },
     {
+      "id": "MUSIC-069",
+      "title": "実WAVの5秒分割境界を3音フレーズが横断する場合の中央強調・休符を確認",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-068"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "実Chromiumで4.55秒・4.93秒・5.31秒開始の3音フレーズを44.1kHz WAVへ書き出す",
+        "5秒分割境界をまたぐ3音フレーズの中央音RMSが両端より3.5%以上大きい",
+        "2秒・3.8秒・7秒の休符はRMS 0.0005未満",
+        "変更の影響範囲のブラウザ回帰とStudio/Vocal/MASTER契約が成功する",
+        "実歌唱聴感・スマホ実機・GPU・本番公開は対象外"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/commit/8120215352e54f6100f6c211f0cd21353113e43a"
+      ]
+    },
+    {
       "id": "MUSIC-040",
       "title": "共通エンジン実API接続・再起動復元",
       "track": "common-engine",
