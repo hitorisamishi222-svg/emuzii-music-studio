@@ -75,6 +75,18 @@ try{
   assert.equal(await page.locator("#fade").inputValue(),"0.5");
   assert.equal(await page.locator("#silence").inputValue(),"3");
   assert.equal(await page.locator("#result").isVisible(),false);
+  await page.locator("#run").click();
+  await page.locator("#done").waitFor({state:"visible",timeoutMs:20000});
+  assert.match(await page.locator("#details").innerText(),/無音 3.00秒/);
+  const [editedDownload]=await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("#download").click()
+  ]);
+  const edited=fs.readFileSync(await editedDownload.path());
+  const editedRate=edited.readUInt32LE(24);
+  assert.equal(edited.readUInt32LE(40)/2,4*editedRate);
+  assert.equal(edited.readInt16LE(44+2*(editedRate-1)),0);
+  assert.equal(edited.subarray(44+2*editedRate).every(v=>v===0),true);
   // The second input has a deliberately quiet 0.8s outro, so no active-tail warning.
   await page.locator("#source").setInputFiles({name:"quiet.wav",mimeType:"audio/wav",buffer:exampleWav({quietSeconds:.8})});
   assert.equal(await page.locator("#lyricsChecked").isChecked(),false);
