@@ -1480,7 +1480,8 @@
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382273704",
         "docs/MUSIC_071_OUTRO_END_SAFE.md",
-        "tests/audio-tail-finisher.test.mjs"
+        "tests/audio-tail-finisher.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42382687670"
       ]
     }
   ]
