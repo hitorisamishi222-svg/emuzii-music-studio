@@ -1357,7 +1357,7 @@
       "id": "MUSIC-069",
       "title": "実WAVの5秒分割境界を3音フレーズが横断する場合の中央強調・休符を確認",
       "track": "manual-editing",
-      "state": "todo",
+      "state": "done",
       "priority": 64,
       "dependsOn": [
         "MUSIC-068"
@@ -1372,7 +1372,9 @@
         "実歌唱聴感・スマホ実機・GPU・本番公開は対象外"
       ],
       "evidence": [
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/commit/8120215352e54f6100f6c211f0cd21353113e43a"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/commit/8120215352e54f6100f6c211f0cd21353113e43a",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42333218385",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42333231749"
       ]
     },
     {
