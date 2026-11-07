@@ -50,7 +50,7 @@ export function analyzeAudioEnding(channels, sampleRate) {
     end = start;
   }
   const trailingQuietSeconds = trailingQuietFrames / sampleRate;
-  const possibleAbruptEnding = rms >= 0.01;
+  const possibleAbruptEnding = rms >= 0.01 || peak >= 0.25;
   // Only a candidate status; an already-cut or missing lyric can sound quiet.
   const endingAssessment = possibleAbruptEnding
     ? "active_tail"
