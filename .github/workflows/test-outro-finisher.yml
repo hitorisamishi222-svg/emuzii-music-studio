@@ -1,0 +1,23 @@
+name: Test Outro Finisher
+on:
+  push:
+    branches:
+      - feature/vocal-recorder-v1
+    paths:
+      - integration/audio-tail-finisher.js
+      - tests/audio-tail-finisher.test.mjs
+      - tools/outro-finisher.html
+      - .github/workflows/test-outro-finisher.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  outro-finisher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check outro WAV encoding and non-destructive tail behavior
+        run: node --test tests/audio-tail-finisher.test.mjs
