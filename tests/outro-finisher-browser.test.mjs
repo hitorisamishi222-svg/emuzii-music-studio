@@ -6,13 +6,13 @@ import { chromium } from "playwright";
 
 const root = process.cwd();
 
-function exampleWav() {
+function exampleWav({quietSeconds=0}={}) {
   const sr=16000, frames=sr, b=Buffer.alloc(44+frames*2);
   b.write("RIFF",0);b.writeUInt32LE(b.length-8,4);b.write("WAVE",8);
   b.write("fmt ",12);b.writeUInt32LE(16,16);b.writeUInt16LE(1,20);
   b.writeUInt16LE(1,22);b.writeUInt32LE(sr,24);b.writeUInt32LE(sr*2,28);
   b.writeUInt16LE(2,32);b.writeUInt16LE(16,34);b.write("data",36);b.writeUInt32LE(frames*2,40);
-  for(let i=0;i<frames;i++)b.writeInt16LE(Math.round(Math.sin(i*2*Math.PI*440/sr)*.2*32767),44+i*2);
+  for(let i=0;i<frames;i++)b.writeInt16LE(i>=frames-Math.round(quietSeconds*sr)?0:Math.round(Math.sin(i*2*Math.PI*440/sr)*.2*32767),44+i*2);
   return b;
 }
 const server=http.createServer((req,res)=>{
@@ -35,6 +35,13 @@ try{
   await page.locator("#done").waitFor({state:"visible",timeoutMs:20000});
   assert.match(await page.locator("#details").innerText(),/無音 2.00秒/);
   assert.match(await page.locator("#warning").innerText(),/途中切れの可能性/);
+  assert.match(await page.locator("#endInfo").innerText(),/最後まで音が続いています/);
+  await page.locator("#listenEnd").click();
+  assert.match(await page.locator("#qualityStatus").innerText(),/未確認/);
+  await page.locator("#lyricsChecked").check();
+  await page.locator("#outroChecked").check();
+  await page.locator("#silenceChecked").check();
+  assert.match(await page.locator("#qualityStatus").innerText(),/自分で確認済み/);
   const [download]=await Promise.all([
     page.waitForEvent("download"),
     page.locator("#download").click()
@@ -49,8 +56,15 @@ try{
   assert.equal(frames,Math.round(3*sampleRate));
   assert.equal(downloaded.readInt16LE(44+2*(sampleRate-1))!==0,true);
   assert.equal(downloaded.subarray(44+2*sampleRate).every(x=>x===0),true);
+  // The second input has a deliberately quiet 0.8s outro, so no active-tail warning.
+  await page.locator("#source").setInputFiles({name:"quiet.wav",mimeType:"audio/wav",buffer:exampleWav({quietSeconds:.8})});
+  assert.equal(await page.locator("#lyricsChecked").isChecked(),false);
+  await page.locator("#run").click();
+  await page.locator("#endInfo").getByText(/静かな終わり/).waitFor({state:"visible",timeoutMs:20000});
+  assert.equal(await page.locator("#warning").isVisible(),false);
+  assert.match(await page.locator("#qualityStatus").innerText(),/未確認/);
   assert.deepEqual(pageErrors,[]);
-  console.log("PASS: browser upload → decode → WAV download → warning and zero tail");
+  console.log("PASS: browser upload → decode → WAV download → tail warnings → manual review → quiet-tail recheck");
 } finally {
   if(browser)await browser.close();
   await new Promise(resolve=>server.close(resolve));
