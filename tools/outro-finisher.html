@@ -14,13 +14,18 @@ input,select,button{font:inherit}input[type=file],select{width:100%;padding:13px
 button,.download{background:#e4f4ff;color:#10283f;font-weight:800;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;text-decoration:none;display:inline-block;margin:14px 0}
 button:disabled{opacity:.4;cursor:not-allowed}
 .note{border-left:3px solid #a2dcff;padding:10px 14px;background:#152338}
-#result[hidden],#warning[hidden],#done[hidden]{display:none}
+#result[hidden],#warning[hidden],#done[hidden],#preflight[hidden],#preflightWarning[hidden],#riskCheck[hidden]{display:none}
 #warning{color:#ffe1ac}.success{color:#a9f0d9}
 #endInfo{padding:10px 14px;border-left:3px solid #87d6e8;background:#152338}
 .quality-list{margin-top:18px;padding-top:12px;border-top:1px solid #455875}
 .quality-list label{display:flex;align-items:flex-start;gap:10px;font-weight:500;margin:10px 0}
 .quality-list input{margin-top:8px;flex-shrink:0}
 #qualityStatus{font-weight:700}
+#preflightInfo{padding:10px 14px;background:#152338;border-left:3px solid #87d6e8}
+#preflightWarning{color:#ffe1ac}
+#riskCheck{padding:9px;background:#372d26;border-radius:9px}
+#riskCheck label{display:flex;gap:10px;align-items:flex-start}
+#riskCheck input{margin-top:9px}
 
 audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 </style>
@@ -34,6 +39,17 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 <section class="panel">
 <label for="source">① 音源ファイルを選ぶ（WAV推奨・MP3等はブラウザの対応形式のみ）</label>
 <input id="source" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac">
+<section id="preflight" class="panel" hidden>
+<h2>🔎 書き出す前の末尾診断</h2>
+<p id="preflightInfo" role="status"></p>
+<p id="preflightWarning" hidden></p>
+<p><strong>元音源の最後の35秒を聴く</strong></p>
+<button id="listenOriginalEnd" type="button">🎧 元音源の末尾を試聴</button>
+<audio id="originalPreview" controls preload="metadata"></audio>
+<div id="riskCheck" hidden>
+<label><input type="checkbox" id="allowRisk">途中切れの疑いを理解しました。元音源は別途確認済みで、このまま新しいWAVを作ります。</label>
+</div>
+</section>
 <label for="silence">② 末尾に追加する完全無音</label>
 <select id="silence"><option value="2">2秒（推奨）</option><option value="3">3秒</option><option value="5">5秒</option></select>
 <label for="fade">③ 終盤フェード（必要な場合のみ）</label>
@@ -62,47 +78,88 @@ audio{width:100%}p{margin:9px 0}ul{padding-left:22px}
 <p class="muted">端末内で処理します。アップロード・外部API・課金はありません。本番公開前の開発用ツールです。</p>
 </main>
 <script type="module">
-import { createTailSafeWav } from "../integration/audio-tail-finisher.js";
+import { analyzeAudioEnding, createTailSafeWav } from "../integration/audio-tail-finisher.js";
 const $=id=>document.getElementById(id);
-let outputUrl=null;
 const qualityIds=["lyricsChecked","outroChecked","silenceChecked"];
+let outputUrl=null, originalUrl=null, decodedAudio=null, busy=false, selectionVersion=0, preflightReport=null;
 function updateQualityStatus(){
   const count=qualityIds.filter(id=>$(id).checked).length;
   $("qualityStatus").textContent=count===3
     ? "✓ 3項目を自分で確認済み（音声の自動判定ではありません）"
     : "未確認："+count+"/3項目。歌詞とアウトロは耳で確認してください。";
 }
-for(const id of qualityIds)$(id).addEventListener("change",updateQualityStatus);
-$("listenEnd").addEventListener("click",()=>{
-  const audio=$("preview");
+function updateRunAvailability(){
+  $("run").disabled=busy || !decodedAudio || (preflightReport?.possibleAbruptEnding && !$("allowRisk").checked);
+}
+function playLast35(audio){
   if(!Number.isFinite(audio.duration)||audio.duration<=0){
     $("status").textContent="試聴準備中です。再生バーを読み込んでから押してください。";
     return;
   }
   audio.currentTime=Math.max(0,audio.duration-35);
-  audio.play().catch(()=>{$("status").textContent="再生できません。下の再生バーから確認してください。";});
-});
-$("source").addEventListener("change",()=>{
-  $("run").disabled=!$("source").files?.length;
-  $("status").textContent=$("source").files?.length?"準備できました。":"音源を選んでください。";
-  $("result").hidden=true;
+  audio.play().catch(()=>{$("status").textContent="再生できません。再生バーからお確かめください。";});
+}
+for(const id of qualityIds)$(id).addEventListener("change",updateQualityStatus);
+$("allowRisk").addEventListener("change",updateRunAvailability);
+$("listenEnd").addEventListener("click",()=>playLast35($("preview")));
+$("listenOriginalEnd").addEventListener("click",()=>playLast35($("originalPreview")));
+$("source").addEventListener("change",async()=>{
+  const current=++selectionVersion;
+  const file=$("source").files?.[0];
+  decodedAudio=null;preflightReport=null;
+  $("allowRisk").checked=false;
+  $("result").hidden=true;$("preflight").hidden=true;
   for(const id of qualityIds)$(id).checked=false;
   updateQualityStatus();
+  if(outputUrl){URL.revokeObjectURL(outputUrl);outputUrl=null;}
+  if(originalUrl){URL.revokeObjectURL(originalUrl);originalUrl=null;}
+  $("preview").removeAttribute("src");$("originalPreview").removeAttribute("src");
+  updateRunAvailability();
+  if(!file){$("status").textContent="音源を選んでください。";return;}
+  $("status").textContent="元音源の末尾を事前診断中…";
+  let ctx;
+  try{
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const data=await file.arrayBuffer();
+    const audio=await ctx.decodeAudioData(data);
+    if(current!==selectionVersion)return;
+    // Analyse the decoded PCM before allocating the output WAV.
+    const channels=Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i));
+    const report=analyzeAudioEnding(channels,audio.sampleRate);
+    decodedAudio=audio;
+    preflightReport=report;
+    $("preflightInfo").textContent=report.endingAssessment==="active_tail"
+      ? "要確認：音が残った状態で終わっています。歌詞・アウトロの途中切れに注意。"
+      : report.endingAssessment==="quiet_tail"
+      ? "静かな終わりの候補です（静かな末尾 約"+report.trailingQuietSeconds.toFixed(2)+"秒）。歌詞の完走は耳で確認。"
+      : "弱い余韻が末尾まで続く可能性があります。実際の音を聴いて確認してください。";
+    $("preflightWarning").hidden=!report.possibleAbruptEnding;
+    $("preflightWarning").textContent="⚠ 無音を追加するだけでは途中で切れた歌詞やアウトロは直せません。元音源の末尾を試聴してください。";
+    $("riskCheck").hidden=!report.possibleAbruptEnding;
+    originalUrl=URL.createObjectURL(file);
+    $("originalPreview").src=originalUrl;
+    $("preflight").hidden=false;
+    $("status").textContent=report.possibleAbruptEnding
+      ? "注意：音の途中切れの疑いがあります。聴いて確認後、続行する場合はチェックしてください。"
+      : "診断できました。元音源の末尾を試聴し、必要に応じてWAVを作成してください。";
+  }catch(error){
+    if(current===selectionVersion)$("status").textContent="読み込みできません："+(error?.message||String(error))+"。対応WAVで確認してください。";
+  }finally{
+    if(ctx)await ctx.close().catch(()=>{});
+    if(current===selectionVersion)updateRunAvailability();
+  }
 });
 $("run").addEventListener("click",async()=>{
-  const file=$("source").files?.[0];
-  if(!file)return;
-  $("run").disabled=true;$("status").textContent="端末内で処理中…";
-  let audioContext;
-  try {
-    audioContext=new (window.AudioContext||window.webkitAudioContext)();
-    const input=await file.arrayBuffer();
-    const decoded=await audioContext.decodeAudioData(input);
-    const channels=Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i));
-    const finished=createTailSafeWav(channels,decoded.sampleRate,{
+  const file=$("source").files?.[0], audio=decodedAudio, current=selectionVersion;
+  if(!file||!audio||busy|| (preflightReport?.possibleAbruptEnding&&!$("allowRisk").checked))return;
+  busy=true;updateRunAvailability();$("status").textContent="端末内でWAVを作成中…";
+  try{
+    const channels=Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i));
+    const finished=createTailSafeWav(channels,audio.sampleRate,{
       silenceSeconds:Number($("silence").value),
       fadeSeconds:Number($("fade").value)
     });
+    if(current!==selectionVersion)return;
     if(outputUrl)URL.revokeObjectURL(outputUrl);
     outputUrl=URL.createObjectURL(new Blob([finished.wav],{type:"audio/wav"}));
     const name=(file.name.replace(/\.[^.]+$/,"")||"music")+"-outro-safe.wav";
@@ -114,8 +171,8 @@ $("run").addEventListener("click",async()=>{
     $("endInfo").textContent=r.endingAssessment==="quiet_tail"
       ? "末尾診断：静かな終わりの候補です（末尾の静かな部分 約"+quiet+"秒）。歌詞が完走したかは耳で確認してください。"
       : r.endingAssessment==="active_tail"
-        ? "末尾診断：元の最後まで音が続いています。途中切れの可能性があります。"
-        : "末尾診断：弱い音が末尾まで続く可能性があります。自然な余韻か試聴してください。";
+      ? "末尾診断：元の最後まで音が続いています。途中切れの可能性があります。"
+      : "末尾診断：弱い音が末尾まで続く可能性があります。自然な余韻か試聴してください。";
     $("warning").hidden=r.endingAssessment==="quiet_tail";
     $("warning").textContent=r.endingAssessment==="active_tail"
       ? "⚠ 元音源の最後0.25秒に音が残り、途中切れの可能性があります。追加した無音は、切れた歌詞やアウトロを復元しません。Suno Extend等で先に音源を完成させてください。"
@@ -123,15 +180,14 @@ $("run").addEventListener("click",async()=>{
     for(const id of qualityIds)$(id).checked=false;
     updateQualityStatus();
     $("done").hidden=false;$("result").hidden=false;
-    $("status").textContent="完成。末尾を聴いて問題がないか確認してください。";
-  } catch(error) {
-    $("status").textContent="処理できませんでした："+(error?.message||String(error))+"。対応WAVで再試行してください。";
-  } finally {
-    if(audioContext)await audioContext.close().catch(()=>{});
-    $("run").disabled=!$("source").files?.length;
+    $("status").textContent="WAV生成完了。末尾を聴いて品質を確認してください。";
+  }catch(error){
+    if(current===selectionVersion)$("status").textContent="処理できませんでした："+(error?.message||String(error))+"。対応WAVで再試行してください。";
+  }finally{
+    busy=false;updateRunAvailability();
   }
 });
-window.addEventListener("pagehide",()=>{if(outputUrl)URL.revokeObjectURL(outputUrl)});
+window.addEventListener("pagehide",()=>{if(outputUrl)URL.revokeObjectURL(outputUrl);if(originalUrl)URL.revokeObjectURL(originalUrl)});
 </script>
 </body>
 </html>
