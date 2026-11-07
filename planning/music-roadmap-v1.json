@@ -1487,6 +1487,33 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42384281748",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42384949886"
       ]
+    },
+    {
+      "id": "MUSIC-072",
+      "title": "日本語プロンプト→安全な編集案→試聴→承認→非破壊WAV出力の段階拡張",
+      "track": "manual-editing",
+      "state": "todo",
+      "priority": 68,
+      "dependsOn": [
+        "MUSIC-020"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "日本語テキストからフェード秒数・無音秒数を事前に解析し設定案として表示（初期試作）",
+        "未対応の要求を無断反映しない。危険な変更や曖昧な対象は承認前に止める",
+        "元WAV、SONG ID、TAKE、履歴を保持し別ファイルとして出力",
+        "ブラウザで日本語指示から出力WAVのフェードと無音に反映されることをテスト",
+        "続いて音量・タイムライン・トラック対象・Undo・A/B試聴へ拡張",
+        "実楽曲とiPhone/Android実機で編集後の聴感を確認する",
+        "本番main・公開URL・外部有料API・GPUは勝手に変更/起動しない"
+      ],
+      "evidence": [
+        "docs/MUSIC_072_JAPANESE_PROMPT_EDIT.md",
+        "integration/japanese-outro-edit-plan.js",
+        "tests/japanese-outro-edit-plan.test.mjs",
+        "tests/outro-finisher-browser.test.mjs"
+      ]
     }
   ]
 }
