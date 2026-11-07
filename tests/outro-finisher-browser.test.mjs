@@ -41,12 +41,14 @@ try{
   ]);
   assert.equal(download.suggestedFilename(),"original-outro-safe.wav");
   const downloaded=fs.readFileSync(await download.path());
+  const sampleRate=downloaded.readUInt32LE(24);
   const frames=downloaded.readUInt32LE(40)/2;
-  assert.equal(frames,16000+32000);
+  // decodeAudioData may resample the 16kHz upload to AudioContext's output rate.
+  // Compare against the output WAV header, not the input's sample rate.
   assert.equal(downloaded.readUInt16LE(22),1);
-  assert.equal(downloaded.readUInt32LE(24),16000);
-  assert.equal(downloaded.readInt16LE(44+2*(16000-1))!==0,true);
-  assert.equal(downloaded.subarray(44+2*16000).every(x=>x===0),true);
+  assert.equal(frames,Math.round(3*sampleRate));
+  assert.equal(downloaded.readInt16LE(44+2*(sampleRate-1))!==0,true);
+  assert.equal(downloaded.subarray(44+2*sampleRate).every(x=>x===0),true);
   assert.deepEqual(pageErrors,[]);
   console.log("PASS: browser upload → decode → WAV download → warning and zero tail");
 } finally {
