@@ -1,6 +1,6 @@
 {
   "schema": "asahi-music-roadmap/v1",
-  "asOf": "2026-11-06",
+  "asOf": "2026-11-07",
   "repository": "hitorisamishi222-svg/emuzii-music-studio",
   "developmentBranch": "feature/vocal-recorder-v1",
   "productionBaseline": "ec5b91b70829a085784a80fc9f4172daba0913e3",
@@ -1324,6 +1324,33 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42183796090",
         "docs/MUSIC_067_FULL_SONG_WAV_STABILITY.md",
         "tests/master-multitrack-browser.test.mjs"
+      ]
+    },
+    {
+      "id": "MUSIC-068",
+      "title": "実Chromiumの44.1kHz WAVでハミング3音フレーズの中央強調と5秒境界・休符を検証",
+      "track": "manual-editing",
+      "state": "done",
+      "priority": 64,
+      "dependsOn": [
+        "MUSIC-063",
+        "MUSIC-064",
+        "MUSIC-067"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "同じMIDI音程・音長・ベロシティで作った3音フレーズ2組と単独音を実Chromiumで9秒44.1kHz WAVに書き出す",
+        "フレーズ中央音のRMSが両端よりそれぞれ3.5%以上大きいことをフレーズ前半・5秒チャンク境界後の双方で確認する",
+        "単独音に対しフレーズ先頭は約0.95倍、中央は約1.045倍の許容範囲内に収まる",
+        "2秒・4秒・7秒の休符はRMS 0.0005未満とし架空音を発生させない",
+        "Studio/Vocal/MASTERのGitHub Actions回帰テストPASS、前回の変数名衝突を修正済み",
+        "合成音源だけの数値/音声出力検証であり、実ユーザー楽曲の聴感受入・モバイル実機・GPU・本番公開は未検証"
+      ],
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42210342956",
+        "tests/master-multitrack-browser.test.mjs",
+        "docs/MUSIC_068_AUDIBLE_PHRASE_DYNAMICS.md"
       ]
     },
     {
