@@ -28,12 +28,44 @@ export function analyzeAudioEnding(channels, sampleRate) {
     }
   }
   const rms = Math.sqrt(sum / count);
+  // Estimate silence in short contiguous windows. Inspect at most the last 2s
+  // so that a low-level tail isn't mistaken for a sung word. This is a
+  // waveform heuristic, not an automated lyric-completion or listening test.
+  const quietRmsThreshold = 0.002; // approximately -54 dBFS
+  const windowFrames = Math.max(1, Math.round(sampleRate * 0.05));
+  const limitFrames = Math.min(frames, Math.round(sampleRate * 2));
+  let trailingQuietFrames = 0;
+  for (let end = frames; end > frames - limitFrames;) {
+    const start = Math.max(frames - limitFrames, end - windowFrames);
+    let energy = 0;
+    for (const ch of channels) {
+      for (let i = start; i < end; i++) {
+        const x = Number.isFinite(ch[i]) ? ch[i] : 0;
+        energy += x * x;
+      }
+    }
+    const windowRms = Math.sqrt(energy / ((end - start) * channels.length));
+    if (windowRms > quietRmsThreshold) break;
+    trailingQuietFrames += end - start;
+    end = start;
+  }
+  const trailingQuietSeconds = trailingQuietFrames / sampleRate;
+  const possibleAbruptEnding = rms >= 0.01;
+  // Only a candidate status; an already-cut or missing lyric can sound quiet.
+  const endingAssessment = possibleAbruptEnding
+    ? "active_tail"
+    : trailingQuietSeconds >= 0.5
+      ? "quiet_tail"
+      : "review_tail";
   return {
     durationSeconds: frames / sampleRate,
     rms,
     peak,
-    possibleAbruptEnding: rms >= 0.01,
-    inspectedSeconds: lastFrames / sampleRate
+    possibleAbruptEnding,
+    inspectedSeconds: lastFrames / sampleRate,
+    trailingQuietSeconds,
+    quietRmsThreshold,
+    endingAssessment
   };
 }
 
