@@ -5,7 +5,9 @@ on:
       - feature/vocal-recorder-v1
     paths:
       - integration/audio-tail-finisher.js
+      - integration/japanese-outro-edit-plan.js
       - tests/audio-tail-finisher.test.mjs
+      - tests/japanese-outro-edit-plan.test.mjs
       - tools/outro-finisher.html
       - tests/outro-finisher-browser.test.mjs
       - .github/workflows/test-outro-finisher.yml
@@ -21,7 +23,7 @@ jobs:
         with:
           node-version: '22'
       - name: Check outro WAV encoding and non-destructive tail behavior
-        run: node --test tests/audio-tail-finisher.test.mjs
+        run: node --test tests/audio-tail-finisher.test.mjs tests/japanese-outro-edit-plan.test.mjs
       - name: Install Chromium for targeted UI smoke test
         run: |
           npm install --no-save playwright@1.55.0
