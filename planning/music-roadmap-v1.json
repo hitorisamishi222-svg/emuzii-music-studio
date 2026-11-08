@@ -1580,9 +1580,15 @@
       "acceptance": [
         "和楽器・海外の楽器・自然音・特殊音についてライセンス確認済み候補を比較",
         "強弱レイヤー・アタック/リリース・奏法の実データを確認",
-        "商用完成曲とサンプル再配布の許可範囲を分けて記録"
+        "商用完成曲とサンプル再配布の許可範囲を分けて記録",
+        "VSCO 2 CE・VCSL・Philharmonia・Meta Open Soundの公式条件を調査し、音源のサンプル再配布可否を区別する（実音源ファイルの個別許諾・試聴は別途未完了）"
       ],
-      "evidence": []
+      "evidence": [
+        "docs/MUSIC_075_SOURCE_SHORTLIST_2026-11-08.md",
+        "integration/sample-quality-audit.js",
+        "tests/sample-quality-audit.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369"
+      ]
     },
     {
       "id": "MUSIC-076",
@@ -1719,6 +1725,31 @@
         "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458660580"
+      ]
+    },
+    {
+      "id": "MUSIC-082",
+      "title": "端末内の楽器WAV品質診断と無音サンプル取り込み防止",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-080"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "1〜2ch PCMから長さ・RMS/peak・DCオフセット・音割れ候補・先頭/末尾の静音を元音声非破壊で測定",
+        "楽器サンプルを読み込むとき診断値を表示し、ほぼ無音の素材は演奏前に拒否",
+        "複数WAVの診断結果を個別に表示し、未知の問題を実楽器品質合格と誤認しない",
+        "単体テストとChromiumのWAV選択→30秒出力・無音拒否が合格",
+        "実楽器本体の入手、音質聴感、権利照合、iPhone/Androidは別工程で未実施"
+      ],
+      "evidence": [
+        "docs/MUSIC_075_SOURCE_SHORTLIST_2026-11-08.md",
+        "integration/sample-quality-audit.js",
+        "tests/sample-quality-audit.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369"
       ]
     }
   ]
