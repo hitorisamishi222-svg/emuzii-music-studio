@@ -281,6 +281,8 @@ try{
  }
  console.log("PIANO_VELOCITY_SWEEP_64_TO_96 "+JSON.stringify(sweeps.map(s=>({
    pitch:s.pitch,regressions:s.report.regressionCount,
+   guardedRegressions:s.guardedAudit.regressionCount,
+   guardWorst:s.guardedAudit.worstStep,
    worst:s.report.worstStep,max:s.report.maxStep,
    runtimeMs:Number(s.runtimeMs.toFixed(1)),peak:s.report.peak
  }))));
@@ -299,9 +301,10 @@ try{
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guard-guide-30s-plus-2s.wav"),guardWav);
    for(const row of sweeps){
      fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-sweep.wav"),Buffer.from(row.wavBase64,"base64"));
+     fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-guarded-sweep.wav"),Buffer.from(row.guardWavBase64,"base64"));
    }
    fs.writeFileSync(path.join(outDir,"velocity-64-96-sweep-audit.json"),JSON.stringify(
-     sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,...s.report})),null,2)+"\n");
+     sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,raw:s.report,guarded:s.guardedAudit,guardReport:s.guardReport})),null,2)+"\n");
 
    fs.writeFileSync(path.join(outDir,"audit.json"),JSON.stringify({
      upstreamCommit:"251c0be57d5d1b3242b91f53e0cde62ab1cb42d9",
@@ -312,7 +315,7 @@ try{
      calibrationReport,calibratedRenderInfo:correctedDetails,calibratedDiagnostics:correctedQuality,
      calibratedWavBytes:correctedWav.length,
      blendDetails,blendAudit,boundaryMetrics,blendWavBytes:blendWav.length,
-     velocitySweeps:sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,...s.report})),
+     velocitySweeps:sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,raw:s.report,guarded:s.guardedAudit,guardReport:s.guardReport})),
      limitations:"Only three recorded pitches with two velocity samples; audio not listened to by human; mobile devices/24bit WAV/SF2 unverified"
    },null,2)+"\n");
  }
