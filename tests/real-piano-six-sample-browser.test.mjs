@@ -111,7 +111,7 @@ try{
  await page.locator("#result").waitFor({state:"visible",timeout:90000});
  const correctedDetails=await page.locator("#details").innerText();
  const correctedQuality=await page.locator("#sampleQuality").innerText();
- assert.match(correctedDetails,/強弱補正あり/);
+ assert.match(correctedDetails,/強弱処理音量補正のみ/);
  assert.match(correctedQuality,/80→81 強弱の境界補正/);
  assert.match(correctedQuality,/C3：補正前/);
  assert.match(correctedQuality,/C4：補正前/);
