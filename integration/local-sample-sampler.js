@@ -63,7 +63,8 @@ export function renderSampledScore(notes,sample,{
   let renderedNotes=0,skippedNotes=0;
   for(const note of notes){
     if(!note||![note.start,note.duration,note.midi,note.velocity].every(finite)||note.start<0||
-       note.duration<=0||note.start+note.duration>seconds+0.00001||!whole(note.midi,0,127)||!whole(note.velocity,0,127))throw Error("音符情報が不正です");
+       note.duration<=0||note.start+note.duration>seconds+0.00001||!whole(note.midi,0,127)||!whole(note.velocity,0,127)||
+       (note.gainMultiplier!==undefined && (!finite(note.gainMultiplier)||note.gainMultiplier<0||note.gainMultiplier>1)))throw Error("音符情報が不正です");
     if(note.midi<loKey||note.midi>hiKey||note.velocity<loVel||note.velocity>hiVel){skippedNotes++;continue;}
     const attack=note.attackSeconds??attackSeconds;
     const release=note.releaseSeconds??releaseSeconds;
@@ -81,7 +82,8 @@ export function renderSampledScore(notes,sample,{
     // new opt-in tails receive this source-edge taper; legacy PCM is unchanged.
     const sourceCutEarly=tailFrames>0 && playableFrames<targetFrames;
     const edgeFrames=sourceCutEarly?Math.min(playableFrames,Math.max(2,Math.round(sampleRate*.01))):0;
-    const velocityGain=(note.velocity/127)*gainDb;
+    // An optional, bounded per-note weight enables safe crossfades; legacy scores remain unchanged.
+    const velocityGain=(note.velocity/127)*gainDb*(note.gainMultiplier??1);
     for(let i=0;i<playableFrames&&start+i<pcm.length;i++){
       const srcPos=i*rate,idx=Math.floor(srcPos),frac=srcPos-idx;
       let value=0;
