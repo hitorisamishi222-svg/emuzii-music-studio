@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASAHI MUSIC｜録音ピアノ聴感A/B</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#101929;color:#f6faff}
+*{box-sizing:border-box}body{margin:0;padding:18px 14px;line-height:1.6}
+main{max-width:760px;margin:auto}.panel{padding:17px;margin:18px 0;border:1px solid #63738a;border-radius:14px;background:#1b2b40}
+h1{font-size:1.65rem;line-height:1.3}h2{font-size:1.2rem}
+label{display:block;margin:12px 0 6px;font-weight:700}
+input[type=file],select,textarea{width:100%;color:inherit;background:#0d1625;border:1px solid #829ab2;border-radius:10px;padding:12px;font:inherit}
+textarea{min-height:90px}button,.save{padding:12px 16px;margin:7px 5px 7px 0;border:0;border-radius:10px;background:#bfe8f8;color:#122134;font:inherit;font-weight:750;cursor:pointer}
+button:disabled,.save[aria-disabled=true]{opacity:.5;pointer-events:none}
+audio{display:block;width:100%;margin:15px 0}
+.notice{background:#13233a;border-left:3px solid #8cc9e9;padding:10px}
+small,.muted{color:#cad8e8}#error{color:#ffd1a4}fieldset{border:1px solid #627991;border-radius:10px;margin-top:14px}
+legend{font-weight:800}fieldset label{font-weight:500;margin:8px 0}
+</style></head>
+<body><main>
+<p class="muted">ASAHI MUSIC SYSTEM · 開発版 ／ 音色・強弱の実耳チェック</p>
+<h1>🎹 ピアノ録音のA/B試聴・採点</h1>
+<p>録音の補正前と補正後を読み込み、同じ再生位置で切り替えて音の違いを確認します。iPhone・Androidの動作を保証するものではないので、実機での確認も必要です。</p>
+<p class="notice">ファイルは端末内でのみ読み込みます。アップロードや外部送信は行いません。結果は端末上でJSONとして保存できます（自動送信・自動評価なし）。</p>
+<section class="panel"><h2>① 比較する音声</h2>
+<label for="fileA">A：比較元のWAV／OGG</label><input id="fileA" type="file" accept=".wav,.ogg,audio/wav,audio/ogg">
+<label for="fileB">B：比較先のWAV／OGG</label><input id="fileB" type="file" accept=".wav,.ogg,audio/wav,audio/ogg">
+<div><button id="playA" disabled type="button">▶ Aを聴く</button><button id="playB" disabled type="button">▶ Bへ切替</button></div>
+<audio id="player" controls preload="metadata"></audio>
+<p id="now" role="status">A・Bをそれぞれ選択してください。</p>
+<p class="muted">切替時は現在位置を引き継ぐよう試みます。端末の再生制限により、再生ボタンをもう一度押す必要がある場合があります。</p>
+<p id="error" role="alert"></p>
+</section>
+<section class="panel"><h2>② 自分の耳で評価</h2>
+<label for="pitch">確認した音域</label>
+<select id="pitch"><option>C3</option><option selected>C4</option><option>C5</option><option>30秒の曲全体</option></select>
+<fieldset><legend>BはAに比べて強弱が自然？</legend>
+<label><input type="radio" name="dynamics" value="better"> Bが良い</label>
+<label><input type="radio" name="dynamics" value="same"> 大きな違いは感じない</label>
+<label><input type="radio" name="dynamics" value="worse"> Aが良い</label>
+</fieldset>
+<fieldset><legend>BはAに比べて音色が自然？</legend>
+<label><input type="radio" name="timbre" value="better"> Bが良い</label>
+<label><input type="radio" name="timbre" value="same"> 大きな違いは感じない</label>
+<label><input type="radio" name="timbre" value="worse"> Aが良い</label>
+</fieldset>
+<fieldset><legend>位相の打ち消しや違和感は？</legend>
+<label><input type="radio" name="artifact" value="none"> 気にならない</label>
+<label><input type="radio" name="artifact" value="uncertain"> 判断できない</label>
+<label><input type="radio" name="artifact" value="present"> 違和感あり</label>
+</fieldset>
+<label for="memo">気になった箇所・秒数</label><textarea id="memo" maxlength="1200" placeholder="例：11秒付近で音が薄くなる。高音は自然。"></textarea>
+<button id="save" type="button">📝 評価JSONを保存</button>
+<p class="muted">採点は記録用。音楽的な品質判定は録音機材、聴く環境、用途によって変わります。</p>
+</section></main>
+<script>
+const $=id=>document.getElementById(id);
+const urls={A:null,B:null};let active=null;
+const player=$("player");
+function release(key){if(urls[key])URL.revokeObjectURL(urls[key]);urls[key]=null;}
+function updateButtons(){const both=Boolean(urls.A&&urls.B);$("playA").disabled=!both;$("playB").disabled=!both;}
+for(const key of ["A","B"]){
+ $("file"+key).addEventListener("change",()=>{
+  release(key);
+  const f=$("file"+key).files?.[0];
+  if(f&&!/\.(?:wav|ogg)$/i.test(f.name)){$("error").textContent="WAV/OGGファイルを選択してください。";updateButtons();return;}
+  if(f&&f.size>80*1024*1024){$("error").textContent="ファイルは80MB以下にしてください。";updateButtons();return;}
+  if(f)urls[key]=URL.createObjectURL(f);
+  $("error").textContent="";updateButtons();
+  if(active===key){active=null;player.pause();player.removeAttribute("src");player.load();}
+  $("now").textContent="A・Bのファイルを選んだら試聴してください。";
+ });
+}
+async function selectAudio(key){
+ if(!urls[key])return;
+ $("error").textContent="";
+ const position=Number.isFinite(player.currentTime)?player.currentTime:0;
+ const wasPlaying=active!==null&&!player.paused;
+ if(active!==key){
+  player.pause();player.src=urls[key];player.load();active=key;
+  await new Promise(resolve=>{
+   if(player.readyState>=1){resolve();return;}
+   player.addEventListener("loadedmetadata",resolve,{once:true});
+   player.addEventListener("error",resolve,{once:true});
+  });
+  if(Number.isFinite(player.duration)&&position<player.duration)player.currentTime=position;
+ }
+ $("now").textContent="現在の比較音声："+key+" ／ "+$("file"+key).files[0].name;
+ if(wasPlaying||position===0){
+  try{await player.play()}catch{$("error").textContent="端末の再生ボタンを押して試聴してください。";}
+ }
+}
+$("playA").addEventListener("click",()=>selectAudio("A"));
+$("playB").addEventListener("click",()=>selectAudio("B"));
+$("save").addEventListener("click",()=>{
+ const checked=name=>document.querySelector('input[name="'+name+'"]:checked')?.value??null;
+ const review={
+  version:"ASAHI-MUSIC-A-B-review-v1",recordedAt:new Date().toISOString(),
+  sourceA:$("fileA").files?.[0]?.name??null,
+  sourceB:$("fileB").files?.[0]?.name??null,
+  pitch:$("pitch").value,dynamics:checked("dynamics"),
+  timbre:checked("timbre"),artifact:checked("artifact"),memo:$("memo").value,
+  listeningReviewOnly:true
+ };
+ const uri=URL.createObjectURL(new Blob([JSON.stringify(review,null,2)+"\n"],{type:"application/json"}));
+ const a=document.createElement("a");a.href=uri;a.download="asahi-piano-listening-review.json";
+ document.body.append(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(uri),1000);
+ $("now").textContent="評価を保存しました（端末のダウンロードを確認してください）。";
+});
+window.addEventListener("pagehide",()=>{release("A");release("B")});
+</script></body></html>
