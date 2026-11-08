@@ -1857,9 +1857,42 @@
         "補正後も残る強弱80→81の急な変化を、短時間RMSだけでなくアタック・音色・聴感で評価",
         "補正なし/振幅補正/弱強サンプル段階ブレンドの3種類を元音源非破壊で試作し、音割れを拒否",
         "位相干渉・瞬間ピーク・音のつながり・CPU時間を検証し、実音源で生成したA/B音源を保存",
-        "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない"
+        "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない",
+        "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格"
       ],
-      "evidence": []
+      "evidence": [
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675",
+        "docs/MUSIC_086_PIANO_BLEND_AB_2026-11-09.md",
+        "integration/recorded-piano-velocity-blend.js"
+      ]
+    },
+    {
+      "id": "MUSIC-087",
+      "title": "録音ピアノ2層の64〜96ベロシティ振幅ブレンド実装と3方式WAV比較",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 93,
+      "dependsOn": [
+        "MUSIC-085"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "レガシー音源/スコアを維持し、0〜1の音符毎ゲインを有効化（不正値は拒否）",
+        "6ピアノ録音の64〜96区間だけ線形クロスフェード、音域・プリセット一致を検証",
+        "実録音6件で原録音/最大6dB音量補正/補正＋ブレンドの30秒WAVを作成し、末尾2秒のゼロPCMを検証",
+        "80→81のRMS音量段差をC3+0.59dB/C4+0.38dB/C5+0.66dBへ縮減、録音位相相関・短時間レンダリング時間を記録",
+        "音質の自然さ、全64〜96音量カーブ、位相干渉の聴感、モバイル実機はMUSIC-086として未完了"
+      ],
+      "evidence": [
+        "integration/recorded-piano-velocity-blend.js",
+        "integration/local-sample-sampler.js",
+        "tests/recorded-piano-velocity-blend.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "tools/local-sampler.html",
+        "docs/MUSIC_086_PIANO_BLEND_AB_2026-11-09.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675"
+      ]
     }
   ]
 }
