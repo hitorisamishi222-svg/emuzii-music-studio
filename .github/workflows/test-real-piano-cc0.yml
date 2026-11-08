@@ -1,0 +1,58 @@
+name: Test Recorded CC0 Piano in Chromium
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'tests/real-piano-cc0-browser.test.mjs'
+      - 'tools/local-sampler.html'
+      - 'integration/local-sample-sampler.js'
+      - 'integration/sample-quality-audit.js'
+      - 'integration/thirty-second-guide.js'
+      - '.github/workflows/test-real-piano-cc0.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recorded-piano:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch the exact recorded CC0 piano preview and verify source provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/facebookincubator/Meta-open-sound/251c0be57d5d1b3242b91f53e0cde62ab1cb42d9/systems/instruments/meta-piano"
+          mkdir -p /tmp/asahi-real-piano
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 "$base/LICENSE" -o /tmp/asahi-real-piano/LICENSE
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 "$base/manifest.json" -o /tmp/asahi-real-piano/manifest.json
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 "$base/ogg/INSPiano_Vel03_C4_01.ogg" -o /tmp/asahi-real-piano/C4.ogg
+          echo "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499  /tmp/asahi-real-piano/LICENSE" | sha256sum --check
+          echo "d6414ab35d2920b00714e86a919a14ac547136db711c5ecfea2d74acf405a527  /tmp/asahi-real-piano/manifest.json" | sha256sum --check
+          echo "f6df379bfb60e074fdb640eb33298a3150960b9c27fa9247740036fb8d9b55d6  /tmp/asahi-real-piano/C4.ogg" | sha256sum --check
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const j=JSON.parse(fs.readFileSync("/tmp/asahi-real-piano/manifest.json","utf8"));
+            if(j.id!=="meta-piano" || j.license!=="CC0-1.0" ||
+               !j.samples.some(x=>x.file==="INSPiano_Vel03_C4_01.wav"))throw Error("Upstream sample identity does not match");
+            if(!fs.readFileSync("/tmp/asahi-real-piano/LICENSE","utf8").includes("CC0 1.0 Universal"))throw Error("Source license not CC0");
+          '
+      - name: Install targeted Chromium test tools
+        run: npm install --no-save --no-package-lock playwright@1.58.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Render actual recorded piano to non-destructive 32s WAV
+        env:
+          ASAHI_REAL_PIANO_OGG: /tmp/asahi-real-piano/C4.ogg
+          ASAHI_ARTIFACTS_DIR: test-output/recorded-piano
+        run: node tests/real-piano-cc0-browser.test.mjs
+      - name: Upload generated 30s recorded-piano guide WAV and diagnostic metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: asahi-recorded-cc0-piano-guide
+          path: test-output/recorded-piano/
+          if-no-files-found: error
+          retention-days: 14
