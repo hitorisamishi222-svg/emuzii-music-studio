@@ -1565,7 +1565,8 @@
         "integration/multi-region-sampler.js",
         "tests/multi-region-sampler.test.mjs",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848",
+        "docs/MUSIC_085_PIANO_VELOCITY_AB.md"
       ]
     },
     {
@@ -1595,7 +1596,8 @@
         "docs/MUSIC_083_REAL_PIANO_CC0_QA.md",
         "tests/real-piano-cc0-browser.test.mjs",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848",
+        "docs/MUSIC_085_PIANO_VELOCITY_AB.md"
       ]
     },
     {
@@ -1619,7 +1621,8 @@
       "evidence": [
         "integration/performance-expression.js",
         "tests/performance-expression.test.mjs",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609",
+        "docs/MUSIC_085_PIANO_VELOCITY_AB.md"
       ]
     },
     {
@@ -1812,6 +1815,51 @@
         "docs/MUSIC_084_RECORDED_PIANO_MULTISAMPLE.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
       ]
+    },
+    {
+      "id": "MUSIC-085",
+      "title": "録音ピアノ実音源の強弱80/81段差測定・上限6dBの補正A/B",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-084"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "CC0の6個の実録音OGGから短時間RMSを測り、音域C3/C4/C5の強弱切替をdBで監査",
+        "ユーザーが選ぶ補正あり/なしで別WAVを非破壊生成し、補正幅を±6dB以内に制限",
+        "極端な上下音域への大幅ピッチシフトを拒否（MIDI 42〜78だけマップ）",
+        "単体検証・Chromium実録音A/B出力・真の末尾2秒無音・GitHub artifact保存が合格",
+        "補正後もC3+6.88dB/C4+8.77dB/C5+13.60dBの段差が残るため本格的な自然さ完了とはしない"
+      ],
+      "evidence": [
+        "integration/recorded-piano-velocity-calibration.js",
+        "tests/recorded-piano-velocity-calibration.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "docs/MUSIC_085_PIANO_VELOCITY_AB.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42495627009"
+      ]
+    },
+    {
+      "id": "MUSIC-086",
+      "title": "ピアノ強弱レイヤー境界のクロスフェード/知覚音量・音色のA/B改善",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-085"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "補正後も残る強弱80→81の急な変化を、短時間RMSだけでなくアタック・音色・聴感で評価",
+        "補正なし/振幅補正/弱強サンプル段階ブレンドの3種類を元音源非破壊で試作し、音割れを拒否",
+        "位相干渉・瞬間ピーク・音のつながり・CPU時間を検証し、実音源で生成したA/B音源を保存",
+        "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない"
+      ],
+      "evidence": []
     }
   ]
 }
