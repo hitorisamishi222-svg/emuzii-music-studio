@@ -1860,7 +1860,8 @@
         "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない",
         "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格",
         "実録音の64〜96全33段階を音域C3/C4/C5で測定。補正前の-0.25dB超の逆戻り3/0/2箇所から補正後0/0/0箇所へ改善。ただし聴感・周波数の色づきは未検証",
-        "録音ピアノ64〜96で隣接スペクトル形状差最大C3=0.045/C4=0.010/C5=0.034（警戒値0.20超なし）。音色・位相の聴感合格ではない"
+        "録音ピアノ64〜96で隣接スペクトル形状差最大C3=0.045/C4=0.010/C5=0.034（警戒値0.20超なし）。音色・位相の聴感合格ではない",
+        "実録音の強弱64〜96を開始0.025/0.130/0.320秒から解析。C5の中盤64→65にスペクトル差0.1227を発見、実耳確認待ち"
       ],
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675",
@@ -1872,7 +1873,11 @@
         "docs/MUSIC_089_PIANO_TIMBRE_AB_QA.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42516077231",
         "integration/piano-timbre-sweep-audit.js",
-        "tools/piano-listening-qa.html"
+        "tools/piano-listening-qa.html",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42532701498",
+        "docs/MUSIC_090_PIANO_THREE_WINDOW_TIMBRE.md",
+        "integration/piano-timbre-time-windows.js",
+        "tests/piano-timbre-time-windows.test.mjs"
       ]
     },
     {
@@ -1959,6 +1964,51 @@
         "docs/MUSIC_089_PIANO_TIMBRE_AB_QA.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42516077231"
       ]
+    },
+    {
+      "id": "MUSIC-090",
+      "title": "録音ピアノの立上り・中盤・終端3窓の音色差監査とC5重点2音A/B",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 93,
+      "dependsOn": [
+        "MUSIC-089"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "各音符の25ms/130ms/320msからHann FFTを行いC3/C4/C5の強弱64〜96で音色形状差を測定",
+        "C5の中盤64→65のスペクトル形状差0.1227を特定し、警戒値0.20の超過がないことを実録音で確認（芸術的な自然さ合格とは扱わない）",
+        "立上りだけ・終端だけ変化する人工波形の単体テストに合格",
+        "実録音6件を個別SHA照合し、3窓ブラウザ検証および補正前後のC5・64→65に絞った4秒WAV 2本を出力",
+        "SONG ID・TAKE・本番URLを維持し、人間の聴感/iPhone等の実機品質はMUSIC-086に残す"
+      ],
+      "evidence": [
+        "integration/piano-timbre-time-windows.js",
+        "integration/piano-timbre-sweep-audit.js",
+        "tests/piano-timbre-time-windows.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "docs/MUSIC_090_PIANO_THREE_WINDOW_TIMBRE.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42532701498"
+      ]
+    },
+    {
+      "id": "MUSIC-091",
+      "title": "C5強弱64→65の時間別位相・帯域干渉の診断と音色改善候補比較",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 93,
+      "dependsOn": [
+        "MUSIC-090"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "C5の実録音2層について音符開始・中盤・末尾で局所的な位相/帯域打ち消しを区別して測定",
+        "候補を元録音非破壊で比較し、RMSだけで自然さを評価しない",
+        "人間の聴感とiPhone/Android実機確認を経るまで本番音色への自動採用はしない"
+      ],
+      "evidence": []
     }
   ]
 }
