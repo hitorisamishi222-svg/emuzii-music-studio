@@ -27,15 +27,15 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <main>
 <p class="muted">ASAHI MUSIC SYSTEM · DEVELOPMENT ONLY · OFFLINE PROCESSING</p>
 <h1>🎻 自前の楽器サンプルで30秒ガイド演奏</h1>
-<p>お手持ちのWAV楽器音を読み込み、アサヒの30秒楽譜を音程・強弱つきで演奏して、新しいWAVを書き出す試作です。元のファイルは変更しません。</p>
-<p class="notice"><strong>現在できること</strong>：複数WAVの音域・強弱による切り替え（最大16リージョン）、音符の音程・長さ、限定SFZ読込、30秒の試作編曲、末尾の完全無音2秒追加。<strong>未対応</strong>：SF2・SFZのgroup/loop/round-robin・楽器固有の本格的奏法。</p>
+<p>お手持ちのWAV／OGG楽器音を読み込み、アサヒの30秒楽譜を音程・強弱つきで演奏して、新しいWAVを書き出す試作です。元のファイルは変更しません。</p>
+<p class="notice"><strong>現在できること</strong>：複数WAV／OGGの音域・強弱による切り替え（最大16リージョン）、音符の音程・長さ、限定SFZ読込、30秒の試作編曲、末尾の完全無音2秒追加。<strong>未対応</strong>：SF2・SFZのgroup/loop/round-robin・楽器固有の本格的奏法。</p>
 <section class="card">
 <h2>① サンプル音源</h2>
-<label for="source">WAV / OGGサンプル（SFZ使用時はWAV最大8ファイル、すべて選択）</label>
+<label for="source">WAV / OGGサンプル（SFZ使用時は最大8ファイル、すべて選択）</label>
 <input id="source" type="file" accept=".wav,.ogg,audio/wav,audio/x-wav,audio/ogg,application/ogg" multiple>
 <label for="sfz">SFZファイル（任意・最大16個の&lt;region&gt;、音域と強弱の重複なし）</label>
 <input id="sfz" type="file" accept=".sfz,text/plain">
-<p class="muted">単独OGGプレビューは対応ブラウザのみで利用できます。SFZでの複数音色指定はWAVのみ対応。SFZに sample=harp.wav とある場合、同名のWAVを必ず選択してください。サンプル名は完全一致。対応範囲外のSFZ命令は勝手に省略せずエラーにします。ファイルはサーバーへ送られません。</p>
+<p class="muted">OGGは対応ブラウザでデコードします。SFZでの複数音色指定もWAV／OGGのローカルファイルに限定。SFZに sample=harp.wav とある場合、同名のWAVを必ず選択してください。サンプル名は完全一致。対応範囲外のSFZ命令は勝手に省略せずエラーにします。ファイルはサーバーへ送られません。</p>
 <label for="rootMidi">基準MIDIノート番号（SFZがあればSFZ指定を優先）</label>
 <input id="rootMidi" type="number" min="0" max="127" value="60">
 <label for="mode">演奏内容</label>
@@ -83,11 +83,11 @@ $("run").addEventListener("click",async()=>{
  if(inProgress)return;
  const files=Array.from($("source").files??[]);
  const file=files[0];
- if(!file){$("status").textContent="WAV音源を選んでください。";return;}
+ if(!file){$("status").textContent="WAV/OGG音源を選んでください。";return;}
  if(!$("permission").checked){$("status").textContent="使用権限を確認してから実行してください。";return;}
  if(files.some(f=>!/\.(?:wav|ogg)$/i.test(f.name))){$("status").textContent="WAVまたはOGGだけを選択してください。";return;}
  if(files.length>8||files.some(f=>f.size>30*1024*1024)||files.reduce((sum,f)=>sum+f.size,0)>60*1024*1024){
-  $("status").textContent="WAVは最大8ファイル、1件30MB以下・合計60MB以下にしてください。";return;
+  $("status").textContent="WAV/OGGは最大8ファイル、1件30MB以下・合計60MB以下にしてください。";return;
  }
  const taskVersion=inputVersion;
  inProgress=true;$("run").disabled=true;$("status").textContent="端末内で読み込み・演奏中…";
@@ -99,7 +99,7 @@ $("run").addEventListener("click",async()=>{
     if(sfzFile.size>20000)throw Error("SFZは20KB以下にしてください");
     regions=parseMultiRegionSfz(await sfzFile.text());
   }else if(files.length!==1){
-    throw Error("複数のWAVを使うには対応SFZを指定してください");
+    throw Error("複数のWAV/OGGを使うには対応SFZを指定してください");
   }
   const required=new Set(regions?.map(r=>r.sample)||[file.name]);
   if(required.size!==files.length||files.some(f=>!required.has(f.name))) {
