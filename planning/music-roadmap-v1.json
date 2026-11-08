@@ -1552,7 +1552,8 @@
         "実楽器1音以上をベロシティ・ノート長付きで発音させWAVに書き出す",
         "既存MIDI/MASTER/録音原音を壊さない局所回帰テスト",
         "WAVの単一サンプルから音程・強弱・アタック/リリースをつけて30秒ガイドをレンダリングし、Chromium UIでWAV保存まで検証（SFZは<region>1個の限定対応）",
-        "限定SFZの最大16リージョンを音域・ベロシティで切り替え、最大8 WAVの30秒合成試聴・保存をChromiumで確認（SF2、実楽器の品質検証は未実施）"
+        "限定SFZの最大16リージョンを音域・ベロシティで切り替え、最大8 WAVの30秒合成試聴・保存をChromiumで確認（SF2、実楽器の品質検証は未実施）",
+        "Meta Piano CC0のC3/C4/C5×2強弱をOGGプレビューで検証、実音源のSHA照合・ブラウザWAV生成成功（実耳/24-bit原本/SF2/本番は別工程）"
       ],
       "evidence": [
         "integration/local-sample-sampler.js",
@@ -1563,7 +1564,8 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42455151199",
         "integration/multi-region-sampler.js",
         "tests/multi-region-sampler.test.mjs",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
       ]
     },
     {
@@ -1582,7 +1584,8 @@
         "強弱レイヤー・アタック/リリース・奏法の実データを確認",
         "商用完成曲とサンプル再配布の許可範囲を分けて記録",
         "VSCO 2 CE・VCSL・Philharmonia・Meta Open Soundの公式条件を調査し、音源のサンプル再配布可否を区別する（実音源ファイルの個別許諾・試聴は別途未完了）",
-        "Meta Open Sound実録音C4 OGGのSHA/CC0と1音・30秒WAV出力をChromiumで検証（音源そのものの聴感・48kHz/24bit版の検証は未実施）"
+        "Meta Open Sound実録音C4 OGGのSHA/CC0と1音・30秒WAV出力をChromiumで検証（音源そのものの聴感・48kHz/24bit版の検証は未実施）",
+        "Meta Piano CC0のC3/C4/C5×2強弱をOGGプレビューで検証、実音源のSHA照合・ブラウザWAV生成成功（実耳/24-bit原本/SF2/本番は別工程）"
       ],
       "evidence": [
         "docs/MUSIC_075_SOURCE_SHORTLIST_2026-11-08.md",
@@ -1591,7 +1594,8 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369",
         "docs/MUSIC_083_REAL_PIANO_CC0_QA.md",
         "tests/real-piano-cc0-browser.test.mjs",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
       ]
     },
     {
@@ -1779,6 +1783,34 @@
         ".github/workflows/test-real-piano-cc0.yml",
         "tests/real-piano-cc0-browser.test.mjs",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931"
+      ]
+    },
+    {
+      "id": "MUSIC-084",
+      "title": "Meta Piano実録音6音色（3音域×2強弱）の自動選択・試聴用32秒WAV",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-083"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "Meta PianoのCC0・上流固定コミット・manifestと6個のOGG実録音SHA256を照合",
+        "音域C3/C4/C5と強弱2段階の重なりのない6リージョンを開発版で再現",
+        "Chromium実音源デコードで6音色すべてを個別発音させ、30秒ガイドと完全無音2秒のWAVを作成",
+        "6音色プリセットはローカル音源のみを扱い、手動SFZとの二重適用とファイル不足を拒否",
+        "出力WAVと監査レポートをCI artifactに14日保存。実耳音質/スマホ実機/24bit WAV原本は未検証"
+      ],
+      "evidence": [
+        "integration/recorded-piano-six-sample-map.js",
+        "tests/recorded-piano-six-sample.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "tools/local-sampler.html",
+        ".github/workflows/test-recorded-piano-six-samples.yml",
+        "docs/MUSIC_084_RECORDED_PIANO_MULTISAMPLE.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42489201848"
       ]
     }
   ]
