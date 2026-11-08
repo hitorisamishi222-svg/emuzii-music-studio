@@ -33,7 +33,13 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <h2>① サンプル音源</h2>
 <label for="source">WAV / OGGサンプル（SFZ使用時は最大8ファイル、すべて選択）</label>
 <input id="source" type="file" accept=".wav,.ogg,audio/wav,audio/x-wav,audio/ogg,application/ogg" multiple>
-<label for="sfz">SFZファイル（任意・最大16個の&lt;region&gt;、音域と強弱の重複なし）</label>
+<label for="mappingPreset">音色割り当て方式</label>
+<select id="mappingPreset">
+<option value="manual">通常（SFZ手動指定、または1音だけ）</option>
+<option value="meta-piano-six">録音ピアノ6音色（C3/C4/C5 × 弱・強）の名前から割り当て</option>
+</select>
+<p class="muted">6音色プリセットは正規の名前のOGGファイルを6件すべて手元で選んだときだけ利用できます。音源の真正性・ライセンスをファイル名だけで証明するものではありません。自動取得はしません。</p>
+<label for="sfz">SFZファイル（任意・プリセットを使う場合は指定しない）</label>
 <input id="sfz" type="file" accept=".sfz,text/plain">
 <p class="muted">OGGは対応ブラウザでデコードします。SFZでの複数音色指定もWAV／OGGのローカルファイルに限定。SFZに sample=harp.wav とある場合、同名のWAVを必ず選択してください。サンプル名は完全一致。対応範囲外のSFZ命令は勝手に省略せずエラーにします。ファイルはサーバーへ送られません。</p>
 <label for="rootMidi">基準MIDIノート番号（SFZがあればSFZ指定を優先）</label>
@@ -68,6 +74,7 @@ import {prepareExpressiveScore} from "../integration/performance-expression.js";
 import {analyzeInstrumentSample} from "../integration/sample-quality-audit.js";
 import {parseMultiRegionSfz,renderMultiRegionScore} from "../integration/multi-region-sampler.js";
 import {createThirtySecondGuideScore} from "../integration/thirty-second-guide.js";
+import {createRecordedPianoSfz} from "../integration/recorded-piano-six-sample-map.js";
 import {createTailSafeWav} from "../integration/audio-tail-finisher.js";
 const $=id=>document.getElementById(id);
 let previewUrl=null, inProgress=false, inputVersion=0;
@@ -78,7 +85,7 @@ function resetOutput(){
   $("qualityPanel").hidden=true;$("sampleQuality").textContent="";
   $("status").textContent="音源と演奏設定を確認して実行してください。";
 }
-for(const id of ["source","sfz","rootMidi","mode","expressionStyle","permission"])$(id).addEventListener("change",resetOutput);
+for(const id of ["source","sfz","mappingPreset","rootMidi","mode","expressionStyle","permission"])$(id).addEventListener("change",resetOutput);
 $("run").addEventListener("click",async()=>{
  if(inProgress)return;
  const files=Array.from($("source").files??[]);
@@ -95,11 +102,14 @@ $("run").addEventListener("click",async()=>{
  try{
   let regions=null;
   const sfzFile=$("sfz").files?.[0];
-  if(sfzFile){
+  if($("mappingPreset").value==="meta-piano-six"){
+    if(sfzFile)throw Error("6音色プリセットと手動SFZを同時に指定しないでください");
+    regions=parseMultiRegionSfz(createRecordedPianoSfz());
+  }else if(sfzFile){
     if(sfzFile.size>20000)throw Error("SFZは20KB以下にしてください");
     regions=parseMultiRegionSfz(await sfzFile.text());
   }else if(files.length!==1){
-    throw Error("複数のWAV/OGGを使うには対応SFZを指定してください");
+    throw Error("複数のWAV/OGGを使うには対応SFZか6音色プリセットを指定してください");
   }
   const required=new Set(regions?.map(r=>r.sample)||[file.name]);
   if(required.size!==files.length||files.some(f=>!required.has(f.name))) {
