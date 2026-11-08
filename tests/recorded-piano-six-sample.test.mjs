@@ -31,6 +31,21 @@ test("six SFZ regions select one local source per note and are valid without uni
  assert.deepEqual(result.regionUsage.map(x=>x.renderedNotes),[1,1,1,1,1,1]);
  assert.ok(result.peak>.001&&result.peak<1);
 });
+test("extreme note values are not stretched unnaturally across many octaves",()=>{
+ const regions=parseMultiRegionSfz(createRecordedPianoSfz());
+ const input=new Map(RECORDED_PIANO_SAMPLES.map((s,i)=>[s.file,fakeSample(125+i*65)]));
+ const notes=[
+  {start:0,duration:.3,midi:24,velocity:70},
+  {start:1,duration:.3,midi:42,velocity:70},
+  {start:2,duration:.3,midi:78,velocity:110},
+  {start:3,duration:.3,midi:99,velocity:110}
+ ];
+ const rendered=renderMultiRegionScore(notes,regions,input,{seconds:5,sampleRate:sr});
+ assert.equal(rendered.renderedNotes,2);
+ assert.equal(rendered.skippedNotes,2);
+ assert.equal(rendered.pcm.subarray(0,Math.round(sr*.3)).every(x=>x===0),true);
+});
+
 test("30-second score selects a plausible mix of real-piano source zones, stays deterministic",()=>{
  const regions=parseMultiRegionSfz(createRecordedPianoSfz());
  const samples=new Map(RECORDED_PIANO_SAMPLES.map((s,i)=>[s.file,fakeSample(125+i*65)]));
