@@ -18,7 +18,9 @@ a{color:#b6e4fc}
 audio{width:100%}
 .muted{color:#c1cede}.notice{border-left:3px solid #8fcfee;padding:9px 12px;background:#122239}.warn{color:#ffd7a4}
 input[type=checkbox]{transform:scale(1.25);margin:11px}
-#result[hidden]{display:none}
+#result[hidden],#qualityPanel[hidden]{display:none}
+#sampleQuality{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75}
+#qualityPanel{border-left:3px solid #8fcfee;background:#13243a;padding:12px;margin-top:12px}
 </style>
 </head>
 <body>
@@ -49,6 +51,7 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <label><input id="permission" type="checkbox">選択したサンプルを自分で使用する権限を確認済みです（商用利用や再配布権の確認とは別です）</label>
 <button type="button" id="run">🎼 端末内で演奏してWAVを作成</button>
 <p id="status" role="status" aria-live="polite">音源ファイルを選んでください。</p>
+<div id="qualityPanel" hidden><strong>🔎 サンプル品質の事前診断</strong><p id="sampleQuality" role="status" aria-live="polite"></p><p class="muted">数値は試聴の補助です。奏法の自然さ、楽曲の完成度、商用利用権限は自動判定できません。</p></div>
 </section>
 <section id="result" class="card" hidden>
 <h2>② 試聴・保存</h2>
@@ -62,6 +65,7 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <script type="module">
 import {renderSampledScore} from "../integration/local-sample-sampler.js";
 import {prepareExpressiveScore} from "../integration/performance-expression.js";
+import {analyzeInstrumentSample} from "../integration/sample-quality-audit.js";
 import {parseMultiRegionSfz,renderMultiRegionScore} from "../integration/multi-region-sampler.js";
 import {createThirtySecondGuideScore} from "../integration/thirty-second-guide.js";
 import {createTailSafeWav} from "../integration/audio-tail-finisher.js";
@@ -71,6 +75,7 @@ function resetOutput(){
   inputVersion++;
   if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}
   $("preview").removeAttribute("src");$("result").hidden=true;
+  $("qualityPanel").hidden=true;$("sampleQuality").textContent="";
   $("status").textContent="音源と演奏設定を確認して実行してください。";
 }
 for(const id of ["source","sfz","rootMidi","mode","expressionStyle","permission"])$(id).addEventListener("change",resetOutput);
@@ -99,16 +104,29 @@ $("run").addEventListener("click",async()=>{
   if(required.size!==files.length||files.some(f=>!required.has(f.name))) {
     throw Error("SFZで指定したWAVと選択ファイル名が違います。余分なファイル・不足ファイルも確認してください");
   }
-  const sampleMap=new Map();
+  const sampleMap=new Map(),qualityRows=[];
   ctx=new (window.AudioContext||window.webkitAudioContext)();
   for(const f of files){
     if(taskVersion!==inputVersion)return;
     const decoded=await ctx.decodeAudioData(await f.arrayBuffer());
     if(taskVersion!==inputVersion)return;
-    sampleMap.set(f.name,{
+    const sample={
       channels:Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),
       sampleRate:decoded.sampleRate
-    });
+    };
+    const audit=analyzeInstrumentSample(sample);
+    const issues={
+      near_silence:"ほぼ無音",
+      possible_clipping:"ピークの飽和候補",
+      dc_offset:"DCオフセットが大きい",
+      active_end:"末尾まで音が残っています",
+      very_short:"短いサンプル"
+    };
+    qualityRows.push(f.name+"："+audit.durationSeconds.toFixed(2)+"秒 / "+audit.channels+"ch / RMS "+(audit.rmsDbfs?.toFixed(1)??"−∞")+"dBFS / 最大 "+(audit.peakDbfs?.toFixed(1)??"−∞")+"dBFS / 静かな末尾 "+audit.trailingQuietSeconds.toFixed(2)+"秒"+(audit.issues.length?" / 注意："+audit.issues.map(key=>issues[key]).join("・"):" / 数値上の大きな問題候補なし"));
+    $("sampleQuality").textContent=qualityRows.join("\n");
+    $("qualityPanel").hidden=false;
+    if(!audit.usableForPreview)throw Error(f.name+" はほぼ無音です。楽器サンプルとしての演奏を中止しました");
+    sampleMap.set(f.name,sample);
   }
   const rootMidi=regions?.length===1?regions[0].rootMidi:Number($("rootMidi").value);
   const single=$("mode").value==="single";
