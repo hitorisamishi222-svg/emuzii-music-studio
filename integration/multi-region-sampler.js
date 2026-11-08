@@ -48,7 +48,10 @@ export function renderMultiRegionScore(notes, regions, samples, {sampleRate=2400
     if (!n || ![n.start,n.duration,n.midi,n.velocity].every(Number.isFinite) ||
       n.start < 0 || n.duration <= 0 || n.start + n.duration > seconds + 0.00001 ||
       !Number.isInteger(n.midi) || n.midi < 0 || n.midi > 127 ||
-      !Number.isInteger(n.velocity) || n.velocity < 0 || n.velocity > 127) {
+      !Number.isInteger(n.velocity) || n.velocity < 0 || n.velocity > 127 ||
+      (n.tailSeconds!==undefined && (!Number.isFinite(n.tailSeconds)||n.tailSeconds<0||n.tailSeconds>2)) ||
+      (n.attackSeconds!==undefined && (!Number.isFinite(n.attackSeconds)||n.attackSeconds<0||n.attackSeconds>10)) ||
+      (n.releaseSeconds!==undefined && (!Number.isFinite(n.releaseSeconds)||n.releaseSeconds<0||n.releaseSeconds>10))) {
       throw Error("音符情報が不正です");
     }
   }
