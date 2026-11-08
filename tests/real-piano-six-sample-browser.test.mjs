@@ -33,9 +33,8 @@ try{
  const errors=[];page.on("pageerror",e=>errors.push(String(e)));
  await page.goto("http://127.0.0.1:"+server.address().port+"/tools/local-sampler.html");
  await page.locator("#source").setInputFiles(files);
- await page.locator("#sfz").setInputFiles({
-  name:"meta-piano-6-regions.sfz",mimeType:"text/plain",buffer:Buffer.from(createRecordedPianoSfz())
- });
+ // The user-facing preset builds the same constrained six-region SFZ internally.
+ await page.locator("#mappingPreset").selectOption("meta-piano-six");
  await page.locator("#permission").check();
  await page.locator("#run").click();
  await page.locator("#result").waitFor({state:"visible",timeout:90000});
@@ -77,6 +76,11 @@ try{
  assert.deepEqual(usage.regionUsage.map(x=>x.renderedNotes),[1,1,1,1,1,1]);
  assert.ok(usage.peak>0&&usage.peak<=1);
  assert.equal(usage.overloaded,false);
+ // The preset refuses incomplete six-file selections; no stale output may remain.
+ await page.locator("#source").setInputFiles(files.slice(0,5));
+ await page.locator("#run").click();
+ await page.locator("#status").getByText(/ファイル名が違います/).waitFor({state:"visible",timeout:30000});
+ assert.equal(await page.locator("#result").isVisible(),false);
  assert.deepEqual(errors,[]);
  const outDir=process.env.ASAHI_ARTIFACTS_DIR;
  if(outDir){
