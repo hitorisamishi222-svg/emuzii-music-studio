@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASAHI MUSIC | ローカルサンプル演奏実験</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#0e1827;color:#f7fbff}
+*{box-sizing:border-box}
+body{margin:0;padding:26px 15px;line-height:1.65}
+main{max-width:740px;margin:0 auto}
+h1{font-size:1.7rem;line-height:1.3}
+.card{background:#1c2b42;border:1px solid #415670;border-radius:18px;padding:21px;margin:19px 0}
+label{display:block;margin:15px 0 7px;font-weight:700}
+input[type=file],input[type=number],select{width:100%;padding:12px;background:#0d182a;color:#fff;border:1px solid #7c90a9;border-radius:9px;font:inherit}
+button,.download{display:inline-block;font:inherit;font-weight:800;border:0;border-radius:12px;padding:12px 20px;background:#b6e4fc;color:#132436;margin:14px 0;cursor:pointer;text-decoration:none}
+button:disabled{opacity:.45}
+a{color:#b6e4fc}
+audio{width:100%}
+.muted{color:#c1cede}.notice{border-left:3px solid #8fcfee;padding:9px 12px;background:#122239}.warn{color:#ffd7a4}
+input[type=checkbox]{transform:scale(1.25);margin:11px}
+#result[hidden]{display:none}
+</style>
+</head>
+<body>
+<main>
+<p class="muted">ASAHI MUSIC SYSTEM · DEVELOPMENT ONLY · OFFLINE PROCESSING</p>
+<h1>🎻 自前の楽器サンプルで30秒ガイド演奏</h1>
+<p>お手持ちのWAV楽器音を読み込み、アサヒの30秒楽譜を音程・強弱つきで演奏して、新しいWAVを書き出す試作です。元のファイルは変更しません。</p>
+<p class="notice"><strong>現在できること</strong>：単一サンプルの音程変更、音符の強弱・長さ、限定SFZ読込、30秒の試作編曲、末尾の完全無音2秒追加。<strong>未対応</strong>：SF2・複数リージョンSFZ・ループ・楽器固有の本格的奏法。</p>
+<section class="card">
+<h2>① サンプル音源</h2>
+<label for="source">WAVファイル（1つ）</label>
+<input id="source" type="file" accept=".wav,audio/wav,audio/x-wav">
+<label for="sfz">SFZファイル（任意・単一&lt;region&gt;のみ）</label>
+<input id="sfz" type="file" accept=".sfz,text/plain">
+<p class="muted">SFZに sample=harp.wav とある場合、同名のWAVを上で選択してください。ファイルはサーバーへ送られません。</p>
+<label for="rootMidi">基準MIDIノート番号（SFZがあればSFZ指定を優先）</label>
+<input id="rootMidi" type="number" min="0" max="127" value="60">
+<label for="mode">演奏内容</label>
+<select id="mode"><option value="guide">30秒ガイド（メロディ＋伴奏）</option><option value="single">1音テスト（基準音・約1秒）</option></select>
+<label><input id="permission" type="checkbox">選択したサンプルを自分で使用する権限を確認済みです（商用利用や再配布権の確認とは別です）</label>
+<button type="button" id="run">🎼 端末内で演奏してWAVを作成</button>
+<p id="status" role="status" aria-live="polite">音源ファイルを選んでください。</p>
+</section>
+<section id="result" class="card" hidden>
+<h2>② 試聴・保存</h2>
+<p id="details"></p>
+<audio id="preview" controls preload="metadata"></audio>
+<a id="download" class="download" download>新しいWAVを保存</a>
+<p class="muted">音色の品質は元サンプルに依存します。短いサンプルは自動ループせず、途中で音が終わります。実楽器としての品質は耳で確認してください。</p>
+</section>
+<p class="muted">外部API・課金なし。使用したサンプルの権利をこの画面が自動で認証することはありません。本番システムとは未接続です。</p>
+</main>
+<script type="module">
+import {renderSampledScore,parseSingleRegionSfz} from "../integration/local-sample-sampler.js";
+import {createThirtySecondGuideScore} from "../integration/thirty-second-guide.js";
+import {createTailSafeWav} from "../integration/audio-tail-finisher.js";
+const $=id=>document.getElementById(id);
+let previewUrl=null, inProgress=false, inputVersion=0;
+function resetOutput(){
+  inputVersion++;
+  if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}
+  $("preview").removeAttribute("src");$("result").hidden=true;
+  $("status").textContent="音源と演奏設定を確認して実行してください。";
+}
+for(const id of ["source","sfz","rootMidi","mode","permission"])$(id).addEventListener("change",resetOutput);
+$("run").addEventListener("click",async()=>{
+ if(inProgress)return;
+ const file=$("source").files?.[0];
+ if(!file){$("status").textContent="WAV音源を選んでください。";return;}
+ if(!$("permission").checked){$("status").textContent="使用権限を確認してから実行してください。";return;}
+ if(file.size>30*1024*1024){$("status").textContent="この試作は30MB以下のWAVに対応します。";return;}
+ const taskVersion=inputVersion;
+ inProgress=true;$("run").disabled=true;$("status").textContent="端末内で読み込み・演奏中…";
+ let ctx;
+ try{
+  let sfzOptions=null;
+  const sfzFile=$("sfz").files?.[0];
+  if(sfzFile){
+    if(sfzFile.size>20000)throw Error("SFZは20KB以下にしてください");
+    sfzOptions=parseSingleRegionSfz(await sfzFile.text());
+    if(sfzOptions.sample.toLowerCase()!==file.name.toLowerCase())throw Error("SFZのsampleと選択したWAVのファイル名が違います");
+  }
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  const decoded=await ctx.decodeAudioData(await file.arrayBuffer());
+  if(taskVersion!==inputVersion)return;
+  const sample={channels:Array.from({length:decoded.numberOfChannels},(_,i)=>decoded.getChannelData(i)),sampleRate:decoded.sampleRate};
+  const rootMidi=sfzOptions?.rootMidi??Number($("rootMidi").value);
+  const single=$("mode").value==="single";
+  const notes=single?[{start:0,duration:1,midi:rootMidi,velocity:90}]:createThirtySecondGuideScore();
+  const length=single?2:30;
+  const r=renderSampledScore(notes,sample,{
+    sampleRate:24000,seconds:length,rootMidi,...sfzOptions
+  });
+  if(r.renderedNotes===0)throw Error("SFZの音域・ベロシティに合う音符がありません");
+  if(r.overloaded)throw Error("音割れリスクが高いため書き出しを中止しました。サンプル音量を下げて再試行してください");
+  const finished=createTailSafeWav([r.pcm],r.sampleRate,{silenceSeconds:2});
+  if(taskVersion!==inputVersion)return;
+  if(previewUrl)URL.revokeObjectURL(previewUrl);
+  previewUrl=URL.createObjectURL(new Blob([finished.wav],{type:"audio/wav"}));
+  $("preview").src=previewUrl;$("download").href=previewUrl;
+  $("download").download=(file.name.replace(/\.wav$/i,"")||"sample")+"-asahi-guide.wav";
+  $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 最大振幅"+r.peak.toFixed(3);
+  $("result").hidden=false;
+  $("status").textContent="生成できました。実際の音を試聴して確認してください。";
+ }catch(e){
+  if(taskVersion===inputVersion)$("status").textContent="処理できません："+(e?.message||String(e));
+ }finally{
+  if(ctx)await ctx.close().catch(()=>{});
+  inProgress=false;$("run").disabled=false;
+ }
+});
+window.addEventListener("pagehide",()=>{if(previewUrl)URL.revokeObjectURL(previewUrl)});
+</script>
+</body></html>
