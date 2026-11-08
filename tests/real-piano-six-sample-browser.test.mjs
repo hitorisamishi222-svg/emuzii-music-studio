@@ -76,6 +76,46 @@ try{
  assert.deepEqual(usage.regionUsage.map(x=>x.renderedNotes),[1,1,1,1,1,1]);
  assert.ok(usage.peak>0&&usage.peak<=1);
  assert.equal(usage.overloaded,false);
+ // Opt-in velocity calibration must use the same verified local recordings.
+ const calibrationReport=await page.evaluate(async()=>{
+   const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
+   const {parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
+   const {createRecordedPianoSfz}=await import("../integration/recorded-piano-six-sample-map.js");
+   const ctx=new AudioContext();
+   try{
+     const samples=new Map();
+     for(const f of document.getElementById("source").files){
+       const audio=await ctx.decodeAudioData(await f.arrayBuffer());
+       samples.set(f.name,{
+         sampleRate:audio.sampleRate,
+         channels:Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i))
+       });
+     }
+     return calibrateRecordedPianoVelocity(parseMultiRegionSfz(createRecordedPianoSfz()),samples).report;
+   }finally{await ctx.close()}
+ });
+ assert.equal(calibrationReport.length,3);
+ for(const row of calibrationReport){
+   assert.ok(Number.isFinite(row.measuredJumpDb)&&Number.isFinite(row.residualDb));
+   assert.ok(Math.abs(row.appliedDb)<=6.001);
+   assert.ok(Math.abs(row.residualDb)<=Math.abs(row.measuredJumpDb)+0.001);
+ }
+ await page.locator("#velocityCalibration").selectOption("on");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:90000});
+ const correctedDetails=await page.locator("#details").innerText();
+ const correctedQuality=await page.locator("#sampleQuality").innerText();
+ assert.match(correctedDetails,/強弱補正あり/);
+ assert.match(correctedQuality,/80→81 強弱の境界補正/);
+ assert.match(correctedQuality,/C3：補正前/);
+ assert.match(correctedQuality,/C4：補正前/);
+ assert.match(correctedQuality,/C5：補正前/);
+ const [correctedDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const correctedWav=fs.readFileSync(await correctedDownload.path());
+ assert.match(correctedDownload.suggestedFilename(),/velocity-calibrated/);
+ assert.equal(correctedWav.readUInt32LE(40),32*24000*2);
+ assert.ok(correctedWav.subarray(44+2*24000*30).every(x=>x===0));
+ assert.notDeepEqual(correctedWav,output);
  // The preset refuses incomplete six-file selections; no stale output may remain.
  await page.locator("#source").setInputFiles(files.slice(0,5));
  await page.locator("#run").click();
@@ -86,16 +126,19 @@ try{
  if(outDir){
    fs.mkdirSync(outDir,{recursive:true});
    fs.writeFileSync(path.join(outDir,"meta-piano-six-recordings-guide-30s-plus-2s.wav"),output);
+   fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-calibrated-guide-30s-plus-2s.wav"),correctedWav);
    fs.writeFileSync(path.join(outDir,"audit.json"),JSON.stringify({
      upstreamCommit:"251c0be57d5d1b3242b91f53e0cde62ab1cb42d9",
      sampleCount:files.length,
      files:RECORDED_PIANO_SAMPLES.map(x=>({file:x.file,sha256:x.sha256,pitch:x.pitch,velocityLayer:x.velocityLayer})),
      license:"CC0-1.0",sourceFormat:"recorded-piano-OGG-preview",
      diagnostics:audit,renderInfo:details,probeUsage:usage,outputWavBytes:output.length,
+     calibrationReport,calibratedRenderInfo:correctedDetails,calibratedDiagnostics:correctedQuality,
+     calibratedWavBytes:correctedWav.length,
      limitations:"Only three recorded pitches with two velocity samples; audio not listened to by human; mobile devices/24bit WAV/SF2 unverified"
    },null,2)+"\n");
  }
- console.log("PASS: real recorded C3/C4/C5 x 2 velocities decoded, every region exercised, 30s guide WAV plus 2s silence");
+ console.log("PASS: six real recorded samples, unadjusted vs calibrated WAV A/B, boundary reports, true 2s silent tails");
 }finally{
  if(browser)await browser.close();
  await new Promise(resolve=>server.close(resolve));
