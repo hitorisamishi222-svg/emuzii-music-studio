@@ -38,6 +38,14 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <input id="rootMidi" type="number" min="0" max="127" value="60">
 <label for="mode">演奏内容</label>
 <select id="mode"><option value="guide">30秒ガイド（メロディ＋伴奏）</option><option value="single">1音テスト（基準音・約1秒）</option></select>
+<label for="expressionStyle">演奏表現（開発版）</label>
+<select id="expressionStyle">
+<option value="neutral">標準（元の音符指定を維持）</option>
+<option value="staccato">スタッカート（短く・歯切れよく）</option>
+<option value="legato">レガート（音を少し重ねて余韻を追加）</option>
+<option value="gentle">優しく（強弱を抑え、立ち上がりと余韻を調整）</option>
+</select>
+<p class="muted">音の長さ・音量・エンベロープを変える簡易表現です。実楽器固有の奏法を生成する機能ではありません。</p>
 <label><input id="permission" type="checkbox">選択したサンプルを自分で使用する権限を確認済みです（商用利用や再配布権の確認とは別です）</label>
 <button type="button" id="run">🎼 端末内で演奏してWAVを作成</button>
 <p id="status" role="status" aria-live="polite">音源ファイルを選んでください。</p>
@@ -53,6 +61,7 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 </main>
 <script type="module">
 import {renderSampledScore} from "../integration/local-sample-sampler.js";
+import {prepareExpressiveScore} from "../integration/performance-expression.js";
 import {parseMultiRegionSfz,renderMultiRegionScore} from "../integration/multi-region-sampler.js";
 import {createThirtySecondGuideScore} from "../integration/thirty-second-guide.js";
 import {createTailSafeWav} from "../integration/audio-tail-finisher.js";
@@ -64,7 +73,7 @@ function resetOutput(){
   $("preview").removeAttribute("src");$("result").hidden=true;
   $("status").textContent="音源と演奏設定を確認して実行してください。";
 }
-for(const id of ["source","sfz","rootMidi","mode","permission"])$(id).addEventListener("change",resetOutput);
+for(const id of ["source","sfz","rootMidi","mode","expressionStyle","permission"])$(id).addEventListener("change",resetOutput);
 $("run").addEventListener("click",async()=>{
  if(inProgress)return;
  const files=Array.from($("source").files??[]);
@@ -103,8 +112,9 @@ $("run").addEventListener("click",async()=>{
   }
   const rootMidi=regions?.length===1?regions[0].rootMidi:Number($("rootMidi").value);
   const single=$("mode").value==="single";
-  const notes=single?[{start:0,duration:1,midi:rootMidi,velocity:90}]:createThirtySecondGuideScore();
+  const baseNotes=single?[{start:0,duration:1,midi:rootMidi,velocity:90}]:createThirtySecondGuideScore();
   const length=single?2:30;
+  const notes=prepareExpressiveScore(baseNotes,{style:$("expressionStyle").value,seconds:length});
   const r=regions
     ?renderMultiRegionScore(notes,regions,sampleMap,{sampleRate:24000,seconds:length})
     :renderSampledScore(notes,sampleMap.get(file.name),{sampleRate:24000,seconds:length,rootMidi});
@@ -116,7 +126,7 @@ $("run").addEventListener("click",async()=>{
   previewUrl=URL.createObjectURL(new Blob([finished.wav],{type:"audio/wav"}));
   $("preview").src=previewUrl;$("download").href=previewUrl;
   $("download").download=(file.name.replace(/\.wav$/i,"")||"sample")+"-asahi-guide.wav";
-  $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 使用音色"+files.length+"個・演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 最大振幅"+r.peak.toFixed(3);
+  $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 使用音色"+files.length+"個・演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 表現"+$("expressionStyle").selectedOptions[0].textContent+" ／ 最大振幅"+r.peak.toFixed(3);
   $("result").hidden=false;
   $("status").textContent="生成できました。実際の音を試聴して確認してください。";
  }catch(e){
