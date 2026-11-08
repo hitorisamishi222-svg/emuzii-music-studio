@@ -237,6 +237,8 @@ try{
      await import("../integration/piano-velocity-sweep-audit.js");
    const {auditPianoTimbreSweep}=
      await import("../integration/piano-timbre-sweep-audit.js");
+   const {auditPianoTimbreTimeWindows}=
+     await import("../integration/piano-timbre-time-windows.js");
    const {renderRecordedPianoVelocityBlend}=await import("../integration/recorded-piano-velocity-blend.js");
    const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
    const {parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
@@ -262,6 +264,8 @@ try{
        const guardedAudit=auditPianoVelocitySweep(guarded.pcm,24000,score);
        const timbreRaw=auditPianoTimbreSweep(rendered.pcm,24000,score);
        const timbreGuard=auditPianoTimbreSweep(guarded.pcm,24000,score);
+       const timbreTimeRaw=auditPianoTimbreTimeWindows(rendered.pcm,24000,score);
+       const timbreTimeGuard=auditPianoTimbreTimeWindows(guarded.pcm,24000,score);
        if(guarded.renderedNotes!==33||guarded.skippedNotes!==0||guarded.overloaded||guardedAudit.overloaded){
          throw Error("33段階の保護補正に失敗: "+pitch);
        }
@@ -272,7 +276,7 @@ try{
        const guardedWav=createTailSafeWav([guarded.pcm],24000,{silenceSeconds:2}).wav;
        // Avoid returning large WAV arrays through Playwright's serialization.
        output.push({pitch,runtimeMs,guardReport:guarded.guardReport,
-         timbreRaw,timbreGuard,
+         timbreRaw,timbreGuard,timbreTimeRaw,timbreTimeGuard,
          guardedAudit:{regressionCount:guardedAudit.regressionCount,
            worstStep:guardedAudit.worstStep,maxStep:guardedAudit.maxStep,
            peak:guardedAudit.peak,
@@ -302,6 +306,11 @@ try{
  for(const s of sweeps){
    assert.equal(s.report.levels.length,33);
    assert.equal(s.timbreRaw.analyzedNotes,33);
+   assert.equal(s.timbreTimeRaw.windows.length,3);
+   assert.equal(s.timbreTimeGuard.windows.length,3);
+   assert.ok(s.timbreTimeRaw.windows.every(x=>x.analyzedNotes===33));
+   assert.ok(Number.isFinite(s.timbreTimeRaw.largestAdjacentDistance));
+   assert.ok(Number.isFinite(s.timbreTimeGuard.largestAdjacentDistance));
    assert.equal(s.timbreGuard.analyzedNotes,33);
    assert.ok(Number.isFinite(s.timbreRaw.worstAdjacentChange.spectralDistance));
    assert.ok(Number.isFinite(s.timbreGuard.worstAdjacentChange.spectralDistance));
@@ -325,6 +334,10 @@ try{
    guardWorst:s.guardedAudit.worstStep,
    spectralWarnRaw:s.timbreRaw.warningCount,
    spectralWarnGuard:s.timbreGuard.warningCount,
+   temporalRaw:s.timbreTimeRaw.windows.map(x=>({name:x.name,warnings:x.warningCount,
+     worst:x.worst.spectralDistance,from:x.worst.from,to:x.worst.to})),
+   temporalGuard:s.timbreTimeGuard.windows.map(x=>({name:x.name,warnings:x.warningCount,
+     worst:x.worst.spectralDistance,from:x.worst.from,to:x.worst.to})),
    spectralWorstRaw:s.timbreRaw.worstAdjacentChange,
    spectralWorstGuard:s.timbreGuard.worstAdjacentChange,
    worst:s.report.worstStep,max:s.report.maxStep,
@@ -348,7 +361,8 @@ try{
      fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-guarded-sweep.wav"),Buffer.from(row.guardWavBase64,"base64"));
    }
    fs.writeFileSync(path.join(outDir,"velocity-64-96-timbre-audit.json"),JSON.stringify(
-     sweeps.map(s=>({pitch:s.pitch,raw:s.timbreRaw,guarded:s.timbreGuard})),null,2)+"\n");
+     sweeps.map(s=>({pitch:s.pitch,raw:s.timbreRaw,guarded:s.timbreGuard,
+       timeRaw:s.timbreTimeRaw,timeGuard:s.timbreTimeGuard})),null,2)+"\n");
    fs.writeFileSync(path.join(outDir,"velocity-64-96-sweep-audit.json"),JSON.stringify(
      sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,raw:s.report,guarded:s.guardedAudit,guardReport:s.guardReport})),null,2)+"\n");
 
@@ -363,7 +377,9 @@ try{
      blendDetails,blendAudit,boundaryMetrics,blendWavBytes:blendWav.length,
      velocitySweeps:sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,raw:s.report,guarded:s.guardedAudit,guardReport:s.guardReport,
        timbreRaw:{warningCount:s.timbreRaw.warningCount,worst:s.timbreRaw.worstAdjacentChange},
-       timbreGuard:{warningCount:s.timbreGuard.warningCount,worst:s.timbreGuard.worstAdjacentChange}})),
+       timbreGuard:{warningCount:s.timbreGuard.warningCount,worst:s.timbreGuard.worstAdjacentChange},
+       timeRaw:s.timbreTimeRaw.windows.map(x=>({name:x.name,warningCount:x.warningCount,worst:x.worst})),
+       timeGuard:s.timbreTimeGuard.windows.map(x=>({name:x.name,warningCount:x.warningCount,worst:x.worst}))})),
      limitations:"Only three recorded pitches with two velocity samples; audio not listened to by human; mobile devices/24bit WAV/SF2 unverified"
    },null,2)+"\n");
  }
