@@ -5,8 +5,10 @@ on:
     paths:
       - 'integration/local-sample-sampler.js'
       - 'integration/multi-region-sampler.js'
+      - 'integration/performance-expression.js'
       - 'tests/local-sample-sampler.test.mjs'
       - 'tests/multi-region-sampler.test.mjs'
+      - 'tests/performance-expression.test.mjs'
       - 'tools/local-sampler.html'
       - 'tests/local-sampler-browser.test.mjs'
       - '.github/workflows/test-local-sample-sampler.yml'
@@ -22,7 +24,7 @@ jobs:
         with:
           node-version: '22'
       - name: Verify local PCM sample and SFZ parsing
-        run: node --test tests/local-sample-sampler.test.mjs tests/multi-region-sampler.test.mjs
+        run: node --test tests/local-sample-sampler.test.mjs tests/multi-region-sampler.test.mjs tests/performance-expression.test.mjs
       - name: Install browser-test dependency
         run: npm install --no-save --no-package-lock playwright@1.58.2
       - name: Install Chromium
