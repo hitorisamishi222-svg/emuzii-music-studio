@@ -1626,6 +1626,26 @@
         "追加課金・AI歌声モデルの権利を別途確認してから外部連携"
       ],
       "evidence": []
+    },
+    {
+      "id": "MUSIC-079",
+      "title": "30秒の自前作曲ガイド：旋律・伴奏・強弱を決定的にレンダリング",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 97,
+      "dependsOn": [],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "外部サンプルなしの30秒合成ガイドを生成（実楽器音質と混同しない）",
+        "同一スコアの再現性・音割れ・速度・強弱差のテスト",
+        "音色ライブラリと差し替え可能な音符イベント形式にする",
+        "実楽器サンプルでのWAV化と試聴はMUSIC-074以降で実施"
+      ],
+      "evidence": [
+        "integration/thirty-second-guide.js",
+        "tests/thirty-second-guide.test.mjs"
+      ]
     }
   ]
 }
