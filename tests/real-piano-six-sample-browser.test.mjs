@@ -122,6 +122,74 @@ try{
  assert.equal(correctedWav.readUInt32LE(40),32*24000*2);
  assert.ok(correctedWav.subarray(44+2*24000*30).every(x=>x===0));
  assert.notDeepEqual(correctedWav,output);
+ await page.locator("#velocityCalibration").selectOption("blend");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:90000});
+ const blendDetails=await page.locator("#details").innerText();
+ const blendAudit=await page.locator("#sampleQuality").innerText();
+ assert.match(blendDetails,/段階的な音量ブレンド|録音2層ブレンド/);
+ assert.match(blendAudit,/録音レイヤーの位相診断/);
+ const [blendDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const blendWav=fs.readFileSync(await blendDownload.path());
+ assert.match(blendDownload.suggestedFilename(),/velocity-blend/);
+ assert.equal(blendWav.readUInt32LE(40),32*24000*2);
+ assert.ok(blendWav.subarray(44+2*24000*30).every(x=>x===0));
+ assert.notDeepEqual(blendWav,correctedWav);
+ assert.notDeepEqual(blendWav,output);
+ const boundaryMetrics=await page.evaluate(async()=>{
+   const {renderMultiRegionScore,parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
+   const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
+   const {renderRecordedPianoVelocityBlend,inspectRecordedPianoBlendPhase}=await import("../integration/recorded-piano-velocity-blend.js");
+   const {RECORDED_PIANO_SAMPLES,createRecordedPianoSfz}=await import("../integration/recorded-piano-six-sample-map.js");
+   const ctx=new AudioContext();
+   try{
+     const samples=new Map();
+     for(const f of document.getElementById("source").files){
+       const audio=await ctx.decodeAudioData(await f.arrayBuffer());
+       samples.set(f.name,{sampleRate:audio.sampleRate,
+         channels:Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i))});
+     }
+     const regions=parseMultiRegionSfz(createRecordedPianoSfz());
+     const calibrated=calibrateRecordedPianoVelocity(regions,samples).regions;
+     const rms=(pcm,a,b)=>{
+       let sum=0,from=Math.round(a*24000),to=Math.round(b*24000);
+       for(let i=from;i<to;i++)sum+=pcm[i]*pcm[i];
+       return Math.sqrt(sum/(to-from));
+     };
+     const results=[];
+     for(let i=0;i<6;i+=2){
+       const item=RECORDED_PIANO_SAMPLES[i];
+       const notes=[
+         {start:0,duration:.45,midi:item.rootMidi,velocity:80},
+         {start:1,duration:.45,midi:item.rootMidi,velocity:81}
+       ];
+       const measure=(audio)=>20*Math.log10(rms(audio.pcm,1.05,1.30)/rms(audio.pcm,.05,.30));
+       const a=renderMultiRegionScore(notes,regions,samples,{seconds:2});
+       const b=renderMultiRegionScore(notes,calibrated,samples,{seconds:2});
+       const start=performance.now();
+       const x=renderRecordedPianoVelocityBlend(notes,calibrated,samples,{seconds:2});
+       const ms=performance.now()-start;
+       const phase=inspectRecordedPianoBlendPhase(samples.get(item.file),samples.get(RECORDED_PIANO_SAMPLES[i+1].file));
+       results.push({pitch:item.pitch,rawDb:measure(a),calibratedDb:measure(b),blendDb:measure(x),
+         phaseCorrelation:phase.correlation,oppositePhaseRisk:phase.oppositePhaseRisk,
+         blendedNotes:x.blendedNotes,blendPeak:x.peak,blendOverloaded:x.overloaded,
+         blendRenderMs:ms});
+     }
+     return results;
+   }finally{await ctx.close()}
+ });
+ assert.equal(boundaryMetrics.length,3);
+ for(const row of boundaryMetrics){
+   assert.ok([row.rawDb,row.calibratedDb,row.blendDb,row.phaseCorrelation,row.blendRenderMs].every(Number.isFinite));
+   assert.equal(row.blendedNotes,2);
+   assert.equal(row.blendOverloaded,false);
+   assert.ok(row.blendPeak<=1&&row.blendPeak>0);
+ }
+ console.log("REAL_PIANO_BLEND_BOUNDARIES "+JSON.stringify(boundaryMetrics.map(r=>({
+   pitch:r.pitch,rawDb:Number(r.rawDb.toFixed(2)),gainDb:Number(r.calibratedDb.toFixed(2)),
+   blendDb:Number(r.blendDb.toFixed(2)),phaseCorrelation:Number(r.phaseCorrelation.toFixed(3)),
+   oppositePhaseRisk:r.oppositePhaseRisk,blendRenderMs:Number(r.blendRenderMs.toFixed(1))
+ }))));
  // The preset refuses incomplete six-file selections; no stale output may remain.
  await page.locator("#source").setInputFiles(files.slice(0,5));
  await page.locator("#run").click();
@@ -133,6 +201,7 @@ try{
    fs.mkdirSync(outDir,{recursive:true});
    fs.writeFileSync(path.join(outDir,"meta-piano-six-recordings-guide-30s-plus-2s.wav"),output);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-calibrated-guide-30s-plus-2s.wav"),correctedWav);
+   fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guide-30s-plus-2s.wav"),blendWav);
    fs.writeFileSync(path.join(outDir,"audit.json"),JSON.stringify({
      upstreamCommit:"251c0be57d5d1b3242b91f53e0cde62ab1cb42d9",
      sampleCount:files.length,
@@ -141,10 +210,11 @@ try{
      diagnostics:audit,renderInfo:details,probeUsage:usage,outputWavBytes:output.length,
      calibrationReport,calibratedRenderInfo:correctedDetails,calibratedDiagnostics:correctedQuality,
      calibratedWavBytes:correctedWav.length,
+     blendDetails,blendAudit,boundaryMetrics,blendWavBytes:blendWav.length,
      limitations:"Only three recorded pitches with two velocity samples; audio not listened to by human; mobile devices/24bit WAV/SF2 unverified"
    },null,2)+"\n");
  }
- console.log("PASS: six real recorded samples, unadjusted vs calibrated WAV A/B, boundary reports, true 2s silent tails");
+ console.log("PASS: recorded piano raw/gain/linear-blend A/B WAV; 80/81 boundary metrics; phase risk and true silent 2s tails");
 }finally{
  if(browser)await browser.close();
  await new Promise(resolve=>server.close(resolve));
