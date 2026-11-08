@@ -1708,7 +1708,8 @@
         "アタック・ノートオフ後のリリース（最大2秒）をオプション化し旧音符の標準挙動は維持",
         "スタイルの違いがWAVに反映され、音域切替・元音源保持・不正パラメータ拒否を自動検証",
         "Chromium画面で30秒音源のスタイル切替と非破壊WAV保存を検証",
-        "音質・楽器固有奏法・実際の息遣い・iOS/Android実機はMUSIC-076の未完了項目として保持"
+        "音質・楽器固有奏法・実際の息遣い・iOS/Android実機はMUSIC-076の未完了項目として保持",
+        "短いサンプルの終端で音が急切断されないよう、オプトイン余韻のみソース末尾約10msを減衰（旧ノートは従来動作）"
       ],
       "evidence": [
         "integration/performance-expression.js",
@@ -1716,7 +1717,8 @@
         "tools/local-sampler.html",
         "tests/performance-expression.test.mjs",
         "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458660580"
       ]
     }
   ]
