@@ -52,8 +52,38 @@ try{
  await page.locator("#run").click();
  await page.locator("#status").getByText(/ファイル名が違います/).waitFor({state:"visible",timeout:30000});
  assert.equal(await page.locator("#result").isVisible(),false);
+ // Multi-file import must not silently guess which sample belongs to which instrument.
+ await page.locator("#sfz").setInputFiles([]);
+ await page.locator("#source").setInputFiles([
+   {name:"bass.wav",mimeType:"audio/wav",buffer:fixtureWav()},
+   {name:"melody.wav",mimeType:"audio/wav",buffer:fixtureWav()}
+ ]);
+ await page.locator("#run").click();
+ await page.locator("#status").getByText(/複数のWAVを使うには/).waitFor({state:"visible",timeout:30000});
+ assert.equal(await page.locator("#result").isVisible(),false);
+ const multiSfz="<region> sample=bass.wav lokey=0 hikey=59 pitch_keycenter=48\\n"+
+                "<region> sample=melody.wav lokey=60 hikey=127 pitch_keycenter=60";
+ await page.locator("#sfz").setInputFiles({
+   name:"two-zones.sfz",mimeType:"text/plain",buffer:Buffer.from(multiSfz)
+ });
+ await page.locator("#mode").selectOption("guide");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:30000});
+ assert.match(await page.locator("#details").innerText(),/使用音色2個/);
+ assert.match(await page.locator("#details").innerText(),/演奏音符30個/);
+ const [multiDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const multiOutput=fs.readFileSync(await multiDownload.path());
+ assert.equal(multiOutput.readUInt32LE(40)/2,32*24000);
+ assert.ok(multiOutput.subarray(44+30*24000*2).every(x=>x===0));
+ await page.locator("#sfz").setInputFiles({
+   name:"overlap.sfz",mimeType:"text/plain",
+   buffer:Buffer.from("<region> sample=bass.wav key=60\\n<region> sample=melody.wav key=60")
+ });
+ await page.locator("#run").click();
+ await page.locator("#status").getByText(/重なっています/).waitFor({state:"visible",timeout:30000});
+ assert.equal(await page.locator("#result").isVisible(),false);
  assert.deepEqual(failures,[]);
- console.log("PASS: local WAV → checked rights → 30-second sample-rendered guide → silent WAV → SFZ one-region → mismatch refusal");
+ console.log("PASS: WAV originals → single sample WAV → two-region SFZ multi-WAV → true silent tail → reject missing/overlap");
 }finally{
  if(browser)await browser.close();
  await new Promise(resolve=>server.close(resolve));
