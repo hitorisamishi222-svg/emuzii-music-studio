@@ -75,6 +75,26 @@ try{
  const multiOutput=fs.readFileSync(await multiDownload.path());
  assert.equal(multiOutput.readUInt32LE(40)/2,32*24000);
  assert.ok(multiOutput.subarray(44+30*24000*2).every(x=>x===0));
+ // Switching articulation produces distinct source-preserving WAV output.
+ await page.locator("#expressionStyle").selectOption("staccato");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:30000});
+ assert.match(await page.locator("#details").innerText(),/スタッカート/);
+ const [shortDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const shortOutput=fs.readFileSync(await shortDownload.path());
+ assert.equal(shortOutput.readUInt32LE(40)/2,32*24000);
+ assert.notDeepEqual(shortOutput,multiOutput);
+ const range=(buffer,a,b)=>buffer.subarray(44+2*Math.round(a*24000),44+2*Math.round(b*24000));
+ assert.equal(range(shortOutput,1.2,1.25).every(x=>x===0),true);
+ assert.equal(range(multiOutput,1.2,1.25).some(x=>x!==0),true);
+ await page.locator("#expressionStyle").selectOption("legato");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:30000});
+ assert.match(await page.locator("#details").innerText(),/レガート/);
+ const [longDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const longOutput=fs.readFileSync(await longDownload.path());
+ assert.equal(range(multiOutput,1.94,1.96).every(x=>x===0),true);
+ assert.equal(range(longOutput,1.94,1.96).some(x=>x!==0),true);
  await page.locator("#sfz").setInputFiles({
    name:"overlap.sfz",mimeType:"text/plain",
    buffer:Buffer.from("<region> sample=bass.wav key=60\n<region> sample=melody.wav key=60")
