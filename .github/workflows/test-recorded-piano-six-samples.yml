@@ -1,0 +1,69 @@
+name: Test Six Recorded CC0 Piano Samples
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/recorded-piano-six-sample-map.js'
+      - 'integration/local-sample-sampler.js'
+      - 'integration/multi-region-sampler.js'
+      - 'integration/sample-quality-audit.js'
+      - 'integration/thirty-second-guide.js'
+      - 'tests/recorded-piano-six-sample.test.mjs'
+      - 'tests/real-piano-six-sample-browser.test.mjs'
+      - 'tools/local-sampler.html'
+      - '.github/workflows/test-recorded-piano-six-samples.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  six-sample-piano:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check six-zone pitch and velocity map locally
+        run: node --test tests/recorded-piano-six-sample.test.mjs
+      - name: Download pinned official CC0 source and check individual SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/facebookincubator/Meta-open-sound/251c0be57d5d1b3242b91f53e0cde62ab1cb42d9/systems/instruments/meta-piano"
+          mkdir -p /tmp/asahi-six-piano
+          curl --fail --location --retry 3 --max-time 120 "$base/LICENSE" -o /tmp/asahi-six-piano/LICENSE
+          curl --fail --location --retry 3 --max-time 120 "$base/manifest.json" -o /tmp/asahi-six-piano/manifest.json
+          echo "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499  /tmp/asahi-six-piano/LICENSE" | sha256sum --check
+          echo "d6414ab35d2920b00714e86a919a14ac547136db711c5ecfea2d74acf405a527  /tmp/asahi-six-piano/manifest.json" | sha256sum --check
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import {RECORDED_PIANO_SAMPLES,RECORDED_PIANO_UPSTREAM} from "./integration/recorded-piano-six-sample-map.js";
+            const m=JSON.parse(fs.readFileSync("/tmp/asahi-six-piano/manifest.json","utf8"));
+            if(m.id!=="meta-piano" || m.license!==RECORDED_PIANO_UPSTREAM.license)throw Error("Pinned manifest license mismatch");
+            if(!fs.readFileSync("/tmp/asahi-six-piano/LICENSE","utf8").includes("CC0 1.0 Universal"))throw Error("License text mismatch");
+            for(const s of RECORDED_PIANO_SAMPLES){
+              if(!m.samples.some(x=>x.file===s.file.replace(/\.ogg$/,".wav")))throw Error("Upstream manifest has no "+s.file);
+              console.log(s.file+" "+s.sha256);
+            }
+          ' > /tmp/asahi-six-piano/source-checks.txt
+          while read -r filename sha; do
+            curl --fail --location --retry 3 --connect-timeout 15 --max-time 120 "$base/ogg/$filename" -o "/tmp/asahi-six-piano/$filename"
+            echo "$sha  /tmp/asahi-six-piano/$filename" | sha256sum --check
+          done < /tmp/asahi-six-piano/source-checks.txt
+      - name: Install Chromium test tools
+        run: npm install --no-save --no-package-lock playwright@1.58.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Render 30-second guide using six recorded samples and probe all zones
+        env:
+          ASAHI_PIANO_SIX_DIR: /tmp/asahi-six-piano
+          ASAHI_ARTIFACTS_DIR: test-output/recorded-six-piano
+        run: node tests/real-piano-six-sample-browser.test.mjs
+      - name: Keep the locally generated WAV and diagnostic report for listening
+        uses: actions/upload-artifact@v4
+        with:
+          name: asahi-cc0-piano-six-samples-30s
+          path: test-output/recorded-six-piano/
+          if-no-files-found: error
+          retention-days: 14
