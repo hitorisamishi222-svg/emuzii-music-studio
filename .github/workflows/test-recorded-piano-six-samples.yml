@@ -20,6 +20,7 @@ on:
       - 'tests/recorded-piano-level-guard.test.mjs'
       - 'tests/real-piano-six-sample-browser.test.mjs'
       - 'tools/local-sampler.html'
+      - 'tools/piano-listening-qa.html'
       - '.github/workflows/test-recorded-piano-six-samples.yml'
   workflow_dispatch:
 permissions:
