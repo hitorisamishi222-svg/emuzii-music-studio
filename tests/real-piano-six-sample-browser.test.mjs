@@ -136,6 +136,17 @@ try{
  assert.ok(blendWav.subarray(44+2*24000*30).every(x=>x===0));
  assert.notDeepEqual(blendWav,correctedWav);
  assert.notDeepEqual(blendWav,output);
+ await page.locator("#velocityCalibration").selectOption("blend-guard");
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:90000});
+ const guardAudit=await page.locator("#sampleQuality").innerText();
+ assert.match(guardAudit,/音量逆戻り抑制/);
+ const [guardDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
+ const guardWav=fs.readFileSync(await guardDownload.path());
+ assert.match(guardDownload.suggestedFilename(),/velocity-blend-guard/);
+ assert.equal(guardWav.readUInt32LE(40),32*24000*2);
+ assert.ok(guardWav.subarray(44+2*24000*30).every(x=>x===0));
+ assert.notDeepEqual(guardWav,output);
  const boundaryMetrics=await page.evaluate(async()=>{
    const {renderMultiRegionScore,parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
    const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
@@ -264,6 +275,7 @@ try{
    fs.writeFileSync(path.join(outDir,"meta-piano-six-recordings-guide-30s-plus-2s.wav"),output);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-calibrated-guide-30s-plus-2s.wav"),correctedWav);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guide-30s-plus-2s.wav"),blendWav);
+   fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guard-guide-30s-plus-2s.wav"),guardWav);
    for(const row of sweeps){
      fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-sweep.wav"),Buffer.from(row.wavBase64,"base64"));
    }
