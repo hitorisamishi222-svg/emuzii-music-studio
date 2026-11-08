@@ -1859,7 +1859,8 @@
         "位相干渉・瞬間ピーク・音のつながり・CPU時間を検証し、実音源で生成したA/B音源を保存",
         "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない",
         "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格",
-        "実録音の64〜96全33段階を音域C3/C4/C5で測定。補正前の-0.25dB超の逆戻り3/0/2箇所から補正後0/0/0箇所へ改善。ただし聴感・周波数の色づきは未検証"
+        "実録音の64〜96全33段階を音域C3/C4/C5で測定。補正前の-0.25dB超の逆戻り3/0/2箇所から補正後0/0/0箇所へ改善。ただし聴感・周波数の色づきは未検証",
+        "録音ピアノ64〜96で隣接スペクトル形状差最大C3=0.045/C4=0.010/C5=0.034（警戒値0.20超なし）。音色・位相の聴感合格ではない"
       ],
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675",
@@ -1867,7 +1868,11 @@
         "integration/recorded-piano-velocity-blend.js",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42510252228",
         "docs/MUSIC_088_PIANO_VELOCITY_33_STEP_QA.md",
-        "integration/piano-velocity-sweep-audit.js"
+        "integration/piano-velocity-sweep-audit.js",
+        "docs/MUSIC_089_PIANO_TIMBRE_AB_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42516077231",
+        "integration/piano-timbre-sweep-audit.js",
+        "tools/piano-listening-qa.html"
       ]
     },
     {
@@ -1925,6 +1930,34 @@
         "tools/local-sampler.html",
         "docs/MUSIC_088_PIANO_VELOCITY_33_STEP_QA.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42510252228"
+      ]
+    },
+    {
+      "id": "MUSIC-089",
+      "title": "実録音ピアノ33段階のスペクトル変化診断とローカルA/B試聴評価画面",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 93,
+      "dependsOn": [
+        "MUSIC-088"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "2048点Hann FFTで実録音ピアノC3/C4/C5の強弱64〜96全段階における音色の周波数形状差を数値監査",
+        "前後補正の最大スペクトル形状差 C3≈0.045/C4≈0.010/C5≈0.034、警戒値0.20超は各0件（音色の良否の保証なし）",
+        "録音ピアノの補正前後WAVを端末内でA/B再生位置を維持して切り替え、評価をJSONダウンロードする開発画面を作成",
+        "ユニットテストと実音源Chromiumの音声解析・A/B UI操作・評価JSON保存が合格",
+        "iPhone/Androidでの動作、人間の耳での音色評価、長時間の位相干渉や元音源24bit品質はMUSIC-086の未実施項目に残す"
+      ],
+      "evidence": [
+        "integration/piano-timbre-sweep-audit.js",
+        "tests/piano-timbre-sweep-audit.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "tools/piano-listening-qa.html",
+        "app-v10.3.2.html",
+        "docs/MUSIC_089_PIANO_TIMBRE_AB_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42516077231"
       ]
     }
   ]
