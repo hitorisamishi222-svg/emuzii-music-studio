@@ -1,0 +1,20 @@
+name: Test 30s Music Guide
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/thirty-second-guide.js'
+      - 'tests/thirty-second-guide.test.mjs'
+      - '.github/workflows/test-thirty-second-guide.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guide-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/thirty-second-guide.test.mjs
