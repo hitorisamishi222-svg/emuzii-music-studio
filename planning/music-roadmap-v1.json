@@ -1599,9 +1599,14 @@
       "acceptance": [
         "同じ音符から複数ベロシティ・奏法・タイミングの可聴差をレンダリング",
         "息遣いと余韻を単なるリバーブに限定せずサンプル/エンベロープで制御",
-        "決定的な再現性とUNDO/音源原本保護"
+        "決定的な再現性とUNDO/音源原本保護",
+        "演奏表現の限定試作（標準・スタッカート・レガート・優しく）を元スコア非破壊で切り替え、後段のWAVレンダリングへ反映。実楽器固有の奏法や息遣いの実証は未完了"
       ],
-      "evidence": []
+      "evidence": [
+        "integration/performance-expression.js",
+        "tests/performance-expression.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609"
+      ]
     },
     {
       "id": "MUSIC-077",
@@ -1685,6 +1690,33 @@
         "tests/local-sampler-browser.test.mjs",
         "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708"
+      ]
+    },
+    {
+      "id": "MUSIC-081",
+      "title": "4種類の非破壊演奏表現とノートオフ後リリースの試作",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-080"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "標準・スタッカート・レガート・優しくの4スタイルを音符データに適用し元スコアは変更しない",
+        "アタック・ノートオフ後のリリース（最大2秒）をオプション化し旧音符の標準挙動は維持",
+        "スタイルの違いがWAVに反映され、音域切替・元音源保持・不正パラメータ拒否を自動検証",
+        "Chromium画面で30秒音源のスタイル切替と非破壊WAV保存を検証",
+        "音質・楽器固有奏法・実際の息遣い・iOS/Android実機はMUSIC-076の未完了項目として保持"
+      ],
+      "evidence": [
+        "integration/performance-expression.js",
+        "integration/local-sample-sampler.js",
+        "tools/local-sampler.html",
+        "tests/performance-expression.test.mjs",
+        "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42458495609"
       ]
     }
   ]
