@@ -12,14 +12,14 @@ const server=http.createServer((req,res)=>{
  res.writeHead(200,{"Content-Type":file.endsWith(".js")?"text/javascript; charset=utf-8":"text/html; charset=utf-8"});
  fs.createReadStream(file).pipe(res);
 });
-function fixtureWav(){
+function fixtureWav(amplitude=10000){
  const sr=24000,frames=sr*2;
  const bytes=Buffer.alloc(44+frames*2),p=44;
  bytes.write("RIFF",0);bytes.writeUInt32LE(bytes.length-8,4);bytes.write("WAVE",8);
  bytes.write("fmt ",12);bytes.writeUInt32LE(16,16);bytes.writeUInt16LE(1,20);bytes.writeUInt16LE(1,22);
  bytes.writeUInt32LE(sr,24);bytes.writeUInt32LE(sr*2,28);bytes.writeUInt16LE(2,32);
  bytes.writeUInt16LE(16,34);bytes.write("data",36);bytes.writeUInt32LE(frames*2,40);
- for(let i=0;i<frames;i++)bytes.writeInt16LE(Math.round(10000*Math.sin(i*2*Math.PI*262/sr)),p+i*2);
+ for(let i=0;i<frames;i++)bytes.writeInt16LE(Math.round(amplitude*Math.sin(i*2*Math.PI*262/sr)),p+i*2);
  return bytes;
 }
 let browser;
@@ -36,6 +36,9 @@ try{
  await page.locator("#run").click();
  await page.locator("#result").waitFor({state:"visible",timeout:30000});
  assert.match(await page.locator("#details").innerText(),/30秒のガイド/);
+ assert.equal(await page.locator("#qualityPanel").isVisible(),true);
+ assert.match(await page.locator("#sampleQuality").innerText(),/piano.wav/);
+ assert.match(await page.locator("#sampleQuality").innerText(),/RMS.*dBFS/);
  const [download]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
  const output=fs.readFileSync(await download.path());
  assert.equal(download.suggestedFilename(),"piano-asahi-guide.wav");
@@ -70,6 +73,8 @@ try{
  await page.locator("#run").click();
  await page.locator("#result").waitFor({state:"visible",timeout:30000});
  assert.match(await page.locator("#details").innerText(),/使用音色2個/);
+ assert.match(await page.locator("#sampleQuality").innerText(),/bass.wav/);
+ assert.match(await page.locator("#sampleQuality").innerText(),/melody.wav/);
  assert.match(await page.locator("#details").innerText(),/演奏音符30個/);
  const [multiDownload]=await Promise.all([page.waitForEvent("download"),page.locator("#download").click()]);
  const multiOutput=fs.readFileSync(await multiDownload.path());
@@ -102,8 +107,15 @@ try{
  await page.locator("#run").click();
  await page.locator("#status").getByText(/重なっています/).waitFor({state:"visible",timeout:30000});
  assert.equal(await page.locator("#result").isVisible(),false);
+ // A valid WAV container with no instrument sound should not create a fake track.
+ await page.locator("#sfz").setInputFiles([]);
+ await page.locator("#source").setInputFiles({name:"silence.wav",mimeType:"audio/wav",buffer:fixtureWav(0)});
+ await page.locator("#run").click();
+ await page.locator("#status").getByText(/ほぼ無音です/).waitFor({state:"visible",timeout:30000});
+ assert.equal(await page.locator("#result").isVisible(),false);
+ assert.match(await page.locator("#sampleQuality").innerText(),/ほぼ無音/);
  assert.deepEqual(failures,[]);
- console.log("PASS: WAV originals → single sample WAV → two-region SFZ multi-WAV → true silent tail → reject missing/overlap");
+ console.log("PASS: WAV samples → local quality inspection → multi-region render → reject overlap/silent source");
 }finally{
  if(browser)await browser.close();
  await new Promise(resolve=>server.close(resolve));
