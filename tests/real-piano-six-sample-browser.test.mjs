@@ -95,6 +95,12 @@ try{
    }finally{await ctx.close()}
  });
  assert.equal(calibrationReport.length,3);
+ console.log("VELOCITY_BOUNDARY_RMS "+JSON.stringify(calibrationReport.map(r=>({
+   pitch:r.pitch,preDb:Number(r.measuredJumpDb.toFixed(2)),
+   correctionDb:Number(r.appliedDb.toFixed(2)),
+   postDb:Number(r.residualDb.toFixed(2)),
+   correctionLimited:r.correctionLimited
+ }))));
  for(const row of calibrationReport){
    assert.ok(Number.isFinite(row.measuredJumpDb)&&Number.isFinite(row.residualDb));
    assert.ok(Math.abs(row.appliedDb)<=6.001);
