@@ -190,6 +190,68 @@ try{
    blendDb:Number(r.blendDb.toFixed(2)),phaseCorrelation:Number(r.phaseCorrelation.toFixed(3)),
    oppositePhaseRisk:r.oppositePhaseRisk,blendRenderMs:Number(r.blendRenderMs.toFixed(1))
  }))));
+ // 33 consecutive velocities on each recorded root pitch: this catches
+ // audible level dips hidden by the previously successful 80/81-only test.
+ const sweeps=await page.evaluate(async()=>{
+   const {createPianoVelocitySweepScore,auditPianoVelocitySweep}=
+     await import("../integration/piano-velocity-sweep-audit.js");
+   const {renderRecordedPianoVelocityBlend}=await import("../integration/recorded-piano-velocity-blend.js");
+   const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
+   const {parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
+   const {createRecordedPianoSfz}=await import("../integration/recorded-piano-six-sample-map.js");
+   const {createTailSafeWav}=await import("../integration/audio-tail-finisher.js");
+   const ctx=new AudioContext();
+   try{
+     const samples=new Map();
+     for(const f of document.getElementById("source").files){
+       const audio=await ctx.decodeAudioData(await f.arrayBuffer());
+       samples.set(f.name,{sampleRate:audio.sampleRate,
+         channels:Array.from({length:audio.numberOfChannels},(_,i)=>audio.getChannelData(i))});
+     }
+     const regions=calibrateRecordedPianoVelocity(parseMultiRegionSfz(createRecordedPianoSfz()),samples).regions;
+     const output=[];
+     for(const [pitch,midi] of [["C3",48],["C4",60],["C5",72]]){
+       const score=createPianoVelocitySweepScore(midi);
+       const start=performance.now();
+       const rendered=renderRecordedPianoVelocityBlend(score,regions,samples,{seconds:22.2});
+       const runtimeMs=performance.now()-start;
+       const audit=auditPianoVelocitySweep(rendered.pcm,24000,score);
+       if(rendered.renderedNotes!==33||rendered.skippedNotes!==0||rendered.overloaded||audit.overloaded){
+         throw Error("33段階スイープの合格条件を満たしません: "+pitch);
+       }
+       const wav=createTailSafeWav([rendered.pcm],24000,{silenceSeconds:2}).wav;
+       // Avoid returning large WAV arrays through Playwright's serialization.
+       output.push({pitch,runtimeMs,report:{
+         regressions:audit.regressions,
+         regressionCount:audit.regressionCount,
+         worstStep:audit.worstStep,maxStep:audit.maxStep,
+         levels:audit.levels.map(x=>({velocity:x.velocity,rmsDbfs:x.rmsDbfs,peak:x.peak})),
+         peak:audit.peak
+       },wavBase64:(()=>{
+         let result="",bytes=new Uint8Array(wav);
+         for(let i=0;i<bytes.length;i+=8192)
+           result+=String.fromCharCode(...bytes.subarray(i,Math.min(i+8192,bytes.length)));
+         return btoa(result);
+       })()});
+     }
+     return output;
+   }finally{await ctx.close()}
+ });
+ assert.deepEqual(sweeps.map(x=>x.pitch),["C3","C4","C5"]);
+ for(const s of sweeps){
+   assert.equal(s.report.levels.length,33);
+   assert.ok(Number.isFinite(s.report.worstStep.deltaDb));
+   assert.ok(Number.isFinite(s.runtimeMs));
+   const wav=Buffer.from(s.wavBase64,"base64");
+   assert.equal(wav.readUInt32LE(24),24000);
+   assert.equal(wav.readUInt32LE(40),Math.ceil(24.2*24000)*2);
+   assert.ok(wav.subarray(44+Math.ceil(22.2*24000)*2).every(x=>x===0));
+ }
+ console.log("PIANO_VELOCITY_SWEEP_64_TO_96 "+JSON.stringify(sweeps.map(s=>({
+   pitch:s.pitch,regressions:s.report.regressionCount,
+   worst:s.report.worstStep,max:s.report.maxStep,
+   runtimeMs:Number(s.runtimeMs.toFixed(1)),peak:s.report.peak
+ }))));
  // The preset refuses incomplete six-file selections; no stale output may remain.
  await page.locator("#source").setInputFiles(files.slice(0,5));
  await page.locator("#run").click();
@@ -202,6 +264,12 @@ try{
    fs.writeFileSync(path.join(outDir,"meta-piano-six-recordings-guide-30s-plus-2s.wav"),output);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-calibrated-guide-30s-plus-2s.wav"),correctedWav);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guide-30s-plus-2s.wav"),blendWav);
+   for(const row of sweeps){
+     fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-sweep.wav"),Buffer.from(row.wavBase64,"base64"));
+   }
+   fs.writeFileSync(path.join(outDir,"velocity-64-96-sweep-audit.json"),JSON.stringify(
+     sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,...s.report})),null,2)+"\n");
+
    fs.writeFileSync(path.join(outDir,"audit.json"),JSON.stringify({
      upstreamCommit:"251c0be57d5d1b3242b91f53e0cde62ab1cb42d9",
      sampleCount:files.length,
@@ -211,6 +279,7 @@ try{
      calibrationReport,calibratedRenderInfo:correctedDetails,calibratedDiagnostics:correctedQuality,
      calibratedWavBytes:correctedWav.length,
      blendDetails,blendAudit,boundaryMetrics,blendWavBytes:blendWav.length,
+     velocitySweeps:sweeps.map(s=>({pitch:s.pitch,runtimeMs:s.runtimeMs,...s.report})),
      limitations:"Only three recorded pitches with two velocity samples; audio not listened to by human; mobile devices/24bit WAV/SF2 unverified"
    },null,2)+"\n");
  }
