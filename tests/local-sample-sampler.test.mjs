@@ -17,6 +17,14 @@ test("single-region SFZ reads local WAV name and expression bounds",()=>{
  assert.equal(r.kind,"local-sample-render"); assert.equal(r.renderedNotes,1);
  assert.equal(r.overloaded,false);
 });
+test("bounded SFZ accepts local OGG previews but not paths, URLs, or unknown formats",()=>{
+ const ogg=parseSingleRegionSfz("<region> sample=INSPiano_Vel03_C4_01.ogg key=60");
+ assert.equal(ogg.sample,"INSPiano_Vel03_C4_01.ogg");
+ for(const path of ["../C4.ogg","/tmp/C4.ogg","https://example.org/C4.ogg","C4.mp3","folder\\\\C4.ogg"]){
+  assert.throws(()=>parseSingleRegionSfz("<region> sample="+path));
+ }
+});
+
 test("sample re-pitch is faster and duration shortens without looping",()=>{
  const src=generatedSource(1);
  const base=renderSampledScore([n(69)],src,{sampleRate:rate,seconds:1,rootMidi:69,attackSeconds:0,releaseSeconds:0});
