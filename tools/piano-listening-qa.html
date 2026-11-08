@@ -73,7 +73,7 @@ async function selectAudio(key){
  if(!urls[key])return;
  $("error").textContent="";
  const position=Number.isFinite(player.currentTime)?player.currentTime:0;
- const wasPlaying=active!==null&&!player.paused;
+ // Every A/B button press explicitly attempts playback, even after a user pause.
  if(active!==key){
   player.pause();player.src=urls[key];player.load();active=key;
   await new Promise(resolve=>{
@@ -84,9 +84,7 @@ async function selectAudio(key){
   if(Number.isFinite(player.duration)&&position<player.duration)player.currentTime=position;
  }
  $("now").textContent="現在の比較音声："+key+" ／ "+$("file"+key).files[0].name;
- if(wasPlaying||position===0){
-  try{await player.play()}catch{$("error").textContent="端末の再生ボタンを押して試聴してください。";}
- }
+ try{await player.play()}catch{$("error").textContent="端末の再生ボタンを押して試聴してください。";}
 }
 $("playA").addEventListener("click",()=>selectAudio("A"));
 $("playB").addEventListener("click",()=>selectAudio("B"));
