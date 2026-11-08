@@ -1551,7 +1551,8 @@
         "権利確認済みSFZ/SF2の読み込み方式を明示し、主要音色を分類",
         "実楽器1音以上をベロシティ・ノート長付きで発音させWAVに書き出す",
         "既存MIDI/MASTER/録音原音を壊さない局所回帰テスト",
-        "WAVの単一サンプルから音程・強弱・アタック/リリースをつけて30秒ガイドをレンダリングし、Chromium UIでWAV保存まで検証（SFZは<region>1個の限定対応）"
+        "WAVの単一サンプルから音程・強弱・アタック/リリースをつけて30秒ガイドをレンダリングし、Chromium UIでWAV保存まで検証（SFZは<region>1個の限定対応）",
+        "限定SFZの最大16リージョンを音域・ベロシティで切り替え、最大8 WAVの30秒合成試聴・保存をChromiumで確認（SF2、実楽器の品質検証は未実施）"
       ],
       "evidence": [
         "integration/local-sample-sampler.js",
@@ -1559,7 +1560,10 @@
         "tests/local-sample-sampler.test.mjs",
         "tests/local-sampler-browser.test.mjs",
         "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42455151199"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42455151199",
+        "integration/multi-region-sampler.js",
+        "tests/multi-region-sampler.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708"
       ]
     },
     {
@@ -1654,6 +1658,33 @@
         "integration/thirty-second-guide.js",
         "tests/thirty-second-guide.test.mjs",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42454255485"
+      ]
+    },
+    {
+      "id": "MUSIC-080",
+      "title": "限定SFZ複数リージョン・複数WAV音域/強弱切替のブラウザ試作",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 96,
+      "dependsOn": [
+        "MUSIC-079"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "最大16単一regionのSFZ断片を読み分け、音域と強弱の重複は拒否する（広範なSFZ互換性を主張しない）",
+        "最大8件のローカルWAVの名前をSFZ sampleと厳密照合し不足/余剰を拒否",
+        "合成テストサンプルで30音の振り分け、ベロシティ、原音保護、無音2秒付きWAVを自動検査",
+        "Chromium画面で複数WAV選択→SFZ読み込み→30秒WAV保存を確認",
+        "実楽器の音質・実サンプルの商用許諾・スマホ実機はMUSIC-073/074/075の受入検査として保留"
+      ],
+      "evidence": [
+        "integration/multi-region-sampler.js",
+        "tools/local-sampler.html",
+        "tests/multi-region-sampler.test.mjs",
+        "tests/local-sampler-browser.test.mjs",
+        "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42457161708"
       ]
     }
   ]
