@@ -73,9 +73,14 @@ export function renderSampledScore(notes,sample,{
     const rate=Math.pow(2,(note.midi-rootMidi)/12)*sample.sampleRate/sampleRate;
     const start=Math.round(note.start*sampleRate),requestedFrames=Math.round(note.duration*sampleRate);
     const tailFrames=Math.round(tail*sampleRate);
-    const playableFrames=Math.min(requestedFrames+tailFrames,Math.max(0,Math.floor((sample.channels[0].length-1)/rate)));
+    const targetFrames=requestedFrames+tailFrames;
+    const playableFrames=Math.min(targetFrames,Math.max(0,Math.floor((sample.channels[0].length-1)/rate)));
     if(playableFrames<1){skippedNotes++;continue;}
     const attackFrames=Math.round(attack*sampleRate),releaseFrames=Math.round(release*sampleRate);
+    // A sample shorter than the requested note+tail can end abruptly. Only
+    // new opt-in tails receive this source-edge taper; legacy PCM is unchanged.
+    const sourceCutEarly=tailFrames>0 && playableFrames<targetFrames;
+    const edgeFrames=sourceCutEarly?Math.min(playableFrames,Math.max(2,Math.round(sampleRate*.01))):0;
     const velocityGain=(note.velocity/127)*gainDb;
     for(let i=0;i<playableFrames&&start+i<pcm.length;i++){
       const srcPos=i*rate,idx=Math.floor(srcPos),frac=srcPos-idx;
@@ -88,7 +93,8 @@ export function renderSampledScore(notes,sample,{
       const r=tailFrames
         ?(i<requestedFrames?1:Math.max(0,1-(i-requestedFrames+1)/Math.max(1,tailFrames)))
         :(releaseFrames?Math.min(1,(playableFrames-1-i)/releaseFrames):1);
-      pcm[start+i]+=value*velocityGain*Math.max(0,Math.min(a,r));
+      const edge=edgeFrames?Math.min(1,(playableFrames-1-i)/Math.max(1,edgeFrames-1)):1;
+      pcm[start+i]+=value*velocityGain*Math.max(0,Math.min(a,r,edge));
     }
     renderedNotes++;
   }
