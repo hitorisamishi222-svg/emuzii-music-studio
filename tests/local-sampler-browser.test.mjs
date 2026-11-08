@@ -61,7 +61,7 @@ try{
  await page.locator("#run").click();
  await page.locator("#status").getByText(/複数のWAVを使うには/).waitFor({state:"visible",timeout:30000});
  assert.equal(await page.locator("#result").isVisible(),false);
- const multiSfz="<region> sample=bass.wav lokey=0 hikey=59 pitch_keycenter=48\\n"+
+ const multiSfz="<region> sample=bass.wav lokey=0 hikey=59 pitch_keycenter=48\n"+
                 "<region> sample=melody.wav lokey=60 hikey=127 pitch_keycenter=60";
  await page.locator("#sfz").setInputFiles({
    name:"two-zones.sfz",mimeType:"text/plain",buffer:Buffer.from(multiSfz)
@@ -77,7 +77,7 @@ try{
  assert.ok(multiOutput.subarray(44+30*24000*2).every(x=>x===0));
  await page.locator("#sfz").setInputFiles({
    name:"overlap.sfz",mimeType:"text/plain",
-   buffer:Buffer.from("<region> sample=bass.wav key=60\\n<region> sample=melody.wav key=60")
+   buffer:Buffer.from("<region> sample=bass.wav key=60\n<region> sample=melody.wav key=60")
  });
  await page.locator("#run").click();
  await page.locator("#status").getByText(/重なっています/).waitFor({state:"visible",timeout:30000});
