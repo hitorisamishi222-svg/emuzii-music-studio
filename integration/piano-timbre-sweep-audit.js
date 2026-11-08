@@ -63,7 +63,7 @@ function distance(a,b){
 export function auditPianoTimbreSweep(pcm,sampleRate,notes,{offsetSeconds=.10,warningDistance=.20}={}){
  if(!(pcm instanceof Float32Array)||!Number.isInteger(sampleRate)||sampleRate<8000||sampleRate>48000||
     !Array.isArray(notes)||notes.length<2||notes.length>64||
-    !finite(offsetSeconds)||offsetSeconds<0.02||offsetSeconds>.25||
+    !finite(offsetSeconds)||offsetSeconds<0.02||offsetSeconds>.40||
     !finite(warningDistance)||warningDistance<=0||warningDistance>1)throw Error("音色連続性の監査条件が不正です");
  const snapshots=[];
  for(let i=0;i<notes.length;i++){
