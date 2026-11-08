@@ -37,6 +37,19 @@ test("post-note release produces a measurable tail and is silent after it",()=>{
   assert.equal(energy(withTail.pcm,1.37,1.39),0);
   assert.deepEqual(src.channels[0],snapshot);
 });
+test("short samples taper to silence instead of cutting an opted-in release tail",()=>{
+  const shortSource=tone();
+  shortSource.channels=[shortSource.channels[0].subarray(0,Math.round(.4*sampleRate))];
+  const original=shortSource.channels[0].slice();
+  const r=renderSampledScore([{...note(),tailSeconds:.5}],shortSource,{seconds:2,rootMidi:60});
+  const finalRenderedFrame=shortSource.channels[0].length-2;
+  assert.ok(r.peak>.01);
+  assert.ok(energy(r.pcm,.30,.33)>1);
+  assert.ok(energy(r.pcm,.397,.399)<energy(r.pcm,.375,.377));
+  assert.equal(r.pcm[finalRenderedFrame],0);
+  assert.deepEqual(shortSource.channels[0],original);
+});
+
 test("staccato and legato differ in note ending, while gentle is quieter",()=>{
   const base=render([note()]);
   const short=render(prepareExpressiveScore([note()],{style:"staccato",seconds:2}));
