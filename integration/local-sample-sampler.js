@@ -65,11 +65,17 @@ export function renderSampledScore(notes,sample,{
     if(!note||![note.start,note.duration,note.midi,note.velocity].every(finite)||note.start<0||
        note.duration<=0||note.start+note.duration>seconds+0.00001||!whole(note.midi,0,127)||!whole(note.velocity,0,127))throw Error("音符情報が不正です");
     if(note.midi<loKey||note.midi>hiKey||note.velocity<loVel||note.velocity>hiVel){skippedNotes++;continue;}
+    const attack=note.attackSeconds??attackSeconds;
+    const release=note.releaseSeconds??releaseSeconds;
+    const tail=note.tailSeconds??0;
+    if(!finite(attack)||attack<0||attack>10||!finite(release)||release<0||release>10||
+       !finite(tail)||tail<0||tail>2)throw Error("音符のアタック・リリース・余韻指定が不正です");
     const rate=Math.pow(2,(note.midi-rootMidi)/12)*sample.sampleRate/sampleRate;
     const start=Math.round(note.start*sampleRate),requestedFrames=Math.round(note.duration*sampleRate);
-    const playableFrames=Math.min(requestedFrames,Math.max(0,Math.floor((sample.channels[0].length-1)/rate)));
+    const tailFrames=Math.round(tail*sampleRate);
+    const playableFrames=Math.min(requestedFrames+tailFrames,Math.max(0,Math.floor((sample.channels[0].length-1)/rate)));
     if(playableFrames<1){skippedNotes++;continue;}
-    const attackFrames=Math.round(attackSeconds*sampleRate),releaseFrames=Math.round(releaseSeconds*sampleRate);
+    const attackFrames=Math.round(attack*sampleRate),releaseFrames=Math.round(release*sampleRate);
     const velocityGain=(note.velocity/127)*gainDb;
     for(let i=0;i<playableFrames&&start+i<pcm.length;i++){
       const srcPos=i*rate,idx=Math.floor(srcPos),frac=srcPos-idx;
@@ -77,7 +83,11 @@ export function renderSampledScore(notes,sample,{
       for(const ch of sample.channels)value+=ch[idx]*(1-frac)+ch[idx+1]*frac;
       value/=sample.channels.length;
       const a=attackFrames?Math.min(1,i/attackFrames):1;
-      const r=releaseFrames?Math.min(1,(playableFrames-1-i)/releaseFrames):1;
+      // With an opted-in tail, release starts at note-off. Without one, retain
+      // the legacy inside-the-note fade. A short source cannot be magically looped.
+      const r=tailFrames
+        ?(i<requestedFrames?1:Math.max(0,1-(i-requestedFrames+1)/Math.max(1,tailFrames)))
+        :(releaseFrames?Math.min(1,(playableFrames-1-i)/releaseFrames):1);
       pcm[start+i]+=value*velocityGain*Math.max(0,Math.min(a,r));
     }
     renderedNotes++;
