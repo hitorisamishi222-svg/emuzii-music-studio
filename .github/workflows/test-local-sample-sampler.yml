@@ -1,0 +1,29 @@
+name: Test Local Sample Sampler
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/local-sample-sampler.js'
+      - 'tests/local-sample-sampler.test.mjs'
+      - 'tools/local-sampler.html'
+      - 'tests/local-sampler-browser.test.mjs'
+      - '.github/workflows/test-local-sample-sampler.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sample-render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify local PCM sample and SFZ parsing
+        run: node --test tests/local-sample-sampler.test.mjs
+      - name: Install browser-test dependency
+        run: npm install --no-save --no-package-lock playwright@1.58.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify local WAV upload and download in Chromium
+        run: node tests/local-sampler-browser.test.mjs
