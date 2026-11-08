@@ -147,6 +147,35 @@ try{
  assert.equal(guardWav.readUInt32LE(40),32*24000*2);
  assert.ok(guardWav.subarray(44+2*24000*30).every(x=>x===0));
  assert.notDeepEqual(guardWav,output);
+ // Exercise the local A/B review page with two real recorded-piano WAV renders.
+ // This is a desktop Chromium browser test; mobile hardware remains unchecked.
+ const reviewPage=await browser.newPage({acceptDownloads:true});
+ await reviewPage.goto("http://127.0.0.1:"+server.address().port+"/tools/piano-listening-qa.html");
+ await reviewPage.locator("#fileA").setInputFiles({
+   name:"recorded-piano-before.wav",mimeType:"audio/wav",buffer:blendWav
+ });
+ await reviewPage.locator("#fileB").setInputFiles({
+   name:"recorded-piano-after.wav",mimeType:"audio/wav",buffer:guardWav
+ });
+ assert.equal(await reviewPage.locator("#playA").isEnabled(),true);
+ await reviewPage.locator("#playA").click();
+ await reviewPage.locator("#now").getByText(/現在の比較音声：A/).waitFor({state:"visible",timeout:30000});
+ await reviewPage.locator("#playB").click();
+ await reviewPage.locator("#now").getByText(/現在の比較音声：B/).waitFor({state:"visible",timeout:30000});
+ await reviewPage.locator('input[name="dynamics"][value="better"]').check();
+ await reviewPage.locator('input[name="timbre"][value="same"]').check();
+ await reviewPage.locator('input[name="artifact"][value="uncertain"]').check();
+ await reviewPage.locator("#memo").fill("CIのUI操作確認用。人間の耳での評価ではありません。");
+ const [reviewDownload]=await Promise.all([
+   reviewPage.waitForEvent("download"),reviewPage.locator("#save").click()
+ ]);
+ const review=JSON.parse(fs.readFileSync(await reviewDownload.path(),"utf8"));
+ assert.equal(review.sourceA,"recorded-piano-before.wav");
+ assert.equal(review.sourceB,"recorded-piano-after.wav");
+ assert.equal(review.dynamics,"better");
+ assert.equal(review.timbre,"same");
+ assert.equal(review.listeningReviewOnly,true);
+ await reviewPage.close();
  const boundaryMetrics=await page.evaluate(async()=>{
    const {renderMultiRegionScore,parseMultiRegionSfz}=await import("../integration/multi-region-sampler.js");
    const {calibrateRecordedPianoVelocity}=await import("../integration/recorded-piano-velocity-calibration.js");
