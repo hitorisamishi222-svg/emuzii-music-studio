@@ -23,8 +23,8 @@ export function parseSingleRegionSfz(source) {
     values[key]=value;
   }
   const sample=values.sample;
-  if(typeof sample!=="string" || !/^[\w\-().]+\.wav$/i.test(sample)||sample===".."||sample.startsWith(".")) {
-    throw Error("安全な単一WAVファイル名をsampleに指定してください（パス指定不可）");
+  if(typeof sample!=="string" || !/^[\w\-().]+\.(?:wav|ogg)$/i.test(sample)||sample===".."||sample.startsWith(".")) {
+    throw Error("安全な単一WAV/OGGファイル名をsampleに指定してください（パス指定不可）");
   }
   const n=(key,def,min,max)=>{
     if(values[key]===undefined)return def;
