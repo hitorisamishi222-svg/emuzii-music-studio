@@ -116,7 +116,7 @@ $("run").addEventListener("click",async()=>{
   previewUrl=URL.createObjectURL(new Blob([finished.wav],{type:"audio/wav"}));
   $("preview").src=previewUrl;$("download").href=previewUrl;
   $("download").download=(file.name.replace(/\.wav$/i,"")||"sample")+"-asahi-guide.wav";
-  $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 使用音色1個・演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 最大振幅"+r.peak.toFixed(3);
+  $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 使用音色"+files.length+"個・演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 最大振幅"+r.peak.toFixed(3);
   $("result").hidden=false;
   $("status").textContent="生成できました。実際の音を試聴して確認してください。";
  }catch(e){
