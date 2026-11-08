@@ -1,0 +1,21 @@
+name: Test Instrument License Registry
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/sample-rights-registry.js'
+      - 'tests/sample-rights-registry.test.mjs'
+      - '.github/workflows/test-sample-rights.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rights-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify fail-closed permission fields and fixture classifications
+        run: node --test tests/sample-rights-registry.test.mjs
