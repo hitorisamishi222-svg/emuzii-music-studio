@@ -25,8 +25,9 @@ test("two distinct key zones map melody and bass to separate local WAV samples",
   const a=renderMultiRegionScore(score,regions,samples),b=renderMultiRegionScore(score,regions,samples);
   assert.equal(a.renderedNotes,30);
   assert.equal(a.skippedNotes,0);
-  assert.equal(a.regionUsage[0].renderedNotes,15);
-  assert.equal(a.regionUsage[1].renderedNotes,15);
+  // Melody contains one 57 MIDI note, which correctly selects the low region.
+  assert.equal(a.regionUsage[0].renderedNotes,16);
+  assert.equal(a.regionUsage[1].renderedNotes,14);
   assert.deepEqual(a.pcm,b.pcm);
   assert.deepEqual(samples.get("bass.wav").channels[0],bassOriginal);
   assert.ok(a.peak>0&&a.peak<1);
