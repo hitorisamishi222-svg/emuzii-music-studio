@@ -1858,12 +1858,16 @@
         "補正なし/振幅補正/弱強サンプル段階ブレンドの3種類を元音源非破壊で試作し、音割れを拒否",
         "位相干渉・瞬間ピーク・音のつながり・CPU時間を検証し、実音源で生成したA/B音源を保存",
         "iPhone等の聴感確認で自然さを判断するまでは実用音質合格にしない",
-        "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格"
+        "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格",
+        "実録音の64〜96全33段階を音域C3/C4/C5で測定。補正前の-0.25dB超の逆戻り3/0/2箇所から補正後0/0/0箇所へ改善。ただし聴感・周波数の色づきは未検証"
       ],
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675",
         "docs/MUSIC_086_PIANO_BLEND_AB_2026-11-09.md",
-        "integration/recorded-piano-velocity-blend.js"
+        "integration/recorded-piano-velocity-blend.js",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42510252228",
+        "docs/MUSIC_088_PIANO_VELOCITY_33_STEP_QA.md",
+        "integration/piano-velocity-sweep-audit.js"
       ]
     },
     {
@@ -1892,6 +1896,35 @@
         "tools/local-sampler.html",
         "docs/MUSIC_086_PIANO_BLEND_AB_2026-11-09.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675"
+      ]
+    },
+    {
+      "id": "MUSIC-088",
+      "title": "実録音ピアノ33段階の強弱連続性監査と非増幅の音量逆戻り補正",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-087"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "C3/C4/C5の録音原基準音で各33段階（64〜96）のWAVとRMS/dbFSを実録音で連続検証",
+        "隣接音量差が-0.25dBを下回る検出箇所がC3/C4/C5で3/0/2→0/0/0に減少",
+        "補正は録音元データ非破壊、必要時の減衰のみ、最大6dBを超える調整は拒否",
+        "補正なし/補正あり各3音域の33段階WAV、30秒ガイド4方式と監査JSONをCI Artifactsに14日間保存",
+        "ユニットと実録音Chromium試験が合格（音色・位相・実耳・モバイルはMUSIC-086に残る）"
+      ],
+      "evidence": [
+        "integration/piano-velocity-sweep-audit.js",
+        "integration/recorded-piano-velocity-blend.js",
+        "tests/piano-velocity-sweep-audit.test.mjs",
+        "tests/recorded-piano-level-guard.test.mjs",
+        "tests/real-piano-six-sample-browser.test.mjs",
+        "tools/local-sampler.html",
+        "docs/MUSIC_088_PIANO_VELOCITY_33_STEP_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42510252228"
       ]
     }
   ]
