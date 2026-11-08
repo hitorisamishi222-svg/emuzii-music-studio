@@ -62,7 +62,7 @@ try{
    {name:"melody.wav",mimeType:"audio/wav",buffer:fixtureWav()}
  ]);
  await page.locator("#run").click();
- await page.locator("#status").getByText(/複数のWAVを使うには/).waitFor({state:"visible",timeout:30000});
+ await page.locator("#status").getByText(/複数のWAV\/OGGを使うには/).waitFor({state:"visible",timeout:30000});
  assert.equal(await page.locator("#result").isVisible(),false);
  const multiSfz="<region> sample=bass.wav lokey=0 hikey=59 pitch_keycenter=48\n"+
                 "<region> sample=melody.wav lokey=60 hikey=127 pitch_keycenter=60";
