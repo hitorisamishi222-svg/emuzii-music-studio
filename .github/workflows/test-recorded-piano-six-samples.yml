@@ -5,12 +5,14 @@ on:
     paths:
       - 'integration/recorded-piano-six-sample-map.js'
       - 'integration/recorded-piano-velocity-calibration.js'
+      - 'integration/recorded-piano-velocity-blend.js'
       - 'integration/local-sample-sampler.js'
       - 'integration/multi-region-sampler.js'
       - 'integration/sample-quality-audit.js'
       - 'integration/thirty-second-guide.js'
       - 'tests/recorded-piano-six-sample.test.mjs'
       - 'tests/recorded-piano-velocity-calibration.test.mjs'
+      - 'tests/recorded-piano-velocity-blend.test.mjs'
       - 'tests/real-piano-six-sample-browser.test.mjs'
       - 'tools/local-sampler.html'
       - '.github/workflows/test-recorded-piano-six-samples.yml'
@@ -27,7 +29,7 @@ jobs:
         with:
           node-version: '22'
       - name: Check six-zone pitch and velocity map locally
-        run: node --test tests/recorded-piano-six-sample.test.mjs tests/recorded-piano-velocity-calibration.test.mjs
+        run: node --test tests/recorded-piano-six-sample.test.mjs tests/recorded-piano-velocity-calibration.test.mjs tests/recorded-piano-velocity-blend.test.mjs
       - name: Download pinned official CC0 source and check individual SHA256
         shell: bash
         run: |
