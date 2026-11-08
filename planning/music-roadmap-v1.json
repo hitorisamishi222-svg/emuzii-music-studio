@@ -1581,13 +1581,17 @@
         "和楽器・海外の楽器・自然音・特殊音についてライセンス確認済み候補を比較",
         "強弱レイヤー・アタック/リリース・奏法の実データを確認",
         "商用完成曲とサンプル再配布の許可範囲を分けて記録",
-        "VSCO 2 CE・VCSL・Philharmonia・Meta Open Soundの公式条件を調査し、音源のサンプル再配布可否を区別する（実音源ファイルの個別許諾・試聴は別途未完了）"
+        "VSCO 2 CE・VCSL・Philharmonia・Meta Open Soundの公式条件を調査し、音源のサンプル再配布可否を区別する（実音源ファイルの個別許諾・試聴は別途未完了）",
+        "Meta Open Sound実録音C4 OGGのSHA/CC0と1音・30秒WAV出力をChromiumで検証（音源そのものの聴感・48kHz/24bit版の検証は未実施）"
       ],
       "evidence": [
         "docs/MUSIC_075_SOURCE_SHORTLIST_2026-11-08.md",
         "integration/sample-quality-audit.js",
         "tests/sample-quality-audit.test.mjs",
-        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369"
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369",
+        "docs/MUSIC_083_REAL_PIANO_CC0_QA.md",
+        "tests/real-piano-cc0-browser.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931"
       ]
     },
     {
@@ -1750,6 +1754,31 @@
         "integration/sample-quality-audit.js",
         "tests/sample-quality-audit.test.mjs",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42480471369"
+      ]
+    },
+    {
+      "id": "MUSIC-083",
+      "title": "ライセンスとSHAで固定した実録音CC0ピアノ1音→30秒WAVの自動検証",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 96,
+      "dependsOn": [
+        "MUSIC-082"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "Meta Open Soundの録音ピアノC4 OGgの配布元コミット・ライセンス・マニフェスト・OGGのSHAを照合",
+        "Chromiumで実録音サンプルの音質診断と1音サンプラー再生、30秒ガイドへの展開を確認",
+        "30秒演奏＋完全無音2秒の32秒WAVを出力し、GitHub Actions artifactに音声と診断結果を保存",
+        "商用製品への自動登録・音源リポジトリ同梱・既存mainへの公開は行わない",
+        "最高品質WAV原本、実耳確認、iPhone/Android実機、音色自然さはMUSIC-074/075未完了のまま維持"
+      ],
+      "evidence": [
+        "docs/MUSIC_083_REAL_PIANO_CC0_QA.md",
+        ".github/workflows/test-real-piano-cc0.yml",
+        "tests/real-piano-cc0-browser.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42488216931"
       ]
     }
   ]
