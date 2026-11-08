@@ -274,8 +274,34 @@ try{
        }
        const wav=createTailSafeWav([rendered.pcm],24000,{silenceSeconds:2}).wav;
        const guardedWav=createTailSafeWav([guarded.pcm],24000,{silenceSeconds:2}).wav;
+       // Focused 2-note clip for the C5 64->65 timbre change: shorter than
+       // the 33-note sequence, suitable for the human A/B listening page.
+       let focused=null;
+       if(pitch==="C5"){
+         const focusNotes=createPianoVelocitySweepScore(midi,{
+           first:64,last:65,spacingSeconds:.9,durationSeconds:.65
+         });
+         const rawClip=renderRecordedPianoVelocityBlend(focusNotes,regions,samples,{seconds:2});
+         const guardClip=renderRecordedPianoVelocityBlend(focusNotes,regions,samples,{seconds:2,levelGuard:true});
+         if(rawClip.overloaded||guardClip.overloaded||
+            rawClip.renderedNotes!==2||guardClip.renderedNotes!==2)
+           throw Error("C5重点確認用の2音を書き出せません");
+         focused={
+           raw:createTailSafeWav([rawClip.pcm],24000,{silenceSeconds:2}).wav,
+           guarded:createTailSafeWav([guardClip.pcm],24000,{silenceSeconds:2}).wav
+         };
+       }
+       const encodeWav=wav=>{
+         let result="",bytes=new Uint8Array(wav);
+         for(let i=0;i<bytes.length;i+=8192)
+           result+=String.fromCharCode(...bytes.subarray(i,Math.min(i+8192,bytes.length)));
+         return btoa(result);
+       };
        // Avoid returning large WAV arrays through Playwright's serialization.
        output.push({pitch,runtimeMs,guardReport:guarded.guardReport,
+         focus:focused?{rawBase64:encodeWav(focused.raw),
+           guardedBase64:encodeWav(focused.guarded),
+           noteVelocities:[64,65],noteStarts:[0,.9]}:null,
          timbreRaw,timbreGuard,timbreTimeRaw,timbreTimeGuard,
          guardedAudit:{regressionCount:guardedAudit.regressionCount,
            worstStep:guardedAudit.worstStep,maxStep:guardedAudit.maxStep,
@@ -305,6 +331,16 @@ try{
  assert.deepEqual(sweeps.map(x=>x.pitch),["C3","C4","C5"]);
  for(const s of sweeps){
    assert.equal(s.report.levels.length,33);
+   if(s.pitch==="C5"){
+     assert.deepEqual(s.focus.noteVelocities,[64,65]);
+     const a=Buffer.from(s.focus.rawBase64,"base64");
+     const b=Buffer.from(s.focus.guardedBase64,"base64");
+     assert.equal(a.readUInt32LE(40),4*24000*2);
+     assert.equal(b.readUInt32LE(40),4*24000*2);
+     assert.ok(a.subarray(44+2*24000*2).every(x=>x===0));
+     assert.ok(b.subarray(44+2*24000*2).every(x=>x===0));
+     assert.notDeepEqual(a,b);
+   }
    assert.equal(s.timbreRaw.analyzedNotes,33);
    assert.equal(s.timbreTimeRaw.windows.length,3);
    assert.equal(s.timbreTimeGuard.windows.length,3);
@@ -357,6 +393,10 @@ try{
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guide-30s-plus-2s.wav"),blendWav);
    fs.writeFileSync(path.join(outDir,"meta-piano-six-velocity-blend-guard-guide-30s-plus-2s.wav"),guardWav);
    for(const row of sweeps){
+     if(row.focus){
+       fs.writeFileSync(path.join(outDir,"C5-64-65-timbre-focus-before.wav"),Buffer.from(row.focus.rawBase64,"base64"));
+       fs.writeFileSync(path.join(outDir,"C5-64-65-timbre-focus-after.wav"),Buffer.from(row.focus.guardedBase64,"base64"));
+     }
      fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-sweep.wav"),Buffer.from(row.wavBase64,"base64"));
      fs.writeFileSync(path.join(outDir,"meta-piano-"+row.pitch+"-velocity-64-96-guarded-sweep.wav"),Buffer.from(row.guardWavBase64,"base64"));
    }
