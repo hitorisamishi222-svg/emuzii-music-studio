@@ -227,18 +227,34 @@ try{
        const rendered=renderRecordedPianoVelocityBlend(score,regions,samples,{seconds:22.2});
        const runtimeMs=performance.now()-start;
        const audit=auditPianoVelocitySweep(rendered.pcm,24000,score);
+       const guarded=renderRecordedPianoVelocityBlend(score,regions,samples,{seconds:22.2,levelGuard:true});
+       const guardedAudit=auditPianoVelocitySweep(guarded.pcm,24000,score);
+       if(guarded.renderedNotes!==33||guarded.skippedNotes!==0||guarded.overloaded||guardedAudit.overloaded){
+         throw Error("33段階の保護補正に失敗: "+pitch);
+       }
        if(rendered.renderedNotes!==33||rendered.skippedNotes!==0||rendered.overloaded||audit.overloaded){
          throw Error("33段階スイープの合格条件を満たしません: "+pitch);
        }
        const wav=createTailSafeWav([rendered.pcm],24000,{silenceSeconds:2}).wav;
+       const guardedWav=createTailSafeWav([guarded.pcm],24000,{silenceSeconds:2}).wav;
        // Avoid returning large WAV arrays through Playwright's serialization.
-       output.push({pitch,runtimeMs,report:{
+       output.push({pitch,runtimeMs,guardReport:guarded.guardReport,
+         guardedAudit:{regressionCount:guardedAudit.regressionCount,
+           worstStep:guardedAudit.worstStep,maxStep:guardedAudit.maxStep,
+           peak:guardedAudit.peak,
+           levels:guardedAudit.levels.map(x=>({velocity:x.velocity,rmsDbfs:x.rmsDbfs}))},
+         report:{
          regressions:audit.regressions,
          regressionCount:audit.regressionCount,
          worstStep:audit.worstStep,maxStep:audit.maxStep,
          levels:audit.levels.map(x=>({velocity:x.velocity,rmsDbfs:x.rmsDbfs,peak:x.peak})),
          peak:audit.peak
-       },wavBase64:(()=>{
+       },guardWavBase64:(()=>{
+         let result="",bytes=new Uint8Array(guardedWav);
+         for(let i=0;i<bytes.length;i+=8192)
+           result+=String.fromCharCode(...bytes.subarray(i,Math.min(i+8192,bytes.length)));
+         return btoa(result);
+       })(),wavBase64:(()=>{
          let result="",bytes=new Uint8Array(wav);
          for(let i=0;i<bytes.length;i+=8192)
            result+=String.fromCharCode(...bytes.subarray(i,Math.min(i+8192,bytes.length)));
@@ -251,12 +267,17 @@ try{
  assert.deepEqual(sweeps.map(x=>x.pitch),["C3","C4","C5"]);
  for(const s of sweeps){
    assert.equal(s.report.levels.length,33);
+   assert.equal(s.guardedAudit.levels.length,33);
+   assert.ok(s.guardedAudit.regressionCount<=s.report.regressionCount);
    assert.ok(Number.isFinite(s.report.worstStep.deltaDb));
    assert.ok(Number.isFinite(s.runtimeMs));
    const wav=Buffer.from(s.wavBase64,"base64");
+   const guardedWav=Buffer.from(s.guardWavBase64,"base64");
    assert.equal(wav.readUInt32LE(24),24000);
    assert.equal(wav.readUInt32LE(40),Math.ceil(24.2*24000)*2);
+   assert.equal(guardedWav.readUInt32LE(40),Math.ceil(24.2*24000)*2);
    assert.ok(wav.subarray(44+Math.ceil(22.2*24000)*2).every(x=>x===0));
+   assert.ok(guardedWav.subarray(44+Math.ceil(22.2*24000)*2).every(x=>x===0));
  }
  console.log("PIANO_VELOCITY_SWEEP_64_TO_96 "+JSON.stringify(sweeps.map(s=>({
    pitch:s.pitch,regressions:s.report.regressionCount,
