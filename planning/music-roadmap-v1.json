@@ -1514,6 +1514,118 @@
         "tests/japanese-outro-edit-plan.test.mjs",
         "tests/outro-finisher-browser.test.mjs"
       ]
+    },
+    {
+      "id": "MUSIC-073",
+      "title": "音源利用・配布ライセンス台帳と用途別権利ゲート",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 98,
+      "dependsOn": [],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "instrument/nature/special等の音源出典、権利者、ライセンス、利用条件を記録し、未確認の音源は不許可",
+        "個人演奏・商用完成曲・音源サンプル再配布の権利を分離して判定",
+        "フェイルクローズ・原音同梱なしのユニットテストPASS",
+        "少なくとも1件の実音源についてライセンス本文/出典/商用利用/クレジット/配布条件を人が確認し記録（未検証なら未完了）"
+      ],
+      "evidence": [
+        "docs/MUSIC_SOUND_LIBRARY_POLICY_2026-11-08.md",
+        "integration/sample-rights-registry.js",
+        "tests/sample-rights-registry.test.mjs"
+      ]
+    },
+    {
+      "id": "MUSIC-074",
+      "title": "SoundFont/SFZ多楽器演奏エンジン基礎（実音色の1音再生）",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 96,
+      "dependsOn": [
+        "MUSIC-073"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "権利確認済みSFZ/SF2の読み込み方式を明示し、主要音色を分類",
+        "実楽器1音以上をベロシティ・ノート長付きで発音させWAVに書き出す",
+        "既存MIDI/MASTER/録音原音を壊さない局所回帰テスト"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-075",
+      "title": "高品質実楽器サンプルの評価と取り込み",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 96,
+      "dependsOn": [
+        "MUSIC-073"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "和楽器・海外の楽器・自然音・特殊音についてライセンス確認済み候補を比較",
+        "強弱レイヤー・アタック/リリース・奏法の実データを確認",
+        "商用完成曲とサンプル再配布の許可範囲を分けて記録"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-076",
+      "title": "演奏表現エンジン：強弱・奏法・タイミング・息遣い・余韻",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-074",
+        "MUSIC-075"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "同じ音符から複数ベロシティ・奏法・タイミングの可聴差をレンダリング",
+        "息遣いと余韻を単なるリバーブに限定せずサンプル/エンベロープで制御",
+        "決定的な再現性とUNDO/音源原本保護"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-077",
+      "title": "独立2曲以上の実演奏パート融合・ステム管理",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 92,
+      "dependsOn": [
+        "MUSIC-076"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "2作品の旋律/対旋律/リズムを実パートとして融合し、ただの文章特徴融合と区別",
+        "調性・テンポ・拍子・クリップを管理しA/B比較できる",
+        "各独立パート・編集履歴・分離ステムを再編集可能なまま保存"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "MUSIC-078",
+      "title": "独自演奏との自然な歌唱統合",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 90,
+      "dependsOn": [
+        "MUSIC-077"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "既存ボーカル録音/歌詞照合/音ズレ補正と新エンジンの伴奏を非破壊統合",
+        "歌声のダイナミクス・ブレス・メロディ終端・アウトロ余韻を実音で評価",
+        "追加課金・AI歌声モデルの権利を別途確認してから外部連携"
+      ],
+      "evidence": []
     }
   ]
 }
