@@ -43,9 +43,10 @@ input[type=checkbox]{transform:scale(1.25);margin:11px}
 <select id="velocityCalibration">
 <option value="off">補正なし（原録音の音量差を保持）</option>
 <option value="on">音量補正のみ（80→81を最大6dB軽減）</option>
-<option value="blend">音量補正＋録音2層ブレンド（64〜96で滑らかに切替・試験用）</option>
+<option value="blend">音量補正＋録音2層ブレンド（64〜96で切替）</option>
+<option value="blend-guard">ブレンド＋音量逆戻り抑制（減衰のみ・比較試験用）</option>
 </select>
-<p class="muted">短時間RMSの測定と、2録音の段階的な音量ブレンドを比較できます。位相干渉・音色変化の恐れがある実験機能で、楽器として自然かどうかは試聴判断が必要です。</p>
+<p class="muted">短時間RMSと2録音のブレンドを比較します。逆戻り抑制は必要な音だけ最大6dBまで減衰し、増幅はしません。位相干渉・音色変化が残る可能性があり、自然かどうかは試聴判断が必要です。</p>
 <label for="sfz">SFZファイル（任意・プリセットを使う場合は指定しない）</label>
 <input id="sfz" type="file" accept=".sfz,text/plain">
 <p class="muted">OGGは対応ブラウザでデコードします。SFZでの複数音色指定もWAV／OGGのローカルファイルに限定。SFZに sample=harp.wav とある場合、同名のWAVを必ず選択してください。サンプル名は完全一致。対応範囲外のSFZ命令は勝手に省略せずエラーにします。ファイルはサーバーへ送られません。</p>
@@ -156,7 +157,7 @@ $("run").addEventListener("click",async()=>{
     regions=calibration.regions;
     $("sampleQuality").textContent+="\n【80→81 強弱の境界補正（短時間RMS測定）】\n"+
       calibration.report.map(row=>row.pitch+"：補正前 "+row.measuredJumpDb.toFixed(1)+" dB → 補正後 "+row.residualDb.toFixed(1)+" dB（適用 "+row.appliedDb.toFixed(1)+" dB）").join("\n");
-    if($("velocityCalibration").value==="blend"){
+    if($("velocityCalibration").value.startsWith("blend")){
       const phase=RECORDED_PIANO_SAMPLES.filter((_,i)=>i%2===0).map((src,i)=>{
         const other=RECORDED_PIANO_SAMPLES[2*i+1];
         const result=inspectRecordedPianoBlendPhase(sampleMap.get(src.file),sampleMap.get(other.file));
@@ -170,12 +171,17 @@ $("run").addEventListener("click",async()=>{
   const baseNotes=single?[{start:0,duration:1,midi:rootMidi,velocity:90}]:createThirtySecondGuideScore();
   const length=single?2:30;
   const notes=prepareExpressiveScore(baseNotes,{style:$("expressionStyle").value,seconds:length});
-  const r=$("velocityCalibration").value==="blend"
-    ?renderRecordedPianoVelocityBlend(notes,regions,sampleMap,{sampleRate:24000,seconds:length})
+  const r=$("velocityCalibration").value.startsWith("blend")
+    ?renderRecordedPianoVelocityBlend(notes,regions,sampleMap,{sampleRate:24000,seconds:length,
+      levelGuard:$("velocityCalibration").value==="blend-guard"})
     :regions
       ?renderMultiRegionScore(notes,regions,sampleMap,{sampleRate:24000,seconds:length})
       :renderSampledScore(notes,sampleMap.get(file.name),{sampleRate:24000,seconds:length,rootMidi});
   if(r.renderedNotes===0)throw Error("SFZの音域・ベロシティに合う音符がありません");
+  if(r.guardReport){
+    $("sampleQuality").textContent+="\n【音量逆戻り抑制（必要箇所のみ減衰）】\n"+r.guardReport.map(x=>
+      x.pitch+"：補正対象 "+x.adjustedVelocityCount+"段階 / 最大減衰 "+x.maxReductionDb.toFixed(2)+" dB").join("\n");
+  }
   if(r.overloaded)throw Error("音割れリスクが高いため書き出しを中止しました。サンプル音量を下げて再試行してください");
   const finished=createTailSafeWav([r.pcm],r.sampleRate,{silenceSeconds:2});
   if(taskVersion!==inputVersion)return;
@@ -183,7 +189,9 @@ $("run").addEventListener("click",async()=>{
   previewUrl=URL.createObjectURL(new Blob([finished.wav],{type:"audio/wav"}));
   $("preview").src=previewUrl;$("download").href=previewUrl;
   $("download").download=(file.name.replace(/\.(?:wav|ogg)$/i,"")||"sample")+
-    ($("velocityCalibration").value==="blend"?"-velocity-blend":$("velocityCalibration").value==="on"?"-velocity-calibrated":"")+"-asahi-guide.wav";
+    ($("velocityCalibration").value==="blend-guard"?"-velocity-blend-guard":
+    $("velocityCalibration").value==="blend"?"-velocity-blend":
+    $("velocityCalibration").value==="on"?"-velocity-calibrated":"")+"-asahi-guide.wav";
   $("details").textContent=length+"秒のガイド ＋ 完全無音2秒 ／ 使用音色"+files.length+"個・演奏音符"+r.renderedNotes+"個・音域外"+r.skippedNotes+"個 ／ 表現"+$("expressionStyle").selectedOptions[0].textContent+" ／ 強弱処理"+$("velocityCalibration").selectedOptions[0].textContent+" ／ 最大振幅"+r.peak.toFixed(3);
   $("result").hidden=false;
   $("status").textContent="生成できました。実際の音を試聴して確認してください。";
