@@ -1550,9 +1550,17 @@
       "acceptance": [
         "権利確認済みSFZ/SF2の読み込み方式を明示し、主要音色を分類",
         "実楽器1音以上をベロシティ・ノート長付きで発音させWAVに書き出す",
-        "既存MIDI/MASTER/録音原音を壊さない局所回帰テスト"
+        "既存MIDI/MASTER/録音原音を壊さない局所回帰テスト",
+        "WAVの単一サンプルから音程・強弱・アタック/リリースをつけて30秒ガイドをレンダリングし、Chromium UIでWAV保存まで検証（SFZは<region>1個の限定対応）"
       ],
-      "evidence": []
+      "evidence": [
+        "integration/local-sample-sampler.js",
+        "tools/local-sampler.html",
+        "tests/local-sample-sampler.test.mjs",
+        "tests/local-sampler-browser.test.mjs",
+        "docs/MUSIC_074_LOCAL_SAMPLE_MVP.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42455151199"
+      ]
     },
     {
       "id": "MUSIC-075",
@@ -1631,7 +1639,7 @@
       "id": "MUSIC-079",
       "title": "30秒の自前作曲ガイド：旋律・伴奏・強弱を決定的にレンダリング",
       "track": "independent-sample-engine",
-      "state": "todo",
+      "state": "done",
       "priority": 97,
       "dependsOn": [],
       "blockers": [],
@@ -1644,7 +1652,8 @@
       ],
       "evidence": [
         "integration/thirty-second-guide.js",
-        "tests/thirty-second-guide.test.mjs"
+        "tests/thirty-second-guide.test.mjs",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42454255485"
       ]
     }
   ]
