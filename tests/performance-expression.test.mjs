@@ -13,7 +13,7 @@ function tone(){
 }
 const note=()=>({start:0,duration:1,midi:60,velocity:100});
 const render=(notes)=>renderSampledScore(notes,tone(),{seconds:2,rootMidi:60,sampleRate});
-const near=(audio,time)=>Math.abs(audio[Math.round(time*sampleRate)]);
+const energy=(audio,from,to)=>{let sum=0;for(let i=Math.round(from*sampleRate);i<Math.round(to*sampleRate);i++)sum+=Math.abs(audio[i]);return sum;};
 test("original score unchanged; legal articulation set and durations",()=>{
   assert.deepEqual(PERFORMANCE_STYLES,["neutral","staccato","legato","gentle"]);
   const original=[note()];
@@ -32,9 +32,9 @@ test("post-note release produces a measurable tail and is silent after it",()=>{
   const src=tone(),snapshot=src.channels[0].slice();
   const noTail=renderSampledScore([note()],src,{seconds:2,rootMidi:60});
   const withTail=renderSampledScore([{...note(),tailSeconds:.35}],src,{seconds:2,rootMidi:60});
-  assert.equal(near(noTail.pcm,1.08),0);
-  assert.ok(near(withTail.pcm,1.081)>.001);
-  assert.equal(near(withTail.pcm,1.37),0);
+  assert.equal(energy(noTail.pcm,1.06,1.09),0);
+  assert.ok(energy(withTail.pcm,1.06,1.09)>1);
+  assert.equal(energy(withTail.pcm,1.37,1.39),0);
   assert.deepEqual(src.channels[0],snapshot);
 });
 test("staccato and legato differ in note ending, while gentle is quieter",()=>{
@@ -42,9 +42,9 @@ test("staccato and legato differ in note ending, while gentle is quieter",()=>{
   const short=render(prepareExpressiveScore([note()],{style:"staccato",seconds:2}));
   const connected=render(prepareExpressiveScore([note()],{style:"legato",seconds:2}));
   const gentle=render(prepareExpressiveScore([note()],{style:"gentle",seconds:2}));
-  assert.equal(near(short.pcm,.8),0);
-  assert.ok(near(base.pcm,.8)>.001);
-  assert.ok(near(connected.pcm,1.14)>.001);
+  assert.equal(energy(short.pcm,.78,.82),0);
+  assert.ok(energy(base.pcm,.78,.82)>1);
+  assert.ok(energy(connected.pcm,1.13,1.15)>1);
   assert.ok(gentle.peak<base.peak);
 });
 test("30s guide stays within 30s and renders unchanged source across key zones",()=>{
