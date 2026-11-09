@@ -2032,7 +2032,7 @@
       "state": "done",
       "priority": 94,
       "dependsOn": [
-        "MUSIC-077"
+        "MUSIC-091"
       ],
       "blockers": [],
       "execution": "development-ci",
@@ -2041,7 +2041,8 @@
         "トラックの重複、NaN、長さ・サンプルレート不一致、危険な過負荷のWAV出力を拒否",
         "16bitステレオWAVに2秒の完全無音を付加し、入力PCMは変更しない",
         "Node CIで決定論的な2曲合成・元音源保護・左右差・無音・異常入力拒否を確認",
-        "テンポ・拍子・調性の統合、実楽器、歌唱、iPhone聴感は未完了。MUSIC-077全体はtodo維持"
+        "テンポ・拍子・調性の統合、実楽器、歌唱、iPhone聴感は未完了。MUSIC-077全体はtodo維持",
+        "MUSIC-077は上位の全体統合タスクとして未完了のまま管理し、MUSIC-092は独立して完了した下位技術基礎"
       ],
       "evidence": [
         "integration/independent-stem-fusion.js",
@@ -2049,6 +2050,30 @@
         ".github/workflows/test-independent-stem-fusion.yml",
         "docs/MUSIC_092_INDEPENDENT_STEM_FUSION.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42572014515"
+      ]
+    },
+    {
+      "id": "MUSIC-093",
+      "title": "独立楽曲の拍子・テンポを共通拍グリッドへ変換する非破壊ノート配置",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-092"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "2〜16個の独立した楽曲のBPM・拍子・ノート位置を読み、指定BPM・拍子の共通小節グリッドへ非破壊変換",
+        "3/4→4/4、90BPMと140BPMの2曲を120BPM共通小節へ配置し、音符開始・長さを検証",
+        "移調・小節オフセットは明示指定のみ。MIDI範囲外・不正値・同名トラックを拒否",
+        "実音声のタイムストレッチ、キー自動推定、和声衝突の判定は未実装。MUSIC-077はtodo維持"
+      ],
+      "evidence": [
+        "integration/independent-note-grid-aligner.js",
+        "tests/independent-note-grid-aligner.test.mjs",
+        ".github/workflows/test-independent-stem-fusion.yml",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42630675680"
       ]
     }
   ]
