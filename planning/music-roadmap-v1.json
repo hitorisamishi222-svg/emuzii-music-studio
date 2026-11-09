@@ -2075,6 +2075,32 @@
         ".github/workflows/test-independent-stem-fusion.yml",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42630675680"
       ]
+    },
+    {
+      "id": "MUSIC-094",
+      "title": "異なる2曲の拍位置をローカル楽器演奏に接続し、ステレオWAVへ非破壊融合",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-093"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "異なるBPM・拍子の2曲の音符を共通拍グリッドへ配置し、独立したローカルサンプル音源でそれぞれ演奏",
+        "2曲の演奏PCMをステレオWAVに融合し、2秒の完全無音・左右差・決定論的出力をテスト",
+        "音域外・サンプル短縮・音割れ・不正楽器設定を検出し、不正なWAVを出力しない",
+        "元の作曲ノート・楽器サンプルを変更しない。合成疑似楽器でのNodeテストのみ合格",
+        "実録音楽器、調性・コードの自動統合、実耳評価・スマホ実機は未完了。MUSIC-077全体はtodo維持"
+      ],
+      "evidence": [
+        "integration/independent-arrangement-renderer.js",
+        "tests/independent-arrangement-renderer.test.mjs",
+        ".github/workflows/test-independent-stem-fusion.yml",
+        "docs/MUSIC_094_LOCAL_INDEPENDENT_ARRANGEMENT.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42631279498"
+      ]
     }
   ]
 }
