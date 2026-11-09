@@ -2024,6 +2024,32 @@
         "docs/MUSIC_091_C5_PHASE_SMOOTHSTEP_QA.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42560601120"
       ]
+    },
+    {
+      "id": "MUSIC-092",
+      "title": "独立2曲のPCMステムを安全にステレオ融合する基礎エンジン",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-077"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "独立した2〜16トラックのPCMを非破壊でゲイン・定位・ヘッドルームを指定してステレオ合成",
+        "トラックの重複、NaN、長さ・サンプルレート不一致、危険な過負荷のWAV出力を拒否",
+        "16bitステレオWAVに2秒の完全無音を付加し、入力PCMは変更しない",
+        "Node CIで決定論的な2曲合成・元音源保護・左右差・無音・異常入力拒否を確認",
+        "テンポ・拍子・調性の統合、実楽器、歌唱、iPhone聴感は未完了。MUSIC-077全体はtodo維持"
+      ],
+      "evidence": [
+        "integration/independent-stem-fusion.js",
+        "tests/independent-stem-fusion.test.mjs",
+        ".github/workflows/test-independent-stem-fusion.yml",
+        "docs/MUSIC_092_INDEPENDENT_STEM_FUSION.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42572014515"
+      ]
     }
   ]
 }
