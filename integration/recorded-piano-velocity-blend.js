@@ -8,12 +8,14 @@ import {sampleWindowRms} from "./recorded-piano-velocity-calibration.js";
 const finite=n=>typeof n==="number"&&Number.isFinite(n);
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 
-export function recordedPianoBlendWeights(velocity,{start=64,end=96}={}){
+export function recordedPianoBlendWeights(velocity,{start=64,end=96,curve="linear"}={}){
  if(!Number.isInteger(velocity)||velocity<0||velocity>127||
-    !Number.isInteger(start)||!Number.isInteger(end)||start<1||end>126||end-start<4){
+    !Number.isInteger(start)||!Number.isInteger(end)||start<1||end>126||end-start<4||
+    !["linear","smoothstep"].includes(curve)){
    throw Error("強弱ブレンドの音符・範囲が不正です");
  }
- const t=clamp((velocity-start)/(end-start),0,1);
+ const position=clamp((velocity-start)/(end-start),0,1);
+ const t=curve==="smoothstep"?position*position*(3-2*position):position;
  // Linear amplitude crossfade avoids the possible level bump from equal-power
  // mixing of phase-aligned same-pitch piano samples.
  return {low:1-t,high:t,blend:t>0&&t<1};
@@ -46,12 +48,12 @@ export function inspectRecordedPianoBlendPhase(low,high,{startSeconds=0.04,endSe
 // not boost/cross-normalize PCM, avoiding additional clipping risk. This is
 // derived from the native recording's 40-300ms RMS/correlation; shifted pitches
 // and perceived timbre still require listening QA.
-export function planRecordedPianoLevelGuard(regions,samples,{start=64,end=96,maxAttenuationDb=6}={}){
+export function planRecordedPianoLevelGuard(regions,samples,{start=64,end=96,curve="linear",maxAttenuationDb=6}={}){
  if(!Array.isArray(regions)||regions.length!==6||!(samples instanceof Map)||
     !finite(maxAttenuationDb)||maxAttenuationDb<=0||maxAttenuationDb>12){
    throw Error("ベロシティ曲線の補正設定が不正です");
  }
- recordedPianoBlendWeights(80,{start,end});
+ recordedPianoBlendWeights(80,{start,end,curve});
  const pairs=[];
  for(let i=0;i<6;i+=2){
    const low=RECORDED_PIANO_SAMPLES[i],high=RECORDED_PIANO_SAMPLES[i+1];
@@ -70,7 +72,7 @@ export function planRecordedPianoLevelGuard(regions,samples,{start=64,end=96,max
    const phase=inspectRecordedPianoBlendPhase(inputLo,inputHi);
    const predicted=[];
    for(let v=start;v<=end;v++){
-     const weights=recordedPianoBlendWeights(v,{start,end});
+     const weights=recordedPianoBlendWeights(v,{start,end,curve});
      const a=lowEnergy*weights.low,b=highEnergy*weights.high;
      const power=Math.max(0,a*a+b*b+2*a*b*phase.correlation);
      const rms=v/127*Math.sqrt(power);
@@ -100,12 +102,12 @@ export function planRecordedPianoLevelGuard(regions,samples,{start=64,end=96,max
 }
 
 export function renderRecordedPianoVelocityBlend(notes,regions,samples,{
- sampleRate=24000,seconds=30,start=64,end=96,levelGuard=false
+ sampleRate=24000,seconds=30,start=64,end=96,levelGuard=false,blendCurve="linear"
 }={}){
  if(!Array.isArray(notes)||notes.length>2048||!Array.isArray(regions)||regions.length!==6||
     !(samples instanceof Map)||!Number.isInteger(sampleRate)||sampleRate<8000||sampleRate>48000||
     !finite(seconds)||seconds<=0||seconds>60)throw Error("ブレンド演奏の引数が不正です");
- recordedPianoBlendWeights(80,{start,end}); // validate range
+ recordedPianoBlendWeights(80,{start,end,curve:blendCurve}); // validate range
  if(typeof levelGuard!=="boolean")throw Error("音量カーブ補正の設定が不正です");
  const perRegion=Array.from({length:6},()=>[]);
  for(let i=0;i<6;i++){
@@ -116,7 +118,7 @@ export function renderRecordedPianoVelocityBlend(notes,regions,samples,{
       !finite(reg.volumeDb)||reg.volumeDb>0||reg.volumeDb< -60||
       !samples.has(src.file))throw Error("公式ピアノ6音色の割り当てに一致しません");
  }
- const guard=levelGuard?planRecordedPianoLevelGuard(regions,samples,{start,end}):null;
+ const guard=levelGuard?planRecordedPianoLevelGuard(regions,samples,{start,end,curve:blendCurve}):null;
  let acceptedNotes=0,blendedNotes=0;
  for(const n of notes){
    if(!n||![n.start,n.duration,n.midi,n.velocity].every(finite)||n.start<0||n.duration<=0||
@@ -130,7 +132,7 @@ export function renderRecordedPianoVelocityBlend(notes,regions,samples,{
    }
    const pair=RECORDED_PIANO_SAMPLES.findIndex((src,i)=>i%2===0&&n.midi>=src.loKey&&n.midi<=src.hiKey);
    if(pair<0)continue;
-   const weights=recordedPianoBlendWeights(n.velocity,{start,end});
+   const weights=recordedPianoBlendWeights(n.velocity,{start,end,curve:blendCurve});
    const existing=(n.gainMultiplier??1)*(guard?guard.pairs[pair/2].factors.get(n.velocity)??1:1);
    if(weights.low>0)perRegion[pair].push({...n,gainMultiplier:existing*weights.low});
    if(weights.high>0)perRegion[pair+1].push({...n,gainMultiplier:existing*weights.high});
@@ -153,7 +155,7 @@ export function renderRecordedPianoVelocityBlend(notes,regions,samples,{
  let peak=0;
  for(const x of pcm)peak=Math.max(peak,Math.abs(x));
  return {pcm,sampleRate,seconds,renderedNotes:acceptedNotes,skippedNotes:notes.length-acceptedNotes,
-   blendedNotes,regionUsage,peak,overloaded:peak>1,levelGuardApplied:Boolean(guard),
+   blendedNotes,regionUsage,peak,overloaded:peak>1,levelGuardApplied:Boolean(guard),blendCurve,
    guardReport:guard?guard.pairs.map(x=>({pitch:x.pitch,maxReductionDb:x.maxReductionDb,
      adjustedVelocityCount:x.adjustedVelocityCount,phaseCorrelation:x.phaseCorrelation,
      worstPredictedStepDb:x.worstPredictedStepDb})):null,
