@@ -1,0 +1,23 @@
+name: Test Independent Music Stem Fusion
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/independent-stem-fusion.js'
+      - 'integration/audio-tail-finisher.js'
+      - 'tests/independent-stem-fusion.test.mjs'
+      - '.github/workflows/test-independent-stem-fusion.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  two-composition-fusion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate stereo two-stem fusion, no-clipping and original preservation
+        run: node --test tests/independent-stem-fusion.test.mjs
