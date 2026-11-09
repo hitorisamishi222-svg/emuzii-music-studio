@@ -21,6 +21,7 @@ on:
       - 'tests/piano-timbre-sweep-audit.test.mjs'
       - 'tests/piano-timbre-time-windows.test.mjs'
       - 'tests/piano-band-phase-audit.test.mjs'
+      - 'tests/real-piano-phase-browser.test.mjs'
       - 'tests/recorded-piano-level-guard.test.mjs'
       - 'tests/real-piano-six-sample-browser.test.mjs'
       - 'tools/local-sampler.html'
@@ -74,6 +75,11 @@ jobs:
           ASAHI_PIANO_SIX_DIR: /tmp/asahi-six-piano
           ASAHI_ARTIFACTS_DIR: test-output/recorded-six-piano
         run: node tests/real-piano-six-sample-browser.test.mjs
+      - name: Compare C5 real piano multiband phase and smoothstep candidate WAVs
+        env:
+          ASAHI_PIANO_SIX_DIR: /tmp/asahi-six-piano
+          ASAHI_ARTIFACTS_DIR: test-output/recorded-six-piano
+        run: node tests/real-piano-phase-browser.test.mjs
       - name: Keep the locally generated WAV and diagnostic report for listening
         uses: actions/upload-artifact@v4
         with:
