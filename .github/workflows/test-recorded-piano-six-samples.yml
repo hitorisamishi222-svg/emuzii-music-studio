@@ -4,6 +4,9 @@ on:
     branches: [feature/vocal-recorder-v1]
     paths:
       - 'integration/recorded-piano-six-sample-map.js'
+      - 'integration/independent-arrangement-renderer.js'
+      - 'integration/independent-note-grid-aligner.js'
+      - 'integration/independent-stem-fusion.js'
       - 'integration/recorded-piano-velocity-calibration.js'
       - 'integration/recorded-piano-velocity-blend.js'
       - 'integration/piano-velocity-sweep-audit.js'
@@ -24,6 +27,7 @@ on:
       - 'tests/real-piano-phase-browser.test.mjs'
       - 'tests/recorded-piano-level-guard.test.mjs'
       - 'tests/real-piano-six-sample-browser.test.mjs'
+      - 'tests/real-piano-independent-arrangement-browser.test.mjs'
       - 'tools/local-sampler.html'
       - 'tools/piano-listening-qa.html'
       - '.github/workflows/test-recorded-piano-six-samples.yml'
@@ -80,6 +84,11 @@ jobs:
           ASAHI_PIANO_SIX_DIR: /tmp/asahi-six-piano
           ASAHI_ARTIFACTS_DIR: test-output/recorded-six-piano
         run: node tests/real-piano-phase-browser.test.mjs
+      - name: Fuse two independent songs with verified CC0 piano recordings into stereo WAV
+        env:
+          ASAHI_PIANO_SIX_DIR: /tmp/asahi-six-piano
+          ASAHI_ARTIFACTS_DIR: test-output/recorded-six-piano
+        run: node tests/real-piano-independent-arrangement-browser.test.mjs
       - name: Keep the locally generated WAV and diagnostic report for listening
         uses: actions/upload-artifact@v4
         with:
