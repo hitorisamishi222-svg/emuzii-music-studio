@@ -123,6 +123,21 @@ try{
  }
  assert.notDeepEqual(raw,candidate);
  assert.notDeepEqual(fullRaw,fullCandidate);
+ // The user-facing optional mode must render from the same six local OGGs;
+ // source file names alone do not certify their provenance outside this CI.
+ await page.locator("#mappingPreset").selectOption("meta-piano-six");
+ await page.locator("#velocityCalibration").selectOption("blend-smoothstep-guard");
+ await page.locator("#permission").check();
+ await page.locator("#run").click();
+ await page.locator("#result").waitFor({state:"visible",timeout:90000});
+ assert.match(await page.locator("#details").innerText(),/smoothstep/);
+ const [uiDownload]=await Promise.all([
+  page.waitForEvent("download"),page.locator("#download").click()
+ ]);
+ assert.match(uiDownload.suggestedFilename(),/velocity-smoothstep-guard/);
+ const uiWav=fs.readFileSync(await uiDownload.path());
+ assert.equal(uiWav.readUInt32LE(40),32*24000*2);
+ assert.ok(uiWav.subarray(44+30*24000*2).every(x=>x===0));
  assert.deepEqual(errors,[]);
  const digest=w=>crypto.createHash("sha256").update(w).digest("hex");
  const metrics={
@@ -169,6 +184,7 @@ try{
   fs.writeFileSync(path.join(target,"C5-linear-guarded-64-96.wav"),fullRaw);
   fs.writeFileSync(path.join(target,"C5-smoothstep-guarded-64-96.wav"),fullCandidate);
   fs.writeFileSync(path.join(target,"C5-phase-and-timbre.json"),JSON.stringify(metrics,null,2)+"\n");
+  fs.writeFileSync(path.join(target,"meta-piano-six-smoothstep-guard-30s.wav"),uiWav);
  }
  console.log("PASS: C5 three-window spectral and phase diagnostics, original/smoothstep listening WAV A/B, source preserved");
 }finally{
