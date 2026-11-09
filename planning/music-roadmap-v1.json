@@ -1861,7 +1861,8 @@
         "技術試作で80→81の音量差はC3+0.59dB/C4+0.38dB/C5+0.66dBへ減少。ただし64〜96全体の音色・位相・人間の聴感は未合格",
         "実録音の64〜96全33段階を音域C3/C4/C5で測定。補正前の-0.25dB超の逆戻り3/0/2箇所から補正後0/0/0箇所へ改善。ただし聴感・周波数の色づきは未検証",
         "録音ピアノ64〜96で隣接スペクトル形状差最大C3=0.045/C4=0.010/C5=0.034（警戒値0.20超なし）。音色・位相の聴感合格ではない",
-        "実録音の強弱64〜96を開始0.025/0.130/0.320秒から解析。C5の中盤64→65にスペクトル差0.1227を発見、実耳確認待ち"
+        "実録音の強弱64〜96を開始0.025/0.130/0.320秒から解析。C5の中盤64→65にスペクトル差0.1227を発見、実耳確認待ち",
+        "MUSIC-091の位相・帯域診断でC5中盤の元録音自体の音色差0.1656と、ブレンド時の軽い干渉を分離。smoothstepは実耳判断前の実験候補であり、MUSIC-086の本番音質合格ではない"
       ],
       "evidence": [
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42496505675",
@@ -1877,7 +1878,9 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42532701498",
         "docs/MUSIC_090_PIANO_THREE_WINDOW_TIMBRE.md",
         "integration/piano-timbre-time-windows.js",
-        "tests/piano-timbre-time-windows.test.mjs"
+        "tests/piano-timbre-time-windows.test.mjs",
+        "docs/MUSIC_091_C5_PHASE_SMOOTHSTEP_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42560601120"
       ]
     },
     {
@@ -1996,7 +1999,7 @@
       "id": "MUSIC-091",
       "title": "C5強弱64→65の時間別位相・帯域干渉の診断と音色改善候補比較",
       "track": "independent-sample-engine",
-      "state": "todo",
+      "state": "done",
       "priority": 93,
       "dependsOn": [
         "MUSIC-090"
@@ -2006,9 +2009,21 @@
       "acceptance": [
         "C5の実録音2層について音符開始・中盤・末尾で局所的な位相/帯域打ち消しを区別して測定",
         "候補を元録音非破壊で比較し、RMSだけで自然さを評価しない",
-        "人間の聴感とiPhone/Android実機確認を経るまで本番音色への自動採用はしない"
+        "人間の聴感とiPhone/Android実機確認を経るまで本番音色への自動採用はしない",
+        "C5弱強の実録音2層について3時間窓の元録音スペクトル差と帯域別位相干渉を分離して測定し、検証ログJSONに保存",
+        "C5強弱64→65の中盤でlinear音色形状差0.1227→smoothstep0.0140、帯域位相干渉-0.945→-0.079dB。全33段階の最大差は0.1046残る",
+        "smoothstepは任意の実験モード、既存線形デフォルト・元録音・本番を変えず、短い比較WAVと全33段階WAVを出力",
+        "Node単体テスト／公式SHA照合付きChromium／開発UIからの32秒WAV書出しを合格。iPhoneと人間の試聴は未実施"
       ],
-      "evidence": []
+      "evidence": [
+        "integration/piano-band-phase-audit.js",
+        "integration/recorded-piano-velocity-blend.js",
+        "tests/piano-band-phase-audit.test.mjs",
+        "tests/real-piano-phase-browser.test.mjs",
+        "tools/local-sampler.html",
+        "docs/MUSIC_091_C5_PHASE_SMOOTHSTEP_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42560601120"
+      ]
     }
   ]
 }
