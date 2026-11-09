@@ -25,6 +25,18 @@ export function renderIndependentArrangement(parts,instruments,{
    throw Error("各曲の楽器・音量・定位が不正です");
   const last=part.notes.reduce((m,n)=>Math.max(m,n.start+n.duration),0);
   if(last>seconds+0.00001)throw Error("音符が指定演奏時間を超えています");
+  // The underlying sampler can intentionally truncate a note when its source
+  // recording ends. In a composed arrangement that would silently remove music.
+  const sample=instrument.sample,region=instrument.region;
+  if(!Array.isArray(sample.channels)||!sample.channels[0]||
+     !Number.isInteger(sample.sampleRate)||sample.sampleRate<8000)
+   throw Error("録音サンプル形式が不正です");
+  for(const note of part.notes){
+   const rate=Math.pow(2,(note.midi-(region.rootMidi??60))/12)*sample.sampleRate/sampleRate;
+   const needed=Math.round(note.duration*sampleRate)*rate+1;
+   if(sample.channels[0].length<needed)
+    throw Error("録音サンプルが短く音符を最後まで演奏できません");
+  }
   const render=renderSampledScore(part.notes,instrument.sample,{
    ...instrument.region,sampleRate,seconds
   });
