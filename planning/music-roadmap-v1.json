@@ -2180,6 +2180,33 @@
         "docs/MUSIC_097_PRESERVE_BEATS_AND_PART_ENTRANCES.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42877921133"
       ]
+    },
+    {
+      "id": "MUSIC-098",
+      "title": "独立2曲の同時音程を分析しWAVの監査レポートへ非破壊で接続",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-097"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "重なり音の区間・半音差・音程名・要確認フラグを元音符の変更なく列挙",
+        "重なり検出数とレポート上限を区別し、過剰データの切捨てを明示",
+        "明示harmonyAudit:true時のみ2曲WAVレポートに添付、監査前後でWAVバイト一致",
+        "Node CI合格。実録音CIと人間の耳による音楽的評価は別管理",
+        "コード分析は自動調性判断・不協和の確定診断ではない"
+      ],
+      "evidence": [
+        "integration/independent-harmony-audit.js",
+        "integration/independent-arrangement-renderer.js",
+        "tests/independent-harmony-audit.test.mjs",
+        "tests/independent-arrangement-renderer.test.mjs",
+        "docs/MUSIC_098_CROSS_SONG_HARMONY_AUDIT.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42921985782"
+      ]
     }
   ]
 }
