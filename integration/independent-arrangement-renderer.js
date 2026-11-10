@@ -7,7 +7,7 @@ import {exportFusedStemsWav} from "./independent-stem-fusion.js";
 const finite=x=>typeof x==="number"&&Number.isFinite(x);
 export function renderIndependentArrangement(parts,instruments,{
  targetBpm=120,targetBeatsPerBar=4,transposeSemitones=[],offsetBars=0,
- sampleRate=24000,seconds=30,headroomDb=6,silenceSeconds=2
+ sampleRate=24000,seconds=30,headroomDb=6,masterTrimDb=0,silenceSeconds=2
 }={}){
  if(!Array.isArray(parts)||!Array.isArray(instruments)||instruments.length!==parts.length||
     !Number.isInteger(sampleRate)||sampleRate<8000||sampleRate>48000||
@@ -48,7 +48,7 @@ export function renderIndependentArrangement(parts,instruments,{
   instrumentReports.push({name:part.name,renderedNotes:render.renderedNotes,
    sourcePeak:render.peak,sampleFile:instrument.region.sample??null});
  }
- const mixed=exportFusedStemsWav(stems,{sampleRate,seconds,headroomDb,silenceSeconds});
+ const mixed=exportFusedStemsWav(stems,{sampleRate,seconds,headroomDb,masterTrimDb,silenceSeconds});
  return {wav:mixed.wav,report:{
   ...mixed.report,sourceUnchanged:true,
   arrangement:aligned.report,instruments:instrumentReports,
