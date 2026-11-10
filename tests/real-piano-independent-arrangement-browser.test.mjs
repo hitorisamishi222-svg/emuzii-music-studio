@@ -62,14 +62,23 @@ try{
    const opts={targetBpm:120,targetBeatsPerBar:4,sampleRate:24000,seconds:5,headroomDb:9};
    const a=renderIndependentArrangement(parts,instruments,opts);
    const b=renderIndependentArrangement(parts,instruments,opts);
+   const louder=renderIndependentArrangement(parts,instruments,{...opts,masterTrimDb:24});
+   if(!(louder.report.peak>a.report.peak*15&&louder.report.peak<a.report.peak*16)||louder.report.overloaded)
+    throw Error("Explicit 24dB gain trim must raise quiet real piano without clipping");
    if(a.wav.length!==b.wav.length||a.wav.some((v,i)=>v!==b.wav[i]))
     throw Error("Same score must produce identical WAV bytes");
    if(instruments.some((x,j)=>x.sample.channels[0].some((v,i)=>v!==snapshot[j][i])))
     throw Error("Source piano recordings were modified");
    const chunks=[];for(let i=0;i<a.wav.length;i+=8192)
     chunks.push(String.fromCharCode(...a.wav.subarray(i,i+8192)));
-   return {wav:btoa(chunks.join("")),report:{
-    stemCount:a.report.stemCount,peak:a.report.peak,overloaded:a.report.overloaded,
+   const louderChunks=[];for(let i=0;i<louder.wav.length;i+=8192)
+    louderChunks.push(String.fromCharCode(...louder.wav.subarray(i,i+8192)));
+   return {wav:btoa(chunks.join("")),louderWav:btoa(louderChunks.join("")),louderReport:{
+    peak:louder.report.peak,peakDbfs:louder.report.peakDbfs,
+    quietPreview:louder.report.quietPreview,masterTrimDb:louder.report.masterTrimDb
+   },report:{
+    stemCount:a.report.stemCount,peak:a.report.peak,peakDbfs:a.report.peakDbfs,
+    quietPreview:a.report.quietPreview,overloaded:a.report.overloaded,
     arrangement:a.report.arrangement,instruments:a.report.instruments,
     sourceUnchanged:a.report.sourceUnchanged
    }};
@@ -80,6 +89,11 @@ try{
  assert.equal(result.report.overloaded,false);
  assert.ok(result.report.peak>0&&result.report.peak<1);
  assert.equal(result.report.sourceUnchanged,true);
+ assert.equal(result.report.quietPreview,true);
+ assert.ok(result.report.peakDbfs< -30);
+ assert.equal(result.louderReport.masterTrimDb,24);
+ assert.ok(result.louderReport.peakDbfs>result.report.peakDbfs+23.99);
+ assert.ok(result.louderReport.peakDbfs<result.report.peakDbfs+24.01);
  assert.deepEqual(result.report.arrangement.map(x=>x.sourceBpm),[90,140]);
  assert.deepEqual(result.report.arrangement.map(x=>x.sourceBeatsPerBar),[3,4]);
  assert.deepEqual(result.report.instruments.map(x=>x.renderedNotes),[2,2]);
@@ -96,17 +110,25 @@ try{
   if(l!==r)stereo=true;
  }
  assert.ok(nonzero&&stereo);
+ const louderWav=Buffer.from(result.louderWav,"base64");
+ assert.equal(louderWav.length,wav.length);
+ assert.equal(louderWav.readUInt16LE(22),2);
+ assert.ok(louderWav.subarray(44+5*24000*4).every(x=>x===0));
+ assert.notDeepEqual(louderWav,wav);
  const digest=crypto.createHash("sha256").update(wav).digest("hex");
  const target=process.env.ASAHI_ARTIFACTS_DIR;
  if(target){
   fs.mkdirSync(target,{recursive:true});
   fs.writeFileSync(path.join(target,"two-independent-songs-real-cc0-piano.wav"),wav);
+  fs.writeFileSync(path.join(target,"two-independent-songs-real-cc0-piano-trim-plus24db.wav"),louderWav);
   fs.writeFileSync(path.join(target,"two-independent-songs-real-cc0-piano.json"),
-   JSON.stringify({...result.report,wavSha256:digest,
+   JSON.stringify({...result.report,louderReport:result.louderReport,wavSha256:digest,
     caution:"Real piano recordings, but musical naturalness and iPhone playback are not yet verified."},null,2)+"\n");
  }
  console.log("PASS_REAL_PIANO_TWO_SONGS "+JSON.stringify({
-  sha256:digest,peak:result.report.peak,stereo,sourceUnchanged:true,
+  sha256:digest,peak:result.report.peak,peakDbfs:result.report.peakDbfs,
+  plus24dbPeak:result.louderReport.peak,plus24dbPeakDbfs:result.louderReport.peakDbfs,
+  stereo,sourceUnchanged:true,
   arrangement:result.report.arrangement.map(x=>({bpm:x.sourceBpm,meter:x.sourceBeatsPerBar}))
  }));
 }finally{
