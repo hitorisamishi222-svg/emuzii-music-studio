@@ -7,6 +7,7 @@ on:
       - 'integration/independent-arrangement-renderer.js'
       - 'integration/independent-note-grid-aligner.js'
       - 'integration/independent-stem-fusion.js'
+      - 'tests/real-piano-independent-arrangement-browser.test.mjs'
       - 'integration/recorded-piano-velocity-calibration.js'
       - 'integration/recorded-piano-velocity-blend.js'
       - 'integration/piano-velocity-sweep-audit.js'
