@@ -1,22 +1,24 @@
 // MUSIC-094: render separately composed note events with local recorded samples,
 // then mix their independent PCM stems. No automatic musical compatibility claims.
 import {alignIndependentNoteParts} from "./independent-note-grid-aligner.js";
+import {inspectSimultaneousIntervals} from "./independent-harmony-audit.js";
 import {renderSampledScore} from "./local-sample-sampler.js";
 import {exportFusedStemsWav} from "./independent-stem-fusion.js";
 
 const finite=x=>typeof x==="number"&&Number.isFinite(x);
 export function renderIndependentArrangement(parts,instruments,{
  targetBpm=120,targetBeatsPerBar=4,transposeSemitones=[],offsetBars=0,
- meterMapping="stretch-bars",partOffsetBars=[],
+ meterMapping="stretch-bars",partOffsetBars=[],harmonyAudit=false,
  sampleRate=24000,seconds=30,headroomDb=6,masterTrimDb=0,silenceSeconds=2
 }={}){
  if(!Array.isArray(parts)||!Array.isArray(instruments)||instruments.length!==parts.length||
     !Number.isInteger(sampleRate)||sampleRate<8000||sampleRate>48000||
-    !finite(seconds)||seconds<=0||seconds>60)
+    !finite(seconds)||seconds<=0||seconds>60||typeof harmonyAudit!=="boolean")
   throw Error("独立楽曲と楽器の対応が不正です");
  const aligned=alignIndependentNoteParts(parts,{
   targetBpm,targetBeatsPerBar,transposeSemitones,offsetBars,meterMapping,partOffsetBars
  });
+ const harmony=harmonyAudit?inspectSimultaneousIntervals(aligned):null;
  const stems=[],instrumentReports=[];
  for(let i=0;i<aligned.parts.length;i++){
   const instrument=instruments[i],part=aligned.parts[i];
@@ -53,6 +55,7 @@ export function renderIndependentArrangement(parts,instruments,{
  return {wav:mixed.wav,report:{
   ...mixed.report,sourceUnchanged:true,
   arrangement:aligned.report,instruments:instrumentReports,
+  harmonyAudit:harmony,
   kind:"local-sample-two-composition-arrangement",
   caution:"Beat grid is aligned, but harmony, key, acoustic timbre and musical naturalness require listening."
  }};
