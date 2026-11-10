@@ -59,7 +59,7 @@ try{
     gainDb:i===0?-3:-6,pan:i===0?-.6:.6
    }));
    const snapshot=instruments.map(x=>x.sample.channels[0].slice());
-   const opts={targetBpm:120,targetBeatsPerBar:4,sampleRate:24000,seconds:5,headroomDb:9};
+   const opts={targetBpm:120,targetBeatsPerBar:4,sampleRate:24000,seconds:5,headroomDb:9,harmonyAudit:true};
    const a=renderIndependentArrangement(parts,instruments,opts);
    const b=renderIndependentArrangement(parts,instruments,opts);
    const louder=renderIndependentArrangement(parts,instruments,{...opts,masterTrimDb:24});
@@ -80,6 +80,7 @@ try{
     stemCount:a.report.stemCount,peak:a.report.peak,peakDbfs:a.report.peakDbfs,
     quietPreview:a.report.quietPreview,overloaded:a.report.overloaded,
     arrangement:a.report.arrangement,instruments:a.report.instruments,
+    harmonyAudit:a.report.harmonyAudit,
     sourceUnchanged:a.report.sourceUnchanged
    }};
   }finally{await ctx.close()}
@@ -89,6 +90,9 @@ try{
  assert.equal(result.report.overloaded,false);
  assert.ok(result.report.peak>0&&result.report.peak<1);
  assert.equal(result.report.sourceUnchanged,true);
+ assert.equal(result.report.harmonyAudit.sourceUnchanged,true);
+ assert.ok(result.report.harmonyAudit.totalOverlaps>0);
+ assert.ok(result.report.harmonyAudit.findings.every(x=>x.partA!==x.partB));
  assert.equal(result.report.quietPreview,true);
  assert.ok(result.report.peakDbfs< -30);
  assert.equal(result.louderReport.masterTrimDb,24);
