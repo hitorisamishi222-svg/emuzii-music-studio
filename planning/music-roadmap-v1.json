@@ -2101,6 +2101,58 @@
         "docs/MUSIC_094_LOCAL_INDEPENDENT_ARRANGEMENT.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42631279498"
       ]
+    },
+    {
+      "id": "MUSIC-095",
+      "title": "実録音CC0ピアノで独立2曲をステレオ融合してWAV保存",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 94,
+      "dependsOn": [
+        "MUSIC-094"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "CC0実録音6音源の固定ライセンス・SHA256照合後に2曲を演奏",
+        "90BPM・3拍子のC4旋律と140BPM・4拍子のC3ベースを120BPM・4拍子へ融合",
+        "ステレオWAVの原本不変・決定論・音割れ・末尾無音をChromiumで確認",
+        "実耳の自然さは未合格、WAVの小音量はMUSIC-096で対処"
+      ],
+      "evidence": [
+        "tests/real-piano-independent-arrangement-browser.test.mjs",
+        "docs/MUSIC_095_REAL_PIANO_TWO_SONG_FUSION.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42659931400"
+      ]
+    },
+    {
+      "id": "MUSIC-096",
+      "title": "実録音ピアノ2曲融合の低音量検知と非破壊の任意マスターゲイン比較",
+      "track": "independent-sample-engine",
+      "state": "todo",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-095"
+      ],
+      "blockers": [
+        "実録音Chromiumで標準版・+24dB比較WAVを再検証中"
+      ],
+      "execution": "development-ci",
+      "acceptance": [
+        "MUSIC-095で実録音2曲WAVピーク0.00296（約-50.57dBFS）と判明し、極小音量を課題として検出",
+        "既定ゲインを変更せず明示的な0〜+24dBマスタートリムを実装",
+        "音量増幅でクリップするWAVは書出し拒否、ピークdBFS・低音量警告を監査",
+        "Node単体CI合格。実録音のA/Bと聴感評価は別々に管理"
+      ],
+      "evidence": [
+        "integration/independent-stem-fusion.js",
+        "integration/independent-arrangement-renderer.js",
+        "tests/independent-stem-fusion.test.mjs",
+        "tests/real-piano-independent-arrangement-browser.test.mjs",
+        "docs/MUSIC_096_REAL_PIANO_LOUDNESS_QA.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750760744",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750782289"
+      ]
     }
   ]
 }
