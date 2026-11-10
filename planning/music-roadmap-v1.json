@@ -2154,6 +2154,32 @@
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750782289",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750782289"
       ]
+    },
+    {
+      "id": "MUSIC-097",
+      "title": "独立楽曲の拍感を維持する明示モードと曲ごとの演奏開始小節",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-096"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "既定の小節伸縮を変更せず、preserve-beats指定時は元の拍の長さを対象BPMへ移し、3/4→4/4の無断伸縮を避ける",
+        "各曲の独立した開始小節をpartOffsetBarsで設定し、非破壊で拍位置を計算",
+        "2曲の音声合成WAVへ新モードを接続し、Node CIでテスト合格",
+        "実録音の聴感・調性の自動整合・実機確認は未完了。MUSIC-077はtodo維持"
+      ],
+      "evidence": [
+        "integration/independent-note-grid-aligner.js",
+        "integration/independent-arrangement-renderer.js",
+        "tests/independent-note-grid-aligner.test.mjs",
+        "tests/independent-arrangement-renderer.test.mjs",
+        "docs/MUSIC_097_PRESERVE_BEATS_AND_PART_ENTRANCES.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42877921133"
+      ]
     }
   ]
 }
