@@ -17,12 +17,16 @@ function validatePart(part){
  }
 }
 export function alignIndependentNoteParts(parts,{
- targetBpm=120,targetBeatsPerBar=4,offsetBars=0,transposeSemitones=[],\n meterMapping="stretch-bars",partOffsetBars=[]
+ targetBpm=120,targetBeatsPerBar=4,offsetBars=0,transposeSemitones=[],
+ meterMapping="stretch-bars",partOffsetBars=[]
 }={}){
  if(!Array.isArray(parts)||parts.length<2||parts.length>16||
     !finite(targetBpm)||targetBpm<30||targetBpm>300||
     !integer(targetBeatsPerBar,1,12)||!integer(offsetBars,0,256)||
-    !["stretch-bars","preserve-beats"].includes(meterMapping)||\n    !Array.isArray(partOffsetBars)||partOffsetBars.length>parts.length||\n    !partOffsetBars.every(x=>integer(x,0,256))||\n    !Array.isArray(transposeSemitones)||transposeSemitones.length>parts.length||
+    !["stretch-bars","preserve-beats"].includes(meterMapping)||
+    !Array.isArray(partOffsetBars)||partOffsetBars.length>parts.length||
+    !partOffsetBars.every(x=>integer(x,0,256))||
+    !Array.isArray(transposeSemitones)||transposeSemitones.length>parts.length||
     !transposeSemitones.every(x=>integer(x,-24,24)))
    throw Error("融合先のテンポ・拍子・移調が不正です");
  const names=new Set(),out=[],report=[];
@@ -34,7 +38,8 @@ export function alignIndependentNoteParts(parts,{
   // stretches the note-event grid; this does not preserve absolute durations.
   const barRatio=meterMapping==="stretch-bars"?targetBeatsPerBar/part.beatsPerBar:1;
   const semitones=transposeSemitones[i]??0;
-  const effectiveOffsetBars=offsetBars+(partOffsetBars[i]??0);\n  const offsetBeats=effectiveOffsetBars*targetBeatsPerBar;
+  const effectiveOffsetBars=offsetBars+(partOffsetBars[i]??0);
+  const offsetBeats=effectiveOffsetBars*targetBeatsPerBar;
   const notes=part.notes.map(n=>{
    const midi=n.midi+semitones;
    if(!integer(midi,0,127))throw Error("移調後の音域がMIDI範囲外です");
