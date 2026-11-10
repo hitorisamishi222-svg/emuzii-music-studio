@@ -5,6 +5,7 @@ on:
     paths:
       - 'integration/recorded-piano-six-sample-map.js'
       - 'integration/independent-arrangement-renderer.js'
+      - 'integration/independent-harmony-audit.js'
       - 'integration/independent-note-grid-aligner.js'
       - 'integration/independent-stem-fusion.js'
       - 'tests/real-piano-independent-arrangement-browser.test.mjs'
