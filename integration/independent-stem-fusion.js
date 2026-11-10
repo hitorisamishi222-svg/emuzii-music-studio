@@ -8,16 +8,18 @@ const MAX_TRACKS=16;
 const isValidName=x=>typeof x==="string"&&x.length>=1&&x.length<=64&&
  !/[\u0000-\u001f]/.test(x);
 
-export function fuseIndependentStems(stems,{sampleRate=24000,seconds=30,headroomDb=6}={}){
+export function fuseIndependentStems(stems,{sampleRate=24000,seconds=30,headroomDb=6,masterTrimDb=0}={}){
  if(!Array.isArray(stems)||stems.length<2||stems.length>MAX_TRACKS||
     !Number.isInteger(sampleRate)||sampleRate<8000||sampleRate>48000||
     !finite(seconds)||seconds<=0||seconds>60||
-    !finite(headroomDb)||headroomDb<0||headroomDb>24)
+    !finite(headroomDb)||headroomDb<0||headroomDb>24||
+    !finite(masterTrimDb)||masterTrimDb<0||masterTrimDb>24)
    throw Error("独立ステムの合成設定が不正です");
  const frames=Math.ceil(seconds*sampleRate);
  const left=new Float32Array(frames),right=new Float32Array(frames);
  const names=new Set(),report=[];
- const masterGain=Math.pow(10,-headroomDb/20);
+ // Explicit gain-staging experiment; zero by default, never auto-normalized.
+ const masterGain=Math.pow(10,(masterTrimDb-headroomDb)/20);
  // Equal-power panning with center normalized to unity for a mono reference:
  // center is -3dB per side, not a hard left/right gain boost.
  for(const stem of stems){
@@ -49,7 +51,10 @@ export function fuseIndependentStems(stems,{sampleRate=24000,seconds=30,headroom
  }
  return {channels:[left,right],sampleRate,seconds,stemCount:stems.length,
   stemReport:report,peak,clippedFrames,overloaded:clippedFrames>0,
-  headroomDb,kind:"non-destructive-independent-stem-stereo-mix",
+  headroomDb,masterTrimDb,
+  peakDbfs:peak>0?20*Math.log10(peak):null,
+  quietPreview:peak>0&&peak<Math.pow(10,-30/20),
+  kind:"non-destructive-independent-stem-stereo-mix",
   sourceUnchanged:true};
 }
 
