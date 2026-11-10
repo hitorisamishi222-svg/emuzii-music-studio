@@ -63,3 +63,18 @@ test("rejects duplicate tracks, mismatched length, invalid pan and NaN PCM",()=>
  assert.throws(()=>fuseIndependentStems([a[0],{...a[1],pcm:corrupt}],{sampleRate:sr,seconds}));
  assert.throws(()=>fuseIndependentStems([a[0]],{sampleRate:sr,seconds}));
 });
+
+test("master trim is opt-in, improves a quiet preview and refuses clipping",()=>{
+ const quiet=stems().map(x=>({...x,pcm:x.pcm.map(v=>v*.01)}));
+ const a=fuseIndependentStems(quiet,{sampleRate:sr,seconds});
+ const b=fuseIndependentStems(quiet,{sampleRate:sr,seconds,masterTrimDb:24});
+ assert.equal(a.masterTrimDb,0);
+ assert.equal(a.quietPreview,true);
+ assert.ok(b.peak>a.peak*15&&b.peak<a.peak*16);
+ assert.ok(b.peakDbfs>a.peakDbfs+23.99);
+ assert.ok(b.peakDbfs<a.peakDbfs+24.01);
+ assert.equal(b.overloaded,false);
+ assert.throws(()=>fuseIndependentStems(quiet,{sampleRate:sr,seconds,masterTrimDb:25}));
+ const loud=stems().map(x=>({...x,pcm:x.pcm.map(v=>v*5),gainDb:12,pan:0}));
+ assert.throws(()=>exportFusedStemsWav(loud,{sampleRate:sr,seconds,headroomDb:0,masterTrimDb:24}),/音割れ/);
+});
