@@ -56,3 +56,15 @@ test("missing instrument, out-of-range notes, too-short samples and overload are
  const hot=i.map(x=>({...x,sample:makeSample(440),gainDb:12,pan:0,region:{...x.region,volumeDb:0}}));
  assert.throws(()=>renderIndependentArrangement(p,hot,{...options,headroomDb:0}),/音割れ/);
 });
+
+test("two-song WAV honors opt-in original-beat rhythm and separate bass entrance",()=>{
+ const r=renderIndependentArrangement(parts(),instruments(),{
+  ...options,meterMapping:"preserve-beats",partOffsetBars:[0,1]
+ });
+ assert.equal(r.report.arrangement[0].meterMapping,"preserve-beats");
+ assert.equal(r.report.arrangement[0].barRatio,1);
+ assert.equal(r.report.arrangement[1].offsetBars,1);
+ assert.equal(r.report.instruments[0].renderedNotes,2);
+ assert.equal(r.report.instruments[1].renderedNotes,2);
+ assert.equal(r.report.overloaded,false);
+});
