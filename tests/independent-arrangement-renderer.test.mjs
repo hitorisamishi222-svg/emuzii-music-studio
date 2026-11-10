@@ -68,3 +68,14 @@ test("two-song WAV honors opt-in original-beat rhythm and separate bass entrance
  assert.equal(r.report.instruments[1].renderedNotes,2);
  assert.equal(r.report.overloaded,false);
 });
+
+test("optional interval audit reports overlaps but never edits or changes the WAV",()=>{
+ const a=renderIndependentArrangement(parts(),instruments(),options);
+ const b=renderIndependentArrangement(parts(),instruments(),{...options,harmonyAudit:true});
+ assert.deepEqual(b.wav,a.wav);
+ assert.equal(a.report.harmonyAudit,null);
+ assert.equal(b.report.harmonyAudit.sourceUnchanged,true);
+ assert.ok(b.report.harmonyAudit.totalOverlaps>0);
+ assert.equal(b.report.harmonyAudit.kind,"advisory-cross-part-interval-audit");
+ assert.throws(()=>renderIndependentArrangement(parts(),instruments(),{...options,harmonyAudit:"yes"}));
+});
