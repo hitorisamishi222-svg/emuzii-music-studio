@@ -2129,20 +2129,20 @@
       "id": "MUSIC-096",
       "title": "実録音ピアノ2曲融合の低音量検知と非破壊の任意マスターゲイン比較",
       "track": "independent-sample-engine",
-      "state": "todo",
+      "state": "done",
       "priority": 95,
       "dependsOn": [
         "MUSIC-095"
       ],
-      "blockers": [
-        "実録音Chromiumで標準版・+24dB比較WAVを再検証中"
-      ],
+      "blockers": [],
       "execution": "development-ci",
       "acceptance": [
         "MUSIC-095で実録音2曲WAVピーク0.00296（約-50.57dBFS）と判明し、極小音量を課題として検出",
         "既定ゲインを変更せず明示的な0〜+24dBマスタートリムを実装",
         "音量増幅でクリップするWAVは書出し拒否、ピークdBFS・低音量警告を監査",
-        "Node単体CI合格。実録音のA/Bと聴感評価は別々に管理"
+        "Node単体CI合格。実録音のA/Bと聴感評価は別々に管理",
+        "実録音CC0 Chromium比較WAV生成に合格。元ピーク-50.574dBFS→明示+24dBで-26.574dBFS、過負荷なし、元録音不変",
+        "人間の聴感とスマホ実機テストは未実施のため、音楽的な合格は認定しない"
       ],
       "evidence": [
         "integration/independent-stem-fusion.js",
@@ -2151,6 +2151,7 @@
         "tests/real-piano-independent-arrangement-browser.test.mjs",
         "docs/MUSIC_096_REAL_PIANO_LOUDNESS_QA.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750760744",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750782289",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42750782289"
       ]
     }
