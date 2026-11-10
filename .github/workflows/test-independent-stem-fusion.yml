@@ -6,10 +6,12 @@ on:
       - 'integration/independent-stem-fusion.js'
       - 'integration/independent-note-grid-aligner.js'
       - 'integration/independent-arrangement-renderer.js'
+      - 'integration/independent-harmony-audit.js'
       - 'integration/audio-tail-finisher.js'
       - 'tests/independent-stem-fusion.test.mjs'
       - 'tests/independent-note-grid-aligner.test.mjs'
       - 'tests/independent-arrangement-renderer.test.mjs'
+      - 'tests/independent-harmony-audit.test.mjs'
       - '.github/workflows/test-independent-stem-fusion.yml'
   workflow_dispatch:
 permissions:
@@ -24,4 +26,4 @@ jobs:
         with:
           node-version: '22'
       - name: Validate stereo two-stem fusion, no-clipping and original preservation
-        run: node --test tests/independent-stem-fusion.test.mjs tests/independent-note-grid-aligner.test.mjs tests/independent-arrangement-renderer.test.mjs
+        run: node --test tests/independent-stem-fusion.test.mjs tests/independent-note-grid-aligner.test.mjs tests/independent-arrangement-renderer.test.mjs tests/independent-harmony-audit.test.mjs
