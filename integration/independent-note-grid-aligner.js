@@ -17,12 +17,12 @@ function validatePart(part){
  }
 }
 export function alignIndependentNoteParts(parts,{
- targetBpm=120,targetBeatsPerBar=4,offsetBars=0,transposeSemitones=[]
+ targetBpm=120,targetBeatsPerBar=4,offsetBars=0,transposeSemitones=[],\n meterMapping="stretch-bars",partOffsetBars=[]
 }={}){
  if(!Array.isArray(parts)||parts.length<2||parts.length>16||
     !finite(targetBpm)||targetBpm<30||targetBpm>300||
     !integer(targetBeatsPerBar,1,12)||!integer(offsetBars,0,256)||
-    !Array.isArray(transposeSemitones)||transposeSemitones.length>parts.length||
+    !["stretch-bars","preserve-beats"].includes(meterMapping)||\n    !Array.isArray(partOffsetBars)||partOffsetBars.length>parts.length||\n    !partOffsetBars.every(x=>integer(x,0,256))||\n    !Array.isArray(transposeSemitones)||transposeSemitones.length>parts.length||
     !transposeSemitones.every(x=>integer(x,-24,24)))
    throw Error("融合先のテンポ・拍子・移調が不正です");
  const names=new Set(),out=[],report=[];
@@ -32,9 +32,9 @@ export function alignIndependentNoteParts(parts,{
   names.add(part.name);
   // Map source bar fraction to destination bar fraction. E.g. 3/4 -> 4/4
   // stretches the note-event grid; this does not preserve absolute durations.
-  const barRatio=targetBeatsPerBar/part.beatsPerBar;
+  const barRatio=meterMapping==="stretch-bars"?targetBeatsPerBar/part.beatsPerBar:1;
   const semitones=transposeSemitones[i]??0;
-  const offsetBeats=offsetBars*targetBeatsPerBar;
+  const effectiveOffsetBars=offsetBars+(partOffsetBars[i]??0);\n  const offsetBeats=effectiveOffsetBars*targetBeatsPerBar;
   const notes=part.notes.map(n=>{
    const midi=n.midi+semitones;
    if(!integer(midi,0,127))throw Error("移調後の音域がMIDI範囲外です");
@@ -49,7 +49,7 @@ export function alignIndependentNoteParts(parts,{
   out.push({name:part.name,notes});
   report.push({name:part.name,sourceBpm:part.bpm,sourceBeatsPerBar:part.beatsPerBar,
    targetBpm,targetBeatsPerBar,barRatio,transposeSemitones:semitones,
-   noteCount:notes.length,offsetBars,
+   noteCount:notes.length,offsetBars:effectiveOffsetBars,meterMapping,
    caution:"Note grid transformed only; harmony, accents and meter compatibility are not certified."});
  }
  return {parts:out,report,targetBpm,targetBeatsPerBar,
