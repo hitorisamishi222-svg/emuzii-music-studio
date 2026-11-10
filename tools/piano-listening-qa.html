@@ -27,11 +27,12 @@ legend{font-weight:800}fieldset label{font-weight:500;margin:8px 0}
 <audio id="player" controls preload="metadata"></audio>
 <p id="now" role="status">A・Bをそれぞれ選択してください。</p>
 <p class="muted">切替時は現在位置を引き継ぐよう試みます。端末の再生制限により、再生ボタンをもう一度押す必要がある場合があります。</p>
+<p class="notice">MUSIC-096：標準版と+24dB版は音量が違います。大きい方を「音質が良い」と即断せず、端末の音量を下げて比較してください。自動音量一致・自動採点は行いません。</p>
 <p id="error" role="alert"></p>
 </section>
 <section class="panel"><h2>② 自分の耳で評価</h2>
 <label for="pitch">確認した音域</label>
-<select id="pitch"><option>C3</option><option selected>C4</option><option>C5</option><option>30秒の曲全体</option></select>
+<select id="pitch"><option>C3</option><option selected>C4</option><option>C5</option><option>30秒の曲全体</option><option>独立2曲の融合（実録音ピアノ）</option></select>
 <fieldset><legend>BはAに比べて強弱が自然？</legend>
 <label><input type="radio" name="dynamics" value="better"> Bが良い</label>
 <label><input type="radio" name="dynamics" value="same"> 大きな違いは感じない</label>
@@ -96,6 +97,8 @@ $("save").addEventListener("click",()=>{
   sourceB:$("fileB").files?.[0]?.name??null,
   pitch:$("pitch").value,dynamics:checked("dynamics"),
   timbre:checked("timbre"),artifact:checked("artifact"),memo:$("memo").value,
+  comparisonKind:$("pitch").value==="独立2曲の融合（実録音ピアノ）"?"two-independent-songs-recorded-piano":"piano-timbre",
+  loudnessMatchedByListener:false,
   listeningReviewOnly:true
  };
  const uri=URL.createObjectURL(new Blob([JSON.stringify(review,null,2)+"\n"],{type:"application/json"}));
