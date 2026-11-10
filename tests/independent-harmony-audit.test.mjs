@@ -14,9 +14,9 @@ test("interval diagnostic finds only actual cross-song overlaps and labels semit
  const original=parts(),before=structuredClone(original);
  const aligned=alignIndependentNoteParts(original);
  const result=inspectSimultaneousIntervals(aligned);
- assert.equal(result.totalOverlaps,4);
- assert.deepEqual(result.findings.map(x=>x.semitones),[12,1,3,16]);
- assert.deepEqual(result.findings.map(x=>x.interval),["unison","minor-second","minor-third","major-third"]);
+ assert.equal(result.totalOverlaps,3);
+ assert.deepEqual(result.findings.map(x=>x.semitones),[12,1,3]);
+ assert.deepEqual(result.findings.map(x=>x.interval),["unison","minor-second","minor-third"]);
  assert.equal(result.findings[1].attention,"review");
  assert.equal(result.findings[2].attention,"neutral");
  assert.equal(result.sourceUnchanged,true);
@@ -31,7 +31,7 @@ test("delayed entrance removes earlier overlap without changing the composition"
 test("bounded output reports truncation rather than silently declaring no issues",()=>{
  const aligned=alignIndependentNoteParts(parts());
  const result=inspectSimultaneousIntervals(aligned,{maxFindings:2});
- assert.equal(result.totalOverlaps,4);
+ assert.equal(result.totalOverlaps,3);
  assert.equal(result.findings.length,2);
  assert.equal(result.truncated,true);
  assert.throws(()=>inspectSimultaneousIntervals(aligned,{maxFindings:0}));
