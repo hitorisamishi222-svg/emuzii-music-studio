@@ -6,7 +6,8 @@ import {exportFusedStemsWav} from "./independent-stem-fusion.js";
 
 const finite=x=>typeof x==="number"&&Number.isFinite(x);
 export function renderIndependentArrangement(parts,instruments,{
- targetBpm=120,targetBeatsPerBar=4,transposeSemitones=[],offsetBars=0,\n meterMapping="stretch-bars",partOffsetBars=[],
+ targetBpm=120,targetBeatsPerBar=4,transposeSemitones=[],offsetBars=0,
+ meterMapping="stretch-bars",partOffsetBars=[],
  sampleRate=24000,seconds=30,headroomDb=6,masterTrimDb=0,silenceSeconds=2
 }={}){
  if(!Array.isArray(parts)||!Array.isArray(instruments)||instruments.length!==parts.length||
