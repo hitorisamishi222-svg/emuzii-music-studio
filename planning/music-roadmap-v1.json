@@ -2207,6 +2207,30 @@
         "docs/MUSIC_098_CROSS_SONG_HARMONY_AUDIT.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42921985782"
       ]
+    },
+    {
+      "id": "MUSIC-099",
+      "title": "独立楽曲の入り位置候補を非破壊で比較し、重なり音程の件数を提示",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-098"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "曲Bの開始小節を複数候補で計算し、同時発音と注意音程の件数を提示",
+        "候補による元楽曲の変更なし、結果は決定論的で無効指定は拒否",
+        "件数が少ないほど音楽的に良いとは判定しない。実耳評価は未実施",
+        "Node CIで候補比較のテスト合格"
+      ],
+      "evidence": [
+        "integration/independent-entrance-options.js",
+        "tests/independent-entrance-options.test.mjs",
+        "docs/MUSIC_099_ENTRANCE_OPTIONS.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42947867525"
+      ]
     }
   ]
 }
