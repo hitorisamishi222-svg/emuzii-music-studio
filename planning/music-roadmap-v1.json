@@ -2231,6 +2231,30 @@
         "docs/MUSIC_099_ENTRANCE_OPTIONS.md",
         "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42947867525"
       ]
+    },
+    {
+      "id": "MUSIC-100",
+      "title": "独立2曲の入り位置候補をそれぞれステレオWAVにして試聴可能な形で出力",
+      "track": "independent-sample-engine",
+      "state": "done",
+      "priority": 95,
+      "dependsOn": [
+        "MUSIC-099"
+      ],
+      "blockers": [],
+      "execution": "development-ci",
+      "acceptance": [
+        "最大4つの開始小節候補からそれぞれ独立したWAVバイト列を生成",
+        "監査結果の重なり件数とWAVレポートの整合を検証し、音符・サンプルを保護",
+        "候補間のWAV差分、元データ不変、末尾無音、候補数・時間超過拒否のNode CI合格",
+        "実録音での候補試聴・スマホ公開UI・人間の聴感は未完了"
+      ],
+      "evidence": [
+        "integration/independent-entrance-preview-renderer.js",
+        "tests/independent-arrangement-renderer.test.mjs",
+        "docs/MUSIC_100_ENTRANCE_AUDIO_PREVIEWS.md",
+        "https://github.com/hitorisamishi222-svg/emuzii-music-studio/actions/runs/42993703274"
+      ]
     }
   ]
 }
