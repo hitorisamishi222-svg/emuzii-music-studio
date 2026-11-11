@@ -8,6 +8,7 @@ on:
       - 'integration/independent-arrangement-renderer.js'
       - 'integration/independent-harmony-audit.js'
       - 'integration/independent-entrance-options.js'
+      - 'integration/independent-entrance-preview-renderer.js'
       - 'integration/audio-tail-finisher.js'
       - 'tests/independent-stem-fusion.test.mjs'
       - 'tests/independent-note-grid-aligner.test.mjs'
