@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {renderIndependentArrangement} from "../integration/independent-arrangement-renderer.js";
+import {renderIndependentEntrancePreviews} from "../integration/independent-entrance-preview-renderer.js";
 const sr=24000;
 const makeSample=freq=>{
  const data=new Float32Array(sr*4);
@@ -78,4 +79,25 @@ test("optional interval audit reports overlaps but never edits or changes the WA
  assert.ok(b.report.harmonyAudit.totalOverlaps>0);
  assert.equal(b.report.harmonyAudit.kind,"advisory-cross-part-interval-audit");
  assert.throws(()=>renderIndependentArrangement(parts(),instruments(),{...options,harmonyAudit:"yes"}));
+});
+
+test("MUSIC-100 produces two playable alternative WAVs with original source unchanged",()=>{
+ const p=parts(),i=instruments(),before=structuredClone(p),samples=i.map(x=>x.sample.channels[0].slice());
+ const opts={...options,seconds:10,meterMapping:"preserve-beats"};
+ const result=renderIndependentEntrancePreviews(p,i,{...opts,candidateOffsetBars:[0,1]});
+ assert.equal(result.previews.length,2);
+ assert.equal(result.sourceUnchanged,true);
+ assert.notDeepEqual(result.previews[0].wav,result.previews[1].wav);
+ for(const preview of result.previews){
+  assert.deepEqual(Array.from(preview.wav.slice(0,4)),[82,73,70,70]);
+  assert.equal(preview.report.overloaded,false);
+  assert.equal(preview.report.harmonyAudit.totalOverlaps,preview.comparison.totalOverlaps);
+  assert.ok(preview.wav.subarray(44+10*sr*4).every(x=>x===0));
+ }
+ assert.deepEqual(result.previews[0].wav,renderIndependentArrangement(p,i,{
+  ...opts,partOffsetBars:[0,0],harmonyAudit:true}).wav);
+ assert.deepEqual(p,before);
+ for(let n=0;n<i.length;n++)assert.deepEqual(i[n].sample.channels[0],samples[n]);
+ assert.throws(()=>renderIndependentEntrancePreviews(p,i,{...opts,candidateOffsetBars:[0,1,2,3,4]}));
+ assert.throws(()=>renderIndependentEntrancePreviews(p,i,{...opts,seconds:1,candidateOffsetBars:[0,1]}));
 });
