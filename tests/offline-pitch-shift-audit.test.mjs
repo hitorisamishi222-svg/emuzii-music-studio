@@ -7,6 +7,7 @@ test("reports measured pitch difference without claiming accuracy or mutating so
  const original=sine.slice();
  for(const cents of [-35,35,60]){
   const report=auditOfflinePitchShift(sine,{sampleRate:sr,correctionCents:cents});
+  console.log('MUSIC105_DIAGNOSTIC',JSON.stringify({requestedCents:cents,actualCents:report.actualCents,errorCents:report.errorCents,within20Cents:report.within20Cents}));
   assert.equal(report.requestedCents,cents);
   assert.equal(typeof report.within20Cents,"boolean");
   assert.equal(report.sourceUnchanged,true);
