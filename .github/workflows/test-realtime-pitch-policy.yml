@@ -4,7 +4,9 @@ on:
     branches: [feature/vocal-recorder-v1]
     paths:
       - 'integration/realtime-pitch-correction-policy.js'
+      - 'integration/offline-monophonic-pitch-estimator.js'
       - 'tests/realtime-pitch-correction-policy.test.mjs'
+      - 'tests/offline-monophonic-pitch-estimator.test.mjs'
       - '.github/workflows/test-realtime-pitch-policy.yml'
   workflow_dispatch:
 permissions:
@@ -19,4 +21,4 @@ jobs:
         with:
           node-version: '22'
       - name: Validate selective pitch decisions without audio manipulation
-        run: node --test tests/realtime-pitch-correction-policy.test.mjs
+        run: node --test tests/realtime-pitch-correction-policy.test.mjs tests/offline-monophonic-pitch-estimator.test.mjs
