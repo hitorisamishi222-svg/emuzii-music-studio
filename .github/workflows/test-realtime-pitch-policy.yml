@@ -1,0 +1,22 @@
+name: Test Realtime Pitch Correction Policy
+on:
+  push:
+    branches: [feature/vocal-recorder-v1]
+    paths:
+      - 'integration/realtime-pitch-correction-policy.js'
+      - 'tests/realtime-pitch-correction-policy.test.mjs'
+      - '.github/workflows/test-realtime-pitch-policy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate selective pitch decisions without audio manipulation
+        run: node --test tests/realtime-pitch-correction-policy.test.mjs
