@@ -11,6 +11,7 @@ on:
       - 'integration/long-window-pitch-research.js'
       - 'integration/pitch-research-window-sweep.js'
       - 'integration/pitch-trajectory-audit.js'
+      - 'integration/pitch-motion-safety-gate.js'
       - 'tests/realtime-pitch-correction-policy.test.mjs'
       - 'tests/offline-monophonic-pitch-estimator.test.mjs'
       - 'tests/offline-vocal-correction-analysis.test.mjs'
@@ -19,6 +20,7 @@ on:
       - 'tests/long-window-pitch-research.test.mjs'
       - 'tests/pitch-research-window-sweep.test.mjs'
       - 'tests/pitch-trajectory-audit.test.mjs'
+      - 'tests/pitch-motion-safety-gate.test.mjs'
       - '.github/workflows/test-realtime-pitch-policy.yml'
   workflow_dispatch:
 permissions:
@@ -33,4 +35,4 @@ jobs:
         with:
           node-version: '22'
       - name: Validate selective pitch decisions without audio manipulation
-        run: node --test tests/realtime-pitch-correction-policy.test.mjs tests/offline-monophonic-pitch-estimator.test.mjs tests/offline-vocal-correction-analysis.test.mjs tests/offline-pitch-shift-prototype.test.mjs tests/offline-pitch-shift-audit.test.mjs tests/long-window-pitch-research.test.mjs tests/pitch-research-window-sweep.test.mjs tests/pitch-trajectory-audit.test.mjs
+        run: node --test tests/realtime-pitch-correction-policy.test.mjs tests/offline-monophonic-pitch-estimator.test.mjs tests/offline-vocal-correction-analysis.test.mjs tests/offline-pitch-shift-prototype.test.mjs tests/offline-pitch-shift-audit.test.mjs tests/long-window-pitch-research.test.mjs tests/pitch-research-window-sweep.test.mjs tests/pitch-trajectory-audit.test.mjs tests/pitch-motion-safety-gate.test.mjs
